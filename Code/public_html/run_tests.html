@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Suzi Shop — Regression Tests</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#fffdf0;color:#2d2220;padding:2rem}
+h1{color:#a07810;font-size:1.3rem;margin-bottom:.3rem}
+.sub{color:#6b6040;font-size:.85rem;margin-bottom:1.2rem}
+.row4{display:grid;grid-template-columns:repeat(4,1fr);gap:.7rem;margin-bottom:1.2rem}
+.stat{background:#fff;border:1px solid #e8e0b8;border-radius:9px;padding:.9rem;text-align:center}
+.sn{font-size:1.8rem;font-weight:700}.sl{font-size:.72rem;color:#6b6040;text-transform:uppercase}
+.green{color:#2e7d32}.red{color:#c62828}.gold{color:#a07810}
+.btns{display:flex;gap:.6rem;align-items:center;margin-bottom:1.2rem}
+.rbtn{background:#d4a017;color:#fff;border:none;border-radius:7px;padding:.6rem 1.4rem;font-size:.9rem;font-weight:600;cursor:pointer}
+.rbtn:disabled{opacity:.55;cursor:not-allowed}
+.cbtn{background:none;border:1.5px solid #c62828;color:#c62828;border-radius:7px;padding:.55rem 1.1rem;font-size:.85rem;font-weight:600;cursor:pointer}
+.bar-bg{background:#f0e8d0;border-radius:99px;height:7px;overflow:hidden;margin-bottom:1.2rem}
+.bar{height:100%;border-radius:99px;transition:width .4s;background:#2e7d32}
+.grp{background:#fff;border:1px solid #e8e0b8;border-radius:9px;margin-bottom:.8rem;overflow:hidden}
+.gh{background:#f9f4e4;padding:.6rem 1rem;font-size:.78rem;font-weight:700;text-transform:uppercase;color:#a07810;border-bottom:1px solid #e8e0b8;letter-spacing:.05em;display:flex;justify-content:space-between}
+.gc{font-weight:400;color:#6b6040}
+.tr{display:flex;align-items:center;gap:.7rem;padding:.42rem .9rem;border-bottom:.5px solid #f5efe0;font-size:.82rem}
+.tr:last-child{border-bottom:none}
+.ic{width:17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0}
+.iw{background:#fff8e1;border:1px solid #ffe082}.ip{background:#e8f5e9;color:#2e7d32}.if{background:#fdecea;color:#c62828}.ix{background:#f0f0f0;color:#999}
+.sp{display:inline-block;width:9px;height:9px;border:2px solid #ddd;border-top-color:#a07810;border-radius:50%;animation:sp .6s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.det{font-size:.7rem;color:#c62828;font-family:monospace}
+.err{color:#c62828;padding:1rem;background:#fdecea;border-radius:8px;font-size:.85rem}
+</style>
+</head>
+<body>
+<h1>🧪 Suzi Shop — Regression Tests</h1>
+<p class="sub">DB schema · data integrity · required files · JS functions</p>
+<div class="row4">
+  <div class="stat"><div class="sn green" id="np">—</div><div class="sl">Passing</div></div>
+  <div class="stat"><div class="sn red"   id="nf">—</div><div class="sl">Failing</div></div>
+  <div class="stat"><div class="sn gold"  id="nt">—</div><div class="sl">Total</div></div>
+  <div class="stat"><div class="sn"       id="nc">—</div><div class="sl">Pass Rate</div></div>
+</div>
+<div class="bar-bg"><div class="bar" id="bar" style="width:0%"></div></div>
+<div class="btns">
+  <button class="rbtn" id="rbtn" onclick="go()">▶ Run Tests</button>
+  <button class="cbtn" id="cbtn" style="display:none" onclick="stop()">✕ Cancel</button>
+</div>
+<div id="out"></div>
+<script>
+const G={
+  'DB Schema':['orders.tax_amount','orders.tax_swept_date','orders.payment_method','orders.customer_email','orders.total','products.sku','products.img1','products.price','products.name','products.status','orders table','products table','order_items table','settings table','tax_sweeps table','settings LONGTEXT','tax_swept removed'],
+  'Data Integrity':['products exist','orders exist','settings exist','square_mode set','shipping_config','biz_profile'],
+  'Required Files':['api/config.php','api/admin.php','api/orders.php','api/products.php','api/tax_sweep.php','api/square_payments.php','mailer.php','checkout.php','send_confirm.php','index.html'],
+  'JS Functions':['JS:openCheckout','JS:placeOrder','JS:renderOrdersTable','JS:viewOrder','JS:showManualOrderForm','JS:sendConfirmEmail','JS:rSweep','JS:rSqPay','JS:applyShippingConfig','JS:rBizProfile','JS:buildAdminNav','JS:saveNavOrder','JS:rRegTest','JS:runRegTests','JS:cancelRegTests','JS:SQ_FEE_PCT','JS:TAX_RATES','JS:admin-nav']
+};
+function skeleton(){
+  let h='';
+  for(const[g,ts]of Object.entries(G)){
+    h+=`<div class="grp"><div class="gh">${g}<span class="gc">${ts.length}</span></div>`;
+    ts.forEach(t=>{const k=t.replace(/\W/g,'_');h+=`<div class="tr"><div class="ic iw" id="i${k}"><div class="sp"></div></div><div style="flex:1">${t}</div><div class="det" id="d${k}"></div></div>`;});
+    h+='</div>';
+  }
+  document.getElementById('out').innerHTML=h;
+}
+let ctl=null;
+function go(){
+  const rb=document.getElementById('rbtn'),cb=document.getElementById('cbtn');
+  rb.disabled=true;rb.textContent='Running…';
+  cb.style.display='inline-block';
+  skeleton();
+  ctl=new AbortController();
+  fetch('/regression_test.php',{cache:'no-store',signal:ctl.signal})
+  .then(r=>r.json()).then(d=>{
+    d.results.forEach(r=>{
+      const k=r.name.replace(/\W/g,'_'),ic=document.getElementById('i'+k),dt=document.getElementById('d'+k);
+      if(!ic)return;
+      ic.className=r.ok?'ic ip':'ic if';ic.innerHTML=r.ok?'✓':'✗';
+      if(!r.ok&&dt&&r.detail)dt.textContent=r.detail;
+    });
+    document.getElementById('np').textContent=d.pass;
+    document.getElementById('nf').textContent=d.fail;
+    document.getElementById('nt').textContent=d.total;
+    document.getElementById('nc').textContent=d.pct+'%';
+    const bar=document.getElementById('bar');bar.style.width=d.pct+'%';
+    if(d.pct<100)bar.style.background='#a07810';
+    rb.textContent=d.fail===0?'✓ All Passed — Run Again':'✗ '+d.fail+' Failed — Run Again';
+    rb.disabled=false;cb.style.display='none';
+  }).catch(e=>{
+    if(e.name!=='AbortError')document.getElementById('out').innerHTML=`<div class="err">Error: ${e.message}<br>Make sure regression_test.php is in public_html.</div>`;
+    rb.disabled=false;rb.textContent='▶ Run Tests';cb.style.display='none';
+  });
+}
+function stop(){
+  if(ctl)ctl.abort();
+  document.querySelectorAll('.iw').forEach(i=>{i.className='ic ix';i.innerHTML='—';});
+  document.getElementById('rbtn').disabled=false;
+  document.getElementById('rbtn').textContent='▶ Run Tests';
+  document.getElementById('cbtn').style.display='none';
+}
+</script>
+</body>
+</html>
