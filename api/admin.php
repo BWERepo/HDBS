@@ -92,6 +92,11 @@ if ($method === 'POST' && $action === 'get_setting') {
         setSetting($pdo, $key, '0');
         $val = '0';
     }
+    // auto-generate rt_token if not set
+    if ($val === null && $key === 'rt_token') {
+        $val = bin2hex(random_bytes(16));
+        setSetting($pdo, $key, $val);
+    }
     ok(['value' => $val]);
 }
 

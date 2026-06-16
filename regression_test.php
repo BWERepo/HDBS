@@ -1,4 +1,29 @@
 <?php
+// Token gate — must match rt_token in settings table
+(function(){
+    $cfg=dirname(__FILE__).'/api/config.php';
+    if(!file_exists($cfg)){http_response_code(503);header('Content-Type: application/json');echo json_encode(['error'=>'config missing']);exit;}
+    require_once $cfg;
+    try{
+        $pdo=db();
+        $s=$pdo->prepare("SELECT value FROM settings WHERE key_name='rt_token'");
+        $s->execute();
+        $r=$s->fetch();
+        $stored=$r?$r['value']:'';
+        $given=$_GET['token']??'';
+        if(!$stored||!hash_equals($stored,$given)){
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['error'=>'Forbidden']);
+            exit;
+        }
+    }catch(Exception $e){
+        http_response_code(500);
+        header('Content-Type: application/json');
+        echo json_encode(['error'=>'DB error']);
+        exit;
+    }
+})();
 ob_start();
 register_shutdown_function(function(){
     $e=error_get_last();
@@ -37,6 +62,7 @@ t('tax_swept removed', !in_array('tax_swept',$ocols));
 try{t('products exist',(int)$pdo->query("SELECT COUNT(*) FROM products")->fetchColumn()>0);}catch(Exception $e){t('products exist',false,$e->getMessage());}
 try{t('orders exist', (int)$pdo->query("SELECT COUNT(*) FROM orders")->fetchColumn()>0);}catch(Exception $e){t('orders exist',false,$e->getMessage());}
 try{t('settings exist',(int)$pdo->query("SELECT COUNT(*) FROM settings")->fetchColumn()>0);}catch(Exception $e){t('settings exist',false,$e->getMessage());}
+try{$rtt=$pdo->query("SELECT value FROM settings WHERE key_name='rt_token' LIMIT 1")->fetchColumn();t('rt_token set',$rtt!==false&&strlen($rtt)>=16);}catch(Exception $e){t('rt_token set',false,$e->getMessage());}
 try{$sq=$pdo->query("SELECT value FROM settings WHERE key_name='square_mode' LIMIT 1")->fetchColumn();t('square_mode set',$sq!==false);}catch(Exception $e){t('square_mode set',false,$e->getMessage());}
 try{$sh=json_decode($pdo->query("SELECT value FROM settings WHERE key_name='shipping_config' LIMIT 1")->fetchColumn(),true);t('shipping_config',$sh!==null&&isset($sh['zone_rates']));}catch(Exception $e){t('shipping_config',false,$e->getMessage());}
 try{$bz=json_decode($pdo->query("SELECT value FROM settings WHERE key_name='biz_profile' LIMIT 1")->fetchColumn(),true);t('biz_profile',$bz!==null&&isset($bz['legal_name']));}catch(Exception $e){t('biz_profile',false,$e->getMessage());}
@@ -510,6 +536,23 @@ try{
     $navjs=file_get_contents($root.'/js/admin-nav.js');
     t('admin-nav logs page view',strpos($navjs,'log_page_view')!==false&&strpos($navjs,'hdbs_pagelog')!==false);
 }catch(Exception $e){t('page view logging checks',false,$e->getMessage());}
+
+// ── REGRESSION TEST SECURITY ──
+try{
+    $rtphp=file_get_contents($root.'/regression_test.php');
+    t('regression_test.php has token gate',strpos($rtphp,'rt_token')!==false&&strpos($rtphp,'hash_equals')!==false);
+    t('regression_test.php returns 403 on bad token',strpos($rtphp,'http_response_code(403)')!==false);
+    $amjs=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
+    t('admin-misc fetches rt_token',strpos($amjs,"key:'rt_token'")!==false);
+    t('runRegTests appends token',strpos($amjs,'_rtToken')!==false);
+    // Live HTTP check — bare URL must return 403
+    $ch=curl_init('https://handmadedesignsbysuzi.com/regression_test.php');
+    curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>8,CURLOPT_NOBODY=>true]);
+    curl_exec($ch);
+    $code=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    t('bare URL returns 403',$code===403,'HTTP '.$code);
+}catch(Exception $e){t('regression test security checks',false,$e->getMessage());}
 
 // ── TABLEKIT INTEGRATION ──
 try{

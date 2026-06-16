@@ -1,9 +1,10 @@
 // ── Regression test globals ──
 var RT_GROUPS={
   'DB Schema':['orders.tax_amount','orders.tax_swept_date','orders.payment_method','orders.customer_email','orders.total','orders.shipping_carrier','orders.tracking_number','orders.square_payment_id','products.sku','products.img1','products.price','products.name','products.stock','products.weight','orders table','products table','order_items table','settings table','tax_sweeps table','settings LONGTEXT','tax_swept removed'],
-  'Data Integrity':['products exist','orders exist','settings exist','square_mode set','shipping_config','biz_profile','products have SKUs','no duplicate SKUs','product descriptions updated','hero.jpg exists','shop.css has /hero.jpg','store.js has sold-out diagonal','orders.php decrements stock','send_shipping uses EDT','send_confirm uses EDT','sitemap.xml exists','robots.txt exists','robots.txt references sitemap'],
+  'Data Integrity':['products exist','orders exist','settings exist','rt_token set','square_mode set','shipping_config','biz_profile','products have SKUs','no duplicate SKUs','product descriptions updated','hero.jpg exists','shop.css has /hero.jpg','store.js has sold-out diagonal','orders.php decrements stock','send_shipping uses EDT','send_confirm uses EDT','sitemap.xml exists','robots.txt exists','robots.txt references sitemap'],
   'Required Files':['api/config.php','api/admin.php','api/orders.php','api/products.php','api/tax_sweep.php','api/square_payments.php','api/email_log.php','api/fetch_tax.php','mailer.php','checkout.php','send_confirm.php','send_shipping.php','index.html','css/shop.css','css/table.css','js/api.js','js/config.js','js/store.js','js/table.js','js/admin-orders.js','js/admin-misc.js'],
   'JS Functions':['JS:openCheckout','JS:placeOrder','JS:renderOrdersTable','JS:viewOrder','JS:showManualOrderForm','JS:sendConfirmEmail','JS:rSweep','JS:rSqPay','JS:applyShippingConfig','JS:rBizProfile','JS:buildAdminNav','JS:saveNavOrder','JS:rRegTest','JS:runRegTests','JS:cancelRegTests','JS:SQ_FEE_PCT','JS:TAX_RATES','JS:admin-nav','JS:updCarrier','JS:updTracking','JS:deleteOrder','JS:sendShippingEmail','JS:pfNextSku','JS:pfAutoSku','JS:fetchOrderTax','JS:setPageLogMode'],
+  'Regression Test Security':['regression_test.php has token gate','regression_test.php returns 403 on bad token','admin-misc fetches rt_token','runRegTests appends token','bare URL returns 403'],
   'TableKit Integration':['css/table.css exists','js/table.js exists','index.html loads table.css','index.html loads table.js','TableKit.initAll() in index.html','buildCustThead plain th','buildOrdThead plain th','buildElThead plain th','buildProdThead plain th','sqPay thead plain th','orders table has tablekit class','customers table has tablekit class','products table has tablekit class','email log table has tablekit class','sqPay table has tablekit class','tk-drop-btn hidden in shop.css','tk-th-label arrow in shop.css'],
   'Page View Logging':['pagelog() in applog.php','page_log_enabled() in applog.php','log_page_view action in admin.php','pages.log in read_log allowlist','setPageLogMode function exists','hdbs_pagelog in admin-misc.js','log_page_changes setting key used','goAbout logs visit','goFAQ logs visit','goCustom logs visit','goContact logs visit','goAuth logs visit','openCart logs visit','openCheckout logs visit','rLogs fetches pages.log','dblclick wired for pages log','Clear Pages button exists','pages.log in email dropdown','admin-nav logs page view']
 };
@@ -51,16 +52,10 @@ function rRegTest(el){
       '<button id="rt-cancel" onclick="cancelRegTests()" style="display:none;margin-left:.5rem;background:none;border:1.5px solid #c62828;color:#c62828;border-radius:7px;padding:.3rem .9rem;font-size:.8rem;font-weight:600;cursor:pointer">✕ Cancel</button>'+
     '</div>'+
     '<div style="background:#f5f0e8;border-radius:8px;height:8px;margin-bottom:1rem;overflow:hidden"><div id="rt-bar" style="height:100%;width:0%;background:#2e7d32;border-radius:8px;transition:width .4s"></div></div>'+
-    '<div id="rt-sec-banner" style="display:none;background:#fff3cd;border:1.5px solid #ffc107;border-radius:8px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.83rem;color:#664d00">'+
-      '<strong>⚠️ Security reminder:</strong> <code>regression_test.php</code> is currently on the server. '+
-      'Delete it from <code>public_html</code> after testing to prevent exposing site internals.'+
-    '</div>'+
     '<div id="rt-results" style="color:#6b6040;font-size:.85rem;padding:.5rem 0">Click ▶ Run Tests to begin.</div>';
-  // Check if regression_test.php is accessible
-  fetch('/regression_test.php',{method:'HEAD',cache:'no-store'})
-  .then(function(r){
-    var banner=document.getElementById('rt-sec-banner');
-    if(banner&&r.ok)banner.style.display='block';
+  window._rtToken='';
+  apiFetch('admin.php','POST',{action:'get_setting',key:'rt_token'}).then(function(d){
+    window._rtToken=d.value||'';
   }).catch(function(){});
 }
 
@@ -81,7 +76,7 @@ function runRegTests(){
   var res=document.getElementById('rt-results');
   if(res){res.innerHTML=rtBuildSkeleton();}
   window._rtCtrl=new AbortController();
-  fetch('/regression_test.php',{cache:'no-store',signal:window._rtCtrl.signal})
+  fetch('/regression_test.php?token='+encodeURIComponent(window._rtToken||''),{cache:'no-store',signal:window._rtCtrl.signal})
   .then(function(r){return r.json();})
   .then(function(d){
     var orphans=[];
