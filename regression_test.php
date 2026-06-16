@@ -149,6 +149,7 @@ try{$apjs=isset($apjs)?$apjs:file_get_contents($root.'/js/admin-products.js');
     t('autoAssignSkus exists',strpos($apjs,'function autoAssignSkus(')!==false);
     t('exportProductsCsv exists',strpos($apjs,'function exportProductsCsv(')!==false);
     t('showImportCsv exists',strpos($apjs,'function showImportCsv(')!==false);
+    t('Export CSV button removed from products toolbar (on PageToolbar)',strpos($apjs,"onclick=\"exportProductsCsv()\"")===false);
     t('size column in product table',strpos($apjs,"'<th>Size</th>'")!==false||strpos($apjs,'<th>Size</th>')!==false);
     t('size in PROD_F filter',strpos($apjs,"PROD_F={name:'',cat:'',sku:'',size:''")!==false);
     t('size field in product form',strpos($apjs,'pf-sz')!==false);
@@ -265,11 +266,12 @@ try{
 try{
     $aojs5=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
     $aojs=$aojs5;
-    t('Export CSV button in orders toolbar',strpos($aojs,'exportOrdersCsv()')!==false);
     t('exportOrdersCsv function exists',strpos($aojs,'function exportOrdersCsv()')!==false);
-    t('Print PDF button in orders toolbar',strpos($aojs,'printOrdersPdf()')!==false);
+    t('Export CSV button removed from orders bar (on PageToolbar)',strpos($aojs,"onclick=\"exportOrdersCsv()\"")===false);
     t('printOrdersPdf function exists',strpos($aojs,'function printOrdersPdf()')!==false);
+    t('Print PDF button removed from orders bar (on PageToolbar)',strpos($aojs,"onclick=\"printOrdersPdf()\"")===false);
     t('Print window closes after print',strpos($aojs,'w.close()')!==false);
+    t('Clear Filters button removed from orders bar (on PageToolbar)',strpos($aojs,"clearOrdFilters()'")===false);
     t('Update Trans Fees button exists',strpos($aojs,'updateTransFees()')!==false);
     t('updateTransFees function exists',strpos($aojs,'function updateTransFees()')!==false);
     t('Unmatched orders listed in alert',strpos($aojs,'d.unmatched')!==false);
@@ -313,6 +315,7 @@ try{
     t('sqPaySort exists',strpos($aojs,'function sqPaySort(')!==false);
     t('sqPayFilt uses dropdown',strpos($aojs,'sqp-filt-drop')!==false);
     t('sqPayExportCsv exists',strpos($aojs,'function sqPayExportCsv()')!==false);
+    t('sqPay Export CSV button removed from action bar (on PageToolbar)',strpos($aojs,"onclick=\"sqPayExportCsv()\"")===false);
     t('sqPay table uses tablekit class',strpos($aojs,'tablekit')!==false);
 }catch(Exception $e){t('square payments UI checks',false,$e->getMessage());}
 // Tax sweep buttons
@@ -424,7 +427,8 @@ try{$amjs=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
     t('rEmailLog function exists',strpos($amjs,'function rEmailLog(')!==false);
     t('elRefresh function exists',strpos($amjs,'function elRefresh(')!==false);
     t('clearEmailLog function exists',strpos($amjs,'function clearEmailLog(')!==false);
-    t('email log refresh button',strpos($amjs,'elRefresh()')!==false);
+    t('email log refresh button removed (on PageToolbar)',strpos($amjs,"onclick=\"elRefresh()\"")===false);
+    t('email log clear filters removed (on PageToolbar)',strpos($amjs,'Clear Filters')===false||strpos($amjs,'EL_F=')===false);
     t('email log Date&Time column',strpos($amjs,'Date &amp; Time')!==false||strpos($amjs,'Date & Time')!==false);
     t('email log Type column',strpos($amjs,'<th>Type</th>')!==false);
     t('email log Sent To column',strpos($amjs,'Sent To')!==false);
@@ -537,6 +541,26 @@ try{
     t('admin-nav logs page view',strpos($navjs,'log_page_view')!==false&&strpos($navjs,'hdbs_pagelog')!==false);
 }catch(Exception $e){t('page view logging checks',false,$e->getMessage());}
 
+// ── PAGE TOOLBAR ──
+try{
+    $ihtml=isset($ihtml)?$ihtml:file_get_contents($root.'/index.html');
+    t('toolbar.css linked in index.html',strpos($ihtml,'css/toolbar.css')!==false);
+    t('toolbar.js included in index.html',strpos($ihtml,'js/toolbar.js')!==false);
+    t('toolbar.js exists',file_exists($root.'/js/toolbar.js'));
+    t('toolbar.css exists',file_exists($root.'/css/toolbar.css'));
+    $anjs=isset($anjs)?$anjs:file_get_contents($root.'/js/admin-nav.js');
+    t('showPageToolbar function exists',strpos($anjs,'function showPageToolbar(')!==false);
+    t('aNavById hides toolbar on nav',strpos($anjs,"page-toolbar")!==false&&strpos($anjs,"display='none'")!==false);
+    t('aNavById restores aptitle on nav',strpos($anjs,"aptitle")!==false&&strpos($anjs,"display=''")!==false);
+    $amjs=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
+    $apjs=isset($apjs)?$apjs:file_get_contents($root.'/js/admin-products.js');
+    $aojs=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
+    t('showPageToolbar called in admin-misc.js',strpos($amjs,'showPageToolbar(')!==false);
+    t('showPageToolbar called in admin-orders.js',strpos($aojs,'showPageToolbar(')!==false);
+    t('showPageToolbar called in admin-products.js',strpos($apjs,'showPageToolbar(')!==false);
+    t('showPageToolbar called in admin-nav.js',substr_count($anjs,'showPageToolbar(')>1);
+}catch(Exception $e){t('page toolbar checks',false,$e->getMessage());}
+
 // ── SITE VERSION ──
 try{
     $adphp=isset($adphp)?$adphp:file_get_contents($root.'/api/admin.php');
@@ -568,6 +592,7 @@ try{
     t('prompt_log add action',strpos($plphp,"add_prompt")!==false);
     t('prompt_log update action',strpos($plphp,"update_prompt")!==false);
     t('prompt_log delete action',strpos($plphp,"delete_prompt")!==false);
+    t('prompt_log uses Eastern time (CONVERT_TZ)',strpos($plphp,"CONVERT_TZ(NOW(),'+00:00','-04:00')")!==false);
     $amjs=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
     t('rPromptLog function exists',strpos($amjs,'function rPromptLog(')!==false);
     t('showAddPrompt exists',strpos($amjs,'function showAddPrompt(')!==false);

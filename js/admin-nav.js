@@ -1,7 +1,13 @@
 // ── ADMIN NAV ──
 function aNav(el,sec){var items=document.querySelectorAll('.sitem');for(var i=0;i<items.length;i++)items[i].classList.remove('on');el.classList.add('on');aNavById(sec);}
+function showPageToolbar(opts){
+  if(typeof PageToolbar!=='undefined')PageToolbar.init(opts);
+  var t=document.getElementById('aptitle');if(t)t.style.display='none';
+  var ab=document.getElementById('addbtn');if(ab)ab.style.display='none';
+}
 function aNavById(sec){
-  ;
+  var tb=document.getElementById('page-toolbar');if(tb)tb.style.display='none';
+  var t=document.getElementById('aptitle');if(t)t.style.display='';
   var titles={dash:'Dashboard',prods:'Product Management',orders:'Orders',custs:'Customers',inv:'Inventory',sales:'Sales Report',subs:'Newsletter Subscribers',blast:'Email Blast',faqs:'FAQs',reviews:'Reviews',cats:'Categories',shipping:'Shipping Charges',manord:'Manual Order',sqpay:'Square Payments',sweep:'Tax Sweep',regtest:'Regression Tests',bizprofile:'Business Profile',emaillog:'Email Log',logs:'Error Logs',settings:'Settings',tncity:'TN City Sales Taxes',gitlog:'Change History',deploylog:'Deploy History',promptlog:'Prompt History'};
   document.getElementById('aptitle').textContent=titles[sec]||sec;
   var ab=document.getElementById('addbtn');
@@ -50,7 +56,7 @@ function renderSubsTable(el){
     (rows||'<tr><td colspan="3" style="text-align:center;padding:2rem;color:#6b6040">No subscribers yet.<br><span style="font-size:.8rem">The newsletter section on the homepage will collect emails here.</span></td></tr>') +
     '</tbody></table>';
   if(typeof TableKit!=='undefined')TableKit.initAll();
-  if(typeof PageToolbar!=='undefined')PageToolbar.init({title:'Subscribers',logoText:'Handmade Designs By Suzi'});
+  showPageToolbar({title:'Subscribers',logoText:'Handmade Designs By Suzi'});
 }
 function delSub(email){
   if(!confirm('Remove '+email+' from the newsletter list?'))return;

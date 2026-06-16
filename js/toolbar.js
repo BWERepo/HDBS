@@ -22,7 +22,9 @@ const PageToolbar = (() => {
   const ICONS = {
     print:   `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="1" width="10" height="6" rx="1"/><rect x="1" y="6" width="14" height="7" rx="1"/><rect x="4" y="10" width="8" height="5" rx="0.5" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8.5" r="0.75" fill="currentColor" stroke="none"/></svg>`,
     export:  `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><path d="M8 1v9M5 7l3 3 3-3"/><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2"/></svg>`,
+    import:  `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><path d="M8 10V1M5 4l3-3 3 3"/><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2"/></svg>`,
     email:   `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="3" width="14" height="10" rx="1"/><path d="M1 4l7 5 7-5"/></svg>`,
+    clear:   `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9h8l1-9" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10l3-3M11 10L8 7" stroke-linecap="round"/></svg>`,
     refresh: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><path d="M13.5 2.5A7 7 0 102 8" stroke-linecap="round"/><path d="M2 4V8H6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     close:   `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" xmlns="http://www.w3.org/2000/svg"><path d="M3 3l10 10M13 3L3 13" stroke-linecap="round"/></svg>`,
   };
@@ -45,6 +47,7 @@ const PageToolbar = (() => {
       document.body.insertBefore(container, document.body.firstChild);
     }
     container.innerHTML = '';
+    container.style.display = '';
     container.className = 'tk-toolbar';
 
     // --- Left: Logo ---
@@ -76,7 +79,9 @@ const PageToolbar = (() => {
 
     actions.appendChild(makeBtn('Print',   ICONS.print,   '',             () => doPrint(tableSelector, title, logo, logoText)));
     actions.appendChild(makeBtn('Export',  ICONS.export,  '',             () => doExport(tableSelector, title)));
+    actions.appendChild(makeBtn('Import',  ICONS.import,  '',             () => doImport(tableSelector)));
     actions.appendChild(makeBtn('Email',   ICONS.email,   '',             () => doEmail(emailSubject)));
+    actions.appendChild(makeBtn('Clear Filters', ICONS.clear, '',         () => doClearFilters(tableSelector)));
     const refreshBtn = makeBtn('Refresh', ICONS.refresh, '', () => doRefresh(tableSelector, dataUrl, dataTransform, onRefresh));
     refreshBtn.dataset.action = 'refresh';
     actions.appendChild(refreshBtn);
@@ -189,6 +194,75 @@ const PageToolbar = (() => {
     triggerDownload(csv.content, csv.filename);
   }
 
+  function doImport(tableSelector) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,text/csv';
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const lines = e.target.result.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
+        if (lines.length < 2) { alert('CSV must have a header row and at least one data row.'); return; }
+
+        const headers = parseCSVRow(lines[0]);
+        const table = document.querySelector(tableSelector);
+        if (!table) { alert('No table found to import into.'); return; }
+
+        // Validate headers match existing columns
+        const thHeaders = Array.from(table.querySelectorAll('thead tr:first-child th')).map(th => {
+          const label = th.querySelector('.tk-th-label');
+          return (label ? label.textContent : th.textContent).trim();
+        });
+        const mismatch = headers.some((h, i) => h !== thHeaders[i]);
+        if (mismatch || headers.length !== thHeaders.length) {
+          if (!confirm(`CSV columns don't match table headers.\nCSV: ${headers.join(', ')}\nTable: ${thHeaders.join(', ')}\n\nImport anyway?`)) return;
+        }
+
+        const tbody = table.tBodies[0] || table.createTBody();
+        tbody.innerHTML = '';
+        for (let i = 1; i < lines.length; i++) {
+          const vals = parseCSVRow(lines[i]);
+          const tr = document.createElement('tr');
+          vals.forEach(val => {
+            const td = document.createElement('td');
+            td.textContent = val;
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        }
+
+        // Re-initialise TableKit if available
+        if (typeof TableKit !== 'undefined') {
+          table._tk = false;
+          TableKit.init(table);
+        }
+      };
+      reader.readAsText(file);
+    });
+    input.click();
+  }
+
+  function parseCSVRow(line) {
+    const cells = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQuotes = !inQuotes;
+      } else if (ch === ',' && !inQuotes) {
+        cells.push(cur); cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    cells.push(cur);
+    return cells;
+  }
+
   function triggerDownload(content, filename) {
     const blob = new Blob([content], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -212,19 +286,57 @@ const PageToolbar = (() => {
     return val;
   }
 
+  function doClearFilters(tableSelector) {
+    const table = document.querySelector(tableSelector);
+    if (!table) return;
+
+    // Clear all TableKit filter inputs and checkbox state
+    table.querySelectorAll('.tk-dropdown input[type="search"], .tk-dropdown input[type="checkbox"]').forEach(input => {
+      if (input.type === 'checkbox') input.checked = true;
+      else input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    // Show all rows directly as a safety net
+    table.querySelectorAll('tbody tr').forEach(row => {
+      row.dataset.tkHidden = 'false';
+    });
+
+    // Clear any sort indicators
+    table.querySelectorAll('thead tr:first-child th .tk-th-inner').forEach(inner => {
+      delete inner.dataset.sort;
+    });
+    table.querySelectorAll('.tk-sort-btn.active').forEach(btn => btn.classList.remove('active'));
+
+    // Hide empty message if visible
+    const emptyMsg = table.parentElement.querySelector('.tk-empty-msg');
+    if (emptyMsg) emptyMsg.classList.remove('visible');
+
+    // Clear active filter indicators
+    table.querySelectorAll('.tk-th-inner[data-filtered]').forEach(inner => {
+      delete inner.dataset.filtered;
+    });
+  }
+
   async function doRefresh(tableSelector, dataUrl, dataTransform, onRefresh) {
+    const btn = document.querySelector('.tk-toolbar .tk-btn[data-action="refresh"]');
+
     // Custom callback takes priority
-    if (onRefresh) { onRefresh(); return; }
+    if (onRefresh) {
+      onRefresh();
+      flashRefreshed(btn);
+      return;
+    }
 
     if (!dataUrl) {
-      console.warn('PageToolbar: no dataUrl or onRefresh provided — nothing to refresh.');
+      flashRefreshed(btn);
       return;
     }
 
     const table = document.querySelector(tableSelector);
     if (!table) { console.warn('PageToolbar: table not found:', tableSelector); return; }
 
-    const btn = document.querySelector('.tk-toolbar .tk-btn[data-action="refresh"]');
     if (btn) btn.disabled = true;
 
     try {
@@ -233,13 +345,11 @@ const PageToolbar = (() => {
       let rows = await res.json();
       if (dataTransform) rows = dataTransform(rows);
 
-      // Get column headers to map object keys → column index
       const headers = Array.from(table.querySelectorAll('thead tr:first-child th')).map(th => {
         const label = th.querySelector('.tk-th-label');
         return (label ? label.textContent : th.textContent).trim();
       });
 
-      // Rebuild tbody
       const tbody = table.tBodies[0] || table.createTBody();
       tbody.innerHTML = '';
       rows.forEach(rowData => {
@@ -252,17 +362,31 @@ const PageToolbar = (() => {
         tbody.appendChild(tr);
       });
 
-      // Re-initialise TableKit if available
       if (typeof TableKit !== 'undefined') {
         table._tk = false;
         TableKit.init(table);
       }
+
+      flashRefreshed(btn);
     } catch (err) {
       console.error('PageToolbar refresh failed:', err);
       alert('Refresh failed: ' + err.message);
     } finally {
       if (btn) btn.disabled = false;
     }
+  }
+
+  function flashRefreshed(btn) {
+    if (!btn) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = ICONS.refresh + 'Refreshed';
+    btn.style.color = '#2a7a2a';
+    btn.style.borderColor = '#a8d5a8';
+    setTimeout(() => {
+      btn.innerHTML = original;
+      btn.style.color = '';
+      btn.style.borderColor = '';
+    }, 1500);
   }
 
   function doClose() {

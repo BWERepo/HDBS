@@ -28,7 +28,7 @@ if ($method === 'POST' && $action === 'add_prompt') {
     $category = trim($d['category'] ?? '');
     $notes    = trim($d['notes'] ?? '');
     if (!$prompt) fail('Prompt text required');
-    $s = $pdo->prepare("INSERT INTO prompt_log (category, prompt, notes) VALUES (?,?,?)");
+    $s = $pdo->prepare("INSERT INTO prompt_log (created_at, category, prompt, notes) VALUES (CONVERT_TZ(NOW(),'+00:00','-04:00'),?,?,?)");
     $s->execute([$category, $prompt, $notes]);
     ok(['id' => $pdo->lastInsertId(), 'message' => 'Prompt saved']);
 }

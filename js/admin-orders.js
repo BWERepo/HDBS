@@ -999,11 +999,7 @@ function renderOrdersTable(el){
   var isF=ORD_F.id||ORD_F.cust||ORD_F.pay||ORD_F.order_type||ORD_F.fee||ORD_F.shipping||ORD_F.status||ORD_F.total||ORD_F.tax||ORD_F.swept_date||ORD_F.dateFrom||ORD_F.dateTo;
   el.innerHTML=
     '<div style="display:flex;justify-content:flex-end;gap:.5rem;margin-bottom:.6rem">'+
-    '<button class="bs" onclick="clearOrdFilters()" style="font-size:.78rem">✕ Clear Filters</button>'+
-    '<button class="bs" onclick="rOrders(document.getElementById(\'acnt\'))" style="font-size:.78rem">🔄 Refresh</button>'+
     '<button class="bs" id="upd-fee-btn" onclick="updateTransFees()" style="font-size:.78rem">💳 Update Trans Fees</button>'+
-    '<button class="bs" onclick="exportOrdersCsv()" style="font-size:.78rem">⬇️ Export CSV</button>'+
-    '<button class="bs" onclick="printOrdersPdf()" style="font-size:.78rem">🖨️ Print PDF</button>'+
     (ORDERS.length?'<button class="bd" onclick="deleteAllOrders()" style="font-size:.78rem">🗑 Delete All</button>':'')+
     '</div>'+
     '<table class="tablekit">'+buildOrdThead()+
@@ -1019,7 +1015,7 @@ function renderOrdersTable(el){
     '</tr></tfoot>'+
     '</table>';
   if(typeof TableKit!=='undefined')TableKit.initAll();
-  if(typeof PageToolbar!=='undefined')PageToolbar.init({title:'Orders',logoText:'Handmade Designs By Suzi'});
+  showPageToolbar({title:'Orders',logoText:'Handmade Designs By Suzi'});
 }
 function applyOrderFilters(){
   return ORDERS.filter(function(o){
@@ -1236,7 +1232,7 @@ function renderCustsTable(el){
     '</div>'+
     '<div style="overflow-x:auto"><table class="tablekit">'+buildCustThead()+'<tbody>'+(rows||'<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:#6b6040">No customers yet</td></tr>')+'</tbody></table></div>';
   if(typeof TableKit!=='undefined')TableKit.initAll();
-  if(typeof PageToolbar!=='undefined')PageToolbar.init({title:'Customers',logoText:'Handmade Designs By Suzi'});
+  showPageToolbar({title:'Customers',logoText:'Handmade Designs By Suzi'});
 }
 
 
@@ -1247,7 +1243,7 @@ function rInv(el){
   el.innerHTML='<div class="stats"><div class="stat"><div class="stl">Total Units</div><div class="stv">'+total+'</div></div><div class="stat"><div class="stl">Low Stock</div><div class="stv" style="color:#e65100">'+low+'</div></div><div class="stat"><div class="stl">Out of Stock</div><div class="stv" style="color:#c0392b">'+out+'</div></div><div class="stat"><div class="stl">SKUs</div><div class="stv">'+PRODS.length+'</div></div></div>'+
     '<table class="tablekit"><thead><tr><th>Product</th><th>Cat</th><th>Price</th><th>Stock</th><th>Status</th><th>Adjust</th></tr></thead><tbody>'+rows+'</tbody></table>';
   if(typeof TableKit!=='undefined')TableKit.initAll();
-  if(typeof PageToolbar!=='undefined')PageToolbar.init({title:'Inventory',logoText:'Handmade Designs By Suzi'});
+  showPageToolbar({title:'Inventory',logoText:'Handmade Designs By Suzi'});
 }
 function adjSt(id,d){var p=findProd(id);if(p){p.stock=Math.max(0,p.stock+d);
   apiFetch('products.php','POST',p).catch(function(){});
@@ -1293,7 +1289,7 @@ function renderSalesTable(el){
     '</div>'+
     (ORDERS.length?'<div style="margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid #e8e0b8"><div style="font-size:.82rem;color:#6b6040;margin-bottom:.7rem">Use this to clear test orders before going live. This cannot be undone.</div><button class="bd" onclick="deleteAllOrders()" style="font-size:.82rem">🗑 Delete All Orders &amp; Sales Data</button></div>':'');
   if(typeof TableKit!=='undefined')TableKit.initAll();
-  if(typeof PageToolbar!=='undefined')PageToolbar.init({title:'Sales',logoText:'Handmade Designs By Suzi'});
+  showPageToolbar({title:'Sales',logoText:'Handmade Designs By Suzi'});
 }
 
 function rAdminFAQs(el){
@@ -2025,7 +2021,6 @@ function renderSqPayTable(el,d,begin,end){
         '<input type="date" id="sqp-to" value="'+(end||'')+'" style="padding:.35rem .6rem;border:1.5px solid #e8e0b8;border-radius:7px;font-size:.83rem"></div>'+
       '<button class="bp" style="font-size:.8rem" onclick="sqPayLoad(document.getElementById(\'acnt\'),document.getElementById(\'sqp-from\').value,document.getElementById(\'sqp-to\').value,\'\')">Search</button>'+
       '<button class="bs" style="font-size:.8rem" onclick="rSqPay(document.getElementById(\'acnt\'))">Reset</button>'+
-      '<button class="bs" style="font-size:.8rem" onclick="sqPayExportCsv()">⬇️ Export CSV</button>'+
     '</div>';
   el.innerHTML='<div style="max-width:1100px">'+formHtml+statsHtml+'<div id="sqp-table-wrap"></div></div>';
   sqPayRenderTable();
@@ -2088,7 +2083,7 @@ function sqPayRenderTable(){
     '<thead><tr>'+hs+'</tr></thead><tbody>'+rows+'</tbody></table></div>'+
     '<div style="font-size:.78rem;color:#6b6040;margin-top:.5rem">'+filt.length+' of '+SQ_PAY_DATA.length+' payments</div>';
   if(typeof TableKit!=='undefined')TableKit.initAll();
-  if(typeof PageToolbar!=='undefined')PageToolbar.init({title:'Square Payments',logoText:'Handmade Designs By Suzi'});
+  showPageToolbar({title:'Square Payments',logoText:'Handmade Designs By Suzi'});
 }
 function sqPayExportCsv(){
   if(!SQ_PAY_DATA.length){alert('No payments to export.');return;}
