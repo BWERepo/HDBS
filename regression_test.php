@@ -559,6 +559,14 @@ try{
     t('showPageToolbar called in admin-orders.js',strpos($aojs,'showPageToolbar(')!==false);
     t('showPageToolbar called in admin-products.js',strpos($apjs,'showPageToolbar(')!==false);
     t('showPageToolbar called in admin-nav.js',substr_count($anjs,'showPageToolbar(')>1);
+    // Palette colours in toolbar.css
+    $tcss=file_get_contents($root.'/css/toolbar.css');
+    t('toolbar bg is Dark Brown (#2d2220)',strpos($tcss,'#2d2220')!==false);
+    t('toolbar border is Dark Gold (#a07810)',strpos($tcss,'#a07810')!==false);
+    t('toolbar logo text is Bright Gold (#d4a017)',strpos($tcss,'#d4a017')!==false);
+    t('toolbar title text is white (#fff)',strpos($tcss,'color: #fff')!==false||strpos($tcss,'color:#fff')!==false);
+    t('toolbar btn bg is Light Gold (#fdf3d0)',strpos($tcss,'#fdf3d0')!==false);
+    t('toolbar close btn is Error Red (#c62828)',strpos($tcss,'#c62828')!==false);
 }catch(Exception $e){t('page toolbar checks',false,$e->getMessage());}
 
 // ── SITE VERSION ──

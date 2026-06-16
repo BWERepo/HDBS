@@ -5,8 +5,8 @@
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding: 8px 16px;
-  background: #f0f4f8;
-  border-bottom: 1px solid #d0d7de;
+  background: #2d2220;
+  border-bottom: 1px solid #a07810;
   gap: 12px;
 }
 
@@ -27,7 +27,7 @@
 .tk-toolbar-logo-text {
   font-size: 1rem;
   font-weight: 700;
-  color: #1a1a2e;
+  color: #d4a017;
   white-space: nowrap;
 }
 
@@ -35,7 +35,7 @@
 .tk-toolbar-title {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #1a1a2e;
+  color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -59,18 +59,19 @@
   padding: 6px 12px;
   font-size: 0.82rem;
   font-weight: 500;
-  border: 1px solid #c8d0da;
+  border: 1px solid #a07810;
   border-radius: 5px;
-  background: #fff;
-  color: #333;
+  background: #fdf3d0;
+  color: #2d2220;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.12s, border-color 0.12s;
 }
 
 .tk-btn:hover {
-  background: #e8eef5;
-  border-color: #a0aab4;
+  background: #d4a017;
+  border-color: #a07810;
+  color: #fff;
 }
 
 .tk-btn svg {
@@ -81,13 +82,14 @@
 
 /* Close button — slightly distinct */
 .tk-btn-close {
-  border-color: #e0c8c8;
-  color: #c0392b;
+  border-color: #c62828;
+  color: #c62828;
 }
 
 .tk-btn-close:hover {
-  background: #fdf0f0;
-  border-color: #c0392b;
+  background: #c62828;
+  border-color: #c62828;
+  color: #fff;
 }
 
 @media print {
