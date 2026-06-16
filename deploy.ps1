@@ -6,11 +6,12 @@ $creds = @{}
 Get-Content "$PSScriptRoot\.ftp-credentials" | ForEach-Object {
     if ($_ -match "^(\w+)=(.+)$") { $creds[$Matches[1]] = $Matches[2] }
 }
-$ftpHost = $creds["FTP_HOST"]
-$ftpUser = $creds["FTP_USER"]
-$ftpPass = $creds["FTP_PASS"]
-$ftpPort = $creds["FTP_PORT"]
-$local   = $PSScriptRoot
+$ftpHost  = $creds["FTP_HOST"]
+$ftpUser  = $creds["FTP_USER"]
+$ftpPass  = $creds["FTP_PASS"]
+$ftpPort  = $creds["FTP_PORT"]
+$local    = $PSScriptRoot
+$apiBase  = "https://handmadedesignsbysuzi.com/api"
 
 $exclude = @(".git",".ftp-credentials","deploy.ps1","CLAUDE.md","README.md","node_modules","product_images","secrets.php")
 
@@ -32,9 +33,18 @@ function Deploy-File($rel) {
     else { Write-Host "  FAILED: $out" -ForegroundColor Red }
 }
 
+function Log-Deploy($fileList, $mode) {
+    try {
+        $normalized = @($fileList | ForEach-Object { $_ -replace '\\','/' })
+        $body = @{ files = $normalized; count = $normalized.Count; mode = $mode } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Uri "$apiBase/deploy_log.php" -Method Post -Body $body -ContentType "application/json" | Out-Null
+    } catch {}
+}
+
 # Single file mode
 if ($args.Count -gt 0) {
     Deploy-File $args[0]
+    Log-Deploy @($args[0]) 'single'
     exit
 }
 
@@ -42,10 +52,13 @@ if ($args.Count -gt 0) {
 Write-Host "Deploying all files to $ftpHost ..." -ForegroundColor Yellow
 $files = Get-ChildItem -Path $local -Recurse -File | Where-Object { -not (Should-Exclude $_.FullName) }
 $i = 0
+$deployed = @()
 foreach ($file in $files) {
     $i++
     $rel = $file.FullName.Substring($local.Length + 1)
     Write-Progress -Activity "Deploying" -Status "$i of $($files.Count): $rel" -PercentComplete (($i/$files.Count)*100)
     Deploy-File $rel
+    $deployed += $rel
 }
+Log-Deploy $deployed 'full'
 Write-Host "Deploy complete." -ForegroundColor Green

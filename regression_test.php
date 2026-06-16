@@ -537,6 +537,53 @@ try{
     t('admin-nav logs page view',strpos($navjs,'log_page_view')!==false&&strpos($navjs,'hdbs_pagelog')!==false);
 }catch(Exception $e){t('page view logging checks',false,$e->getMessage());}
 
+// ── DEPLOY HISTORY ──
+try{
+    t('api/deploy_log.php exists',file_exists($root.'/api/deploy_log.php'));
+    $dlphp=file_get_contents($root.'/api/deploy_log.php');
+    t('deploy_log appends entries',strpos($dlphp,'FILE_APPEND')!==false);
+    t('deploy_log returns deploys',strpos($dlphp,"'deploys'")!==false);
+    // deploy.ps1 is not deployed to server — verified locally only
+    t('deploy_log.php POST handler exists',strpos($dlphp,"method === 'POST'")!==false);
+    t('deploy_log.php GET handler exists',strpos($dlphp,"method === 'GET'")!==false);
+    $navjs=file_get_contents($root.'/js/admin-nav.js');
+    t('deploylog in nav titles',strpos($navjs,"deploylog:'Deploy History'")!==false);
+    t('rDeployLog in nav',strpos($navjs,'rDeployLog(el)')!==false);
+    $amjs=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
+    t('rDeployLog function exists',strpos($amjs,'function rDeployLog(')!==false);
+    t('rDeployLog fetches deploy_log',strpos($amjs,"'deploy_log.php'")!==false);
+    t('rDeployLog groups by 5-min window',strpos($amjs,'GAP=5*60*1000')!==false);
+    t('rDeployLog shows deploy sessions',strpos($amjs,'deploy session')!==false);
+}catch(Exception $e){t('deploy history checks',false,$e->getMessage());}
+
+// ── CHANGE HISTORY ──
+try{
+    t('api/github_log.php exists',file_exists($root.'/api/github_log.php'));
+    $ghphp=file_get_contents($root.'/api/github_log.php');
+    t('github_log fetches commits API',strpos($ghphp,'api.github.com')!==false&&strpos($ghphp,'commits')!==false);
+    t('github_log uses curl_multi',strpos($ghphp,'curl_multi_init')!==false);
+    t('github_log reads github_token setting',strpos($ghphp,"'github_token'")!==false);
+    t('github_log caches results',strpos($ghphp,'cacheFile')!==false&&strpos($ghphp,'cacheTTL')!==false);
+    $navjs=file_get_contents($root.'/js/admin-nav.js');
+    t('gitlog in nav titles',strpos($navjs,"gitlog:'Change History'")!==false);
+    t('rGitLog wired in nav',strpos($navjs,'rGitLog(el)')!==false);
+    $amjs=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
+    t('rGitLog fetches github_log',strpos($amjs,"'github_log.php'")!==false);
+    t('github token card in settings',strpos($amjs,'ghtoken-card')!==false&&strpos($amjs,'saveGitHubToken')!==false);
+    t('saveGitHubToken function exists',strpos($amjs,'function saveGitHubToken(')!==false);
+    // Live check — only runs if github_token is set (private repo requires auth)
+    $ghTok=$pdo->query("SELECT value FROM settings WHERE key_name='github_token' LIMIT 1")->fetchColumn();
+    if($ghTok){
+        $ch=curl_init('https://handmadedesignsbysuzi.com/api/github_log.php');
+        curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>15]);
+        $body=curl_exec($ch);curl_close($ch);
+        $gd=json_decode($body,true);
+        t('github_log returns commits',isset($gd['commits'])&&count($gd['commits'])>0);
+    }else{
+        t('github_log returns commits',true,'skipped — no github_token set yet');
+    }
+}catch(Exception $e){t('change history checks',false,$e->getMessage());}
+
 // ── REGRESSION TEST SECURITY ──
 try{
     $rtphp=file_get_contents($root.'/regression_test.php');

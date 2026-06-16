@@ -3,7 +3,9 @@ var RT_GROUPS={
   'DB Schema':['orders.tax_amount','orders.tax_swept_date','orders.payment_method','orders.customer_email','orders.total','orders.shipping_carrier','orders.tracking_number','orders.square_payment_id','products.sku','products.img1','products.price','products.name','products.stock','products.weight','orders table','products table','order_items table','settings table','tax_sweeps table','settings LONGTEXT','tax_swept removed'],
   'Data Integrity':['products exist','orders exist','settings exist','rt_token set','square_mode set','shipping_config','biz_profile','products have SKUs','no duplicate SKUs','product descriptions updated','hero.jpg exists','shop.css has /hero.jpg','store.js has sold-out diagonal','orders.php decrements stock','send_shipping uses EDT','send_confirm uses EDT','sitemap.xml exists','robots.txt exists','robots.txt references sitemap'],
   'Required Files':['api/config.php','api/admin.php','api/orders.php','api/products.php','api/tax_sweep.php','api/square_payments.php','api/email_log.php','api/fetch_tax.php','mailer.php','checkout.php','send_confirm.php','send_shipping.php','index.html','css/shop.css','css/table.css','js/api.js','js/config.js','js/store.js','js/table.js','js/admin-orders.js','js/admin-misc.js'],
-  'JS Functions':['JS:openCheckout','JS:placeOrder','JS:renderOrdersTable','JS:viewOrder','JS:showManualOrderForm','JS:sendConfirmEmail','JS:rSweep','JS:rSqPay','JS:applyShippingConfig','JS:rBizProfile','JS:buildAdminNav','JS:saveNavOrder','JS:rRegTest','JS:runRegTests','JS:cancelRegTests','JS:SQ_FEE_PCT','JS:TAX_RATES','JS:admin-nav','JS:updCarrier','JS:updTracking','JS:deleteOrder','JS:sendShippingEmail','JS:pfNextSku','JS:pfAutoSku','JS:fetchOrderTax','JS:setPageLogMode'],
+  'JS Functions':['JS:openCheckout','JS:placeOrder','JS:renderOrdersTable','JS:viewOrder','JS:showManualOrderForm','JS:sendConfirmEmail','JS:rSweep','JS:rSqPay','JS:applyShippingConfig','JS:rBizProfile','JS:buildAdminNav','JS:saveNavOrder','JS:rRegTest','JS:runRegTests','JS:cancelRegTests','JS:SQ_FEE_PCT','JS:TAX_RATES','JS:admin-nav','JS:updCarrier','JS:updTracking','JS:deleteOrder','JS:sendShippingEmail','JS:pfNextSku','JS:pfAutoSku','JS:fetchOrderTax','JS:setPageLogMode','JS:rGitLog'],
+  'Deploy History':['api/deploy_log.php exists','deploy_log appends entries','deploy_log returns deploys','deploy_log.php POST handler exists','deploy_log.php GET handler exists','deploylog in nav titles','rDeployLog in nav','rDeployLog function exists','rDeployLog fetches deploy_log','rDeployLog groups by 5-min window','rDeployLog shows deploy sessions'],
+  'Change History':['api/github_log.php exists','github_log returns commits','gitlog in nav titles','rGitLog wired in nav','rGitLog fetches github_log','github token card in settings'],
   'Regression Test Security':['regression_test.php has token gate','regression_test.php returns 403 on bad token','admin-misc fetches rt_token','runRegTests appends token','bare URL returns 403'],
   'TableKit Integration':['css/table.css exists','js/table.js exists','index.html loads table.css','index.html loads table.js','TableKit.initAll() in index.html','buildCustThead plain th','buildOrdThead plain th','buildElThead plain th','buildProdThead plain th','sqPay thead plain th','orders table has tablekit class','customers table has tablekit class','products table has tablekit class','email log table has tablekit class','sqPay table has tablekit class','tk-drop-btn hidden in shop.css','tk-th-label arrow in shop.css'],
   'Page View Logging':['pagelog() in applog.php','page_log_enabled() in applog.php','log_page_view action in admin.php','pages.log in read_log allowlist','setPageLogMode function exists','hdbs_pagelog in admin-misc.js','log_page_changes setting key used','goAbout logs visit','goFAQ logs visit','goCustom logs visit','goContact logs visit','goAuth logs visit','openCart logs visit','openCheckout logs visit','rLogs fetches pages.log','dblclick wired for pages log','Clear Pages button exists','pages.log in email dropdown','admin-nav logs page view']
@@ -382,6 +384,8 @@ var ADMIN_NAV_DEFAULT=[
   {sec:'shipping',label:'🚚 Shipping Charges'},
   {sec:'sqpay',   label:'💳 Square Payments'},
   {sec:'sweep',   label:'🧾 Tax Sweep'},
+  {sec:'gitlog',  label:'📜 Change History'},
+  {sec:'deploylog',label:'🚀 Deploy History'},
   {sec:'regtest', label:'🧪 Regression Tests'},
   {sec:'emaillog',label:'📧 Email Log'},
   {sec:'logs',    label:'📋 Error Logs'},
@@ -402,6 +406,109 @@ function loadNavOrder(callback){
     }).catch(function(){callback(defaults);});
   }catch(e){callback(defaults);}
 }
+function rDeployLog(el){
+  el.innerHTML='<div style="padding:2rem;text-align:center;color:#6b6040">Loading deploy history…</div>';
+  apiFetch('deploy_log.php','GET').then(function(d){
+    if(!d||!d.deploys||!d.deploys.length){
+      el.innerHTML='<div style="padding:2rem;color:#6b6040">No deployments recorded yet. They will appear here after the next deploy.</div>';
+      return;
+    }
+    // Group entries within 5-minute windows into single sessions
+    var GAP=5*60*1000;
+    var sessions=[];
+    d.deploys.forEach(function(dep){
+      var t=dep.ts?new Date(dep.ts).getTime():0;
+      var last=sessions.length?sessions[sessions.length-1]:null;
+      var lastT=last?new Date(last.ts).getTime():0;
+      if(last&&(lastT-t)<=GAP){
+        last.files=last.files.concat(dep.files||[]);
+        last.count=last.files.length;
+        if(dep.mode==='full')last.mode='full';
+      } else {
+        sessions.push({ts:dep.ts,count:dep.count,mode:dep.mode,files:(dep.files||[]).slice()});
+      }
+    });
+    var rows=sessions.map(function(dep){
+      var dt=dep.ts?new Date(dep.ts):null;
+      var dateStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—';
+      var timeStr=dt?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+      var badge=dep.mode==='full'
+        ?'<span style="background:#e3f2fd;color:#1565c0;border-radius:4px;padding:.1rem .45rem;font-size:.75rem;font-weight:600">Full</span>'
+        :'<span style="background:#e8f5e9;color:#2e7d32;border-radius:4px;padding:.1rem .45rem;font-size:.75rem;font-weight:600">Single</span>';
+      var n=dep.files.length||dep.count;
+      var fileList=dep.files&&dep.files.length
+        ?'<details><summary style="cursor:pointer;font-size:.78rem;color:#a07810">'+n+' file'+(n!==1?'s':'')+'</summary>'+
+          '<div style="font-family:monospace;font-size:.75rem;color:#555;margin-top:.3rem;line-height:1.7">'+
+          dep.files.map(function(f){return escHtml(f);}).join('<br>')+
+          '</div></details>'
+        :n+' file'+(n!==1?'s':'');
+      return '<tr>'+
+        '<td style="white-space:nowrap">'+dateStr+'<br><span style="font-size:.78rem;color:#999">'+timeStr+'</span></td>'+
+        '<td style="text-align:center">'+n+'</td>'+
+        '<td>'+badge+'</td>'+
+        '<td>'+fileList+'</td>'+
+        '</tr>';
+    }).join('');
+    el.innerHTML=
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">'+
+        '<div style="font-size:.85rem;color:#6b6040">'+sessions.length+' deploy session'+(sessions.length!==1?'s':'')+' recorded</div>'+
+        '<button class="bp" onclick="rDeployLog(document.getElementById(\'acnt\'))" style="font-size:.78rem;padding:.35rem .8rem">↻ Refresh</button>'+
+      '</div>'+
+      '<table class="tablekit"><thead><tr><th>Date</th><th>Files</th><th>Type</th><th>Details</th></tr></thead>'+
+      '<tbody>'+rows+'</tbody></table>';
+    if(typeof TableKit!=='undefined')TableKit.initAll();
+  }).catch(function(e){
+    el.innerHTML='<div style="padding:2rem;color:#c62828">Error loading deploy history: '+escHtml(e.message)+'</div>';
+  });
+}
+
+function rGitLog(el){
+  el.innerHTML='<div style="padding:2rem;text-align:center;color:#6b6040">Loading commit history…</div>';
+  apiFetch('github_log.php').then(function(d){
+    if(!d||d.error){
+      var msg=d&&d.error?d.error:'Unknown error';
+      var isAuth=(d&&d.code===404)||msg.indexOf('404')!==-1;
+      el.innerHTML='<div style="padding:1.5rem;background:#fff3cd;border:1.5px solid #ffc107;border-radius:8px;font-size:.85rem;color:#664d00">'+
+        '<strong>⚠️ '+(isAuth?'GitHub token required':'GitHub API error')+'</strong>'+
+        (isAuth?
+          '<ol style="margin:.8rem 0 0 1.2rem;line-height:2">'+
+            '<li>Go to <strong>GitHub.com → Settings → Developer Settings → Personal Access Tokens → Fine-grained tokens</strong></li>'+
+            '<li>Click <strong>Generate new token</strong></li>'+
+            '<li>Set Repository access to <strong>Only select repositories</strong> → pick <strong>HandmadeDesignsBySuzi</strong></li>'+
+            '<li>Under Permissions → Repository permissions → <strong>Contents: Read-only</strong></li>'+
+            '<li>Generate and copy the token</li>'+
+            '<li>In the admin panel → <strong>Settings → GitHub Token</strong> → paste it and click Save</li>'+
+          '</ol>':
+          '<br>'+escHtml(msg))+
+        '</div>';
+      return;
+    }
+    if(!d.commits||!d.commits.length){el.innerHTML='<div style="padding:2rem;color:#6b6040">No commits found.</div>';return;}
+    var rows=d.commits.map(function(c){
+      var dt=c.date?new Date(c.date):null;
+      var dateStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—';
+      var timeStr=dt?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+      var files=c.files!=null?c.files+' file'+(c.files!==1?'s':''):'—';
+      var sha='<a href="'+c.url+'" target="_blank" style="color:#a07810;font-family:monospace;font-size:.8rem">'+c.sha+'</a>';
+      return '<tr><td style="white-space:nowrap">'+dateStr+'<br><span style="font-size:.78rem;color:#999">'+timeStr+'</span></td>'+
+        '<td>'+escHtml(c.message)+'</td>'+
+        '<td style="text-align:center;white-space:nowrap">'+files+'</td>'+
+        '<td>'+sha+'</td></tr>';
+    }).join('');
+    el.innerHTML=
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">'+
+        '<div style="font-size:.85rem;color:#6b6040">Last '+d.commits.length+' commits · <span style="font-size:.78rem">cached 10 min</span></div>'+
+        '<button class="bp" onclick="rGitLog(document.getElementById(\'acnt\'))" style="font-size:.78rem;padding:.35rem .8rem">↻ Refresh</button>'+
+      '</div>'+
+      '<table class="tablekit"><thead><tr><th>Date</th><th>Description</th><th>Files</th><th>SHA</th></tr></thead>'+
+      '<tbody>'+rows+'</tbody></table>';
+    if(typeof TableKit!=='undefined')TableKit.initAll();
+  }).catch(function(e){
+    el.innerHTML='<div style="padding:2rem;color:#c62828">Error loading history: '+escHtml(e.message)+'</div>';
+  });
+}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
 function saveNavOrder(){
   var order=[];
   document.querySelectorAll('#admin-nav .sitem').forEach(function(el){order.push(el.dataset.sec);});
@@ -1113,6 +1220,29 @@ window.addEventListener('load', function(){
         '<span id="pagelog-label">Loading...</span>'+
       '</label>';
     card.insertAdjacentElement('afterend', card2);
+
+    // ── GitHub Token card ──
+    var existing3 = document.getElementById('ghtoken-card');
+    if(existing3) existing3.remove();
+    var card3 = document.createElement('div');
+    card3.id = 'ghtoken-card';
+    card3.style.cssText = 'background:#fff;border-radius:10px;border:1px solid #e8e0b8;padding:1.2rem;margin-bottom:1.2rem;max-width:420px';
+    card3.innerHTML =
+      '<div style="font-weight:700;margin-bottom:.5rem">&#x1F511; GitHub Token</div>'+
+      '<div style="font-size:.8rem;color:#6b6040;margin-bottom:.9rem;line-height:1.6">Optional. Increases GitHub API rate limit from 60 to 5,000 requests/hour for the Change History screen. Generate a read-only token at GitHub → Settings → Developer Settings → Personal Access Tokens.</div>'+
+      '<div style="display:flex;gap:.5rem;align-items:center">'+
+        '<input type="password" id="ghtoken-input" class="afi" style="flex:1;margin-bottom:0" placeholder="ghp_…">'+
+        '<button class="bp" onclick="saveGitHubToken()" style="white-space:nowrap;font-size:.82rem;padding:.38rem .9rem">Save</button>'+
+      '</div>'+
+      '<div id="ghtoken-status" style="font-size:.78rem;margin-top:.4rem;color:#6b6040"></div>';
+    card2.insertAdjacentElement('afterend', card3);
+    apiFetch('admin.php','POST',{action:'get_setting',key:'github_token'}).then(function(d){
+      var inp = document.getElementById('ghtoken-input');
+      var st  = document.getElementById('ghtoken-status');
+      if(inp && d && d.value) inp.value = d.value;
+      if(st)  st.textContent = (d && d.value) ? 'Token saved.' : 'No token set — using unauthenticated access.';
+    }).catch(function(){});
+
     apiFetch('admin.php','POST',{action:'get_setting',key:'log_page_changes'}).then(function(d){
       var on = d && d.value === '1';
       var tog = document.getElementById('pagelog-toggle');
@@ -1155,6 +1285,16 @@ function setPageLogMode(on){
   }).catch(function(){
     if(lbl) lbl.textContent = 'Save failed';
   });
+}
+
+function saveGitHubToken(){
+  var inp = document.getElementById('ghtoken-input');
+  var st  = document.getElementById('ghtoken-status');
+  if(!inp) return;
+  if(st) st.textContent = 'Saving…';
+  apiFetch('admin.php','POST',{action:'set_setting',key:'github_token',value:inp.value.trim()}).then(function(d){
+    if(st) st.textContent = d && d.success ? 'Token saved.' : 'Save failed.';
+  }).catch(function(){if(st) st.textContent = 'Save failed.';});
 }
 
 function setDebugMode(on){
