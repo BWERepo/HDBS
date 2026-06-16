@@ -104,6 +104,11 @@ if ($method === 'POST' && $action === 'get_setting') {
         $val = bin2hex(random_bytes(16));
         setSetting($pdo, $key, $val);
     }
+    // auto-generate backup_token if not set
+    if ($val === null && $key === 'backup_token') {
+        $val = bin2hex(random_bytes(16));
+        setSetting($pdo, $key, $val);
+    }
     // default version settings
     if ($val === null && $key === 'major_version') { setSetting($pdo, $key, '1'); $val = '1'; }
     if ($val === null && $key === 'minor_version') { setSetting($pdo, $key, '0'); $val = '0'; }

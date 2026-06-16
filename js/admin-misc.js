@@ -384,7 +384,8 @@ var ADMIN_NAV_LABELS={
   logs:'📋 Error Logs',bizprofile:'🏢 Business Profile',
   settings:'⚙️ Settings',gitlog:'📜 Change History',
   deploylog:'🚀 Deploy History',inv:'📦 Inventory',
-  promptlog:'💬 Prompt History'
+  promptlog:'💬 Prompt History',
+  dbbackup:'🗄️ DB Backup'
 };
 // Keep ADMIN_NAV_DEFAULT as flat list for backwards-compat references in RT_GROUPS etc.
 var ADMIN_NAV_DEFAULT=Object.keys(ADMIN_NAV_LABELS).map(function(s){return{sec:s,label:ADMIN_NAV_LABELS[s]};});
@@ -392,7 +393,7 @@ var ADMIN_NAV_DEFAULT=Object.keys(ADMIN_NAV_LABELS).map(function(s){return{sec:s
 var ADMIN_NAV_STRUCTURE_DEFAULT=[
   {type:'item',sec:'dash'},
   {type:'folder',sec:'shop',label:'🛍️ Shop',children:['prods','orders','manord','custs','sales','subs','blast','inv']},
-  {type:'folder',sec:'developer',label:'🔧 Developer',children:['promptlog','regtest','gitlog','deploylog','emaillog','logs','bizprofile','settings']},
+  {type:'folder',sec:'developer',label:'🔧 Developer',children:['promptlog','regtest','gitlog','deploylog','dbbackup','emaillog','logs','bizprofile','settings']},
   {type:'item',sec:'faqs'},
   {type:'item',sec:'tncity'},
   {type:'item',sec:'reviews'},
@@ -538,6 +539,56 @@ function deletePrompt(id){
   apiFetch('prompt_log.php','POST',{action:'delete_prompt',id:id}).then(function(){
     if(window._reloadPromptLog)window._reloadPromptLog();
   }).catch(function(e){alert('Delete failed: '+e.message);});
+}
+
+function rDbBackup(el){
+  el.innerHTML='<div style="padding:2rem;text-align:center;color:#6b6040">Loading backup settings…</div>';
+  // Fetch the backup token to display cron command
+  apiFetch('admin.php','POST',{action:'get_setting',key:'backup_token'}).then(function(d){
+    var token=d.value||'(token not yet generated — run a backup first)';
+    var cronCmd='0 2 * * * curl -s "https://handmadedesignsbysuzi.com/api/db_backup.php?token='+token+'" > /dev/null';
+    el.innerHTML=
+      '<div style="max-width:700px;margin:0 auto;padding:1.5rem">'
+      +'<div style="background:#fff;border:1px solid #e8e0b8;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem">'
+      +'<div style="font-weight:700;color:#2d2220;margin-bottom:.5rem;font-size:1.05rem">📦 Manual Backup</div>'
+      +'<div style="font-size:.88rem;color:#6b6040;margin-bottom:1rem">Dumps all database tables and emails the SQL file to handmadedesignsbysuzi@yahoo.com.</div>'
+      +'<button class="bp" id="run-backup-btn" onclick="runDbBackup()">▶ Run Backup Now</button>'
+      +'<div id="backup-result" style="margin-top:.8rem;font-size:.88rem"></div>'
+      +'</div>'
+      +'<div style="background:#fff;border:1px solid #e8e0b8;border-radius:12px;padding:1.5rem">'
+      +'<div style="font-weight:700;color:#2d2220;margin-bottom:.5rem;font-size:1.05rem">⏰ Automated Daily Backup (Hostinger Cron)</div>'
+      +'<div style="font-size:.88rem;color:#6b6040;margin-bottom:.8rem">Set this up once in hPanel → Advanced → Cron Jobs to run automatically at 2am every day.</div>'
+      +'<div style="font-size:.78rem;color:#6b6040;margin-bottom:.4rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Cron Command</div>'
+      +'<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:6px;padding:.7rem 1rem;font-family:monospace;font-size:.78rem;color:#2d2220;word-break:break-all;margin-bottom:.8rem">'+cronCmd+'</div>'
+      +'<button class="bp" style="font-size:.78rem;padding:.35rem .8rem" onclick="navigator.clipboard.writeText(\''+cronCmd.replace(/'/g,"\\'")+'\')||alert(\'Copied!\')">📋 Copy Command</button>'
+      +'<div style="margin-top:1rem;font-size:.78rem;color:#6b6040">'
+      +'<strong>Schedule:</strong> Runs daily at 2:00am &nbsp;|&nbsp; <strong>Delivery:</strong> Email attachment to handmadedesignsbysuzi@yahoo.com'
+      +'</div>'
+      +'</div>'
+      +'</div>';
+    showPageToolbar({title:'DB Backup',logoText:'Handmade Designs By Suzi'});
+  }).catch(function(){
+    el.innerHTML='<div style="padding:2rem;color:#c62828">Failed to load backup settings.</div>';
+  });
+}
+function runDbBackup(){
+  var btn=document.getElementById('run-backup-btn');
+  var res=document.getElementById('backup-result');
+  btn.disabled=true;btn.textContent='Running…';res.textContent='';
+  apiFetch('admin.php','POST',{action:'get_setting',key:'backup_token'}).then(function(d){
+    var token=d.value||'';
+    return fetch('https://handmadedesignsbysuzi.com/api/db_backup.php?token='+encodeURIComponent(token),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token})});
+  }).then(function(r){return r.json();}).then(function(d){
+    btn.disabled=false;btn.textContent='▶ Run Backup Now';
+    if(d.success&&d.sent){
+      res.innerHTML='<span style="color:#2e7d32">✅ Backup emailed — '+d.tables+' tables, '+Number(d.size).toLocaleString()+' bytes</span>';
+    } else {
+      res.innerHTML='<span style="color:#c62828">❌ '+(d.message||'Backup failed')+'</span>';
+    }
+  }).catch(function(e){
+    btn.disabled=false;btn.textContent='▶ Run Backup Now';
+    res.innerHTML='<span style="color:#c62828">❌ Error: '+e.message+'</span>';
+  });
 }
 
 function rDeployLog(el){

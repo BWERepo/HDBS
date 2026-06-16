@@ -777,6 +777,31 @@ try{
     t('order_confirm blocked with wrong token (403)',$code===403,'HTTP '.$code);
 }catch(Exception $e){t('order_confirm token gate checks',false,$e->getMessage());}
 
+// ── DB BACKUP ──
+try{
+    t('api/db_backup.php exists',file_exists($root.'/api/db_backup.php'));
+    $bkphp=file_get_contents($root.'/api/db_backup.php');
+    t('db_backup has token gate',strpos($bkphp,'hash_equals')!==false&&strpos($bkphp,'backup_token')!==false);
+    t('db_backup dumps all tables',strpos($bkphp,'SHOW TABLES')!==false);
+    t('db_backup emails backup',strpos($bkphp,'sendEmailWithAttachment')!==false);
+    t('db_backup uses DROP TABLE IF EXISTS',strpos($bkphp,'DROP TABLE IF EXISTS')!==false);
+    $amjs=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
+    t('rDbBackup function exists',strpos($amjs,'function rDbBackup(')!==false);
+    t('runDbBackup function exists',strpos($amjs,'function runDbBackup(')!==false);
+    t('dbbackup in ADMIN_NAV_LABELS',strpos($amjs,"dbbackup:'")!==false);
+    t('dbbackup in developer folder',strpos($amjs,"'dbbackup'")!==false);
+    $anjs=isset($anjs)?$anjs:file_get_contents($root.'/js/admin-nav.js');
+    t('dbbackup in nav titles',strpos($anjs,"dbbackup:'DB Backup'")!==false);
+    t('dbbackup wired in router',strpos($anjs,'rDbBackup(el)')!==false);
+    t('backup_token auto-generated in admin.php',strpos(file_get_contents($root.'/api/admin.php'),"'backup_token'")!==false);
+    // Live: db_backup blocked without token
+    $ch=curl_init('https://handmadedesignsbysuzi.com/api/db_backup.php');
+    curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>8,CURLOPT_POST=>true,
+        CURLOPT_POSTFIELDS=>'{"token":"wrongtoken"}',CURLOPT_HTTPHEADER=>['Content-Type: application/json']]);
+    curl_exec($ch);$code=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);curl_close($ch);
+    t('db_backup blocked with wrong token (403)',$code===403,'HTTP '.$code);
+}catch(Exception $e){t('db_backup checks',false,$e->getMessage());}
+
 // ── SENSITIVE SETTINGS BLOCKED ──
 try{
     $adphp=isset($adphp)?$adphp:file_get_contents($root.'/api/admin.php');
