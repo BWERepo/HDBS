@@ -731,6 +731,15 @@ try{
     t('tk-th-label arrow in shop.css',strpos($shopcss,'tk-th-label')!==false&&strpos($shopcss,'25BC')!==false);
 }catch(Exception $e){t('TableKit integration checks',false,$e->getMessage());}
 
+// ── ABOUT PAGE ──
+try{
+    $ihtml=isset($ihtml)?$ihtml:file_get_contents($root.'/index.html');
+    t('aboutsuzi.jpeg exists',file_exists($root.'/aboutsuzi.jpeg'));
+    t('aboutsuzi.jpeg in About page',strpos($ihtml,'aboutsuzi.jpeg')!==false);
+    t('About page has photo img tag',strpos($ihtml,'src="aboutsuzi.jpeg"')!==false);
+    t('emoji placeholder removed from About page',strpos($ihtml,'font-size:5rem;margin-bottom:1rem">👜')===false);
+}catch(Exception $e){t('about page checks',false,$e->getMessage());}
+
 // ── 3. FILES ──
 foreach(['api/config.php','api/admin.php','api/orders.php','api/products.php',
          'api/tax_sweep.php','api/square_payments.php','api/fetch_tax.php',
