@@ -107,7 +107,7 @@ try{
 try{$apijs=isset($apijs)?$apijs:file_get_contents($root.'/js/admin-products.js');
     t('toggleSell function exists',strpos($apijs,'function toggleSell(')!==false);
     t('sell checkbox in form',strpos($apijs,'pf-sell')!==false);
-    t('sell column in product table',strpos($apijs,"key:'sell'")!==false);
+    t('sell column in product table',strpos($apijs,"'<th>Sell</th>'")!==false||strpos($apijs,'<th>Sell</th>')!==false);
 }catch(Exception $e){t('sell checks',false,$e->getMessage());}
 try{$sjs2=isset($sjs2)?$sjs2:file_get_contents($root.'/js/store.js');
     t('store filters sell',strpos($sjs2,'p.sell!==0')!==false);
@@ -123,7 +123,7 @@ try{$apjs=isset($apjs)?$apjs:file_get_contents($root.'/js/admin-products.js');
     t('autoAssignSkus exists',strpos($apjs,'function autoAssignSkus(')!==false);
     t('exportProductsCsv exists',strpos($apjs,'function exportProductsCsv(')!==false);
     t('showImportCsv exists',strpos($apjs,'function showImportCsv(')!==false);
-    t('size column in product table',strpos($apjs,"key:'size'")!==false);
+    t('size column in product table',strpos($apjs,"'<th>Size</th>'")!==false||strpos($apjs,'<th>Size</th>')!==false);
     t('size in PROD_F filter',strpos($apjs,"PROD_F={name:'',cat:'',sku:'',size:''")!==false);
     t('size field in product form',strpos($apjs,'pf-sz')!==false);
 }catch(Exception $e){t('admin-products checks',false,$e->getMessage());}
@@ -213,7 +213,7 @@ try{
 try{
     $apjs=isset($apjs)?$apjs:file_get_contents($root.'/js/admin-products.js');
     t('Status column removed from products table',strpos($apjs,"key:'status',label:'Status'")===false);
-    t('Stock column in products header',strpos($apjs,"key:'stock',label:'Stock'")!==false);
+    t('Stock column in products header',strpos($apjs,'<th>Stock</th>')!==false);
     t('Stock cell in product row',strpos($apjs,'p.stock||0')!==false);
     t('Weight column removed from product row',strpos($apjs,"p.weight?' lbs")===false);
     t('Shipping reads from order.shipping',strpos($apjs,'order.shipping>0?order.shipping')!==false);
@@ -228,10 +228,10 @@ try{
 try{
     $aojs4=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
     $aojs=$aojs4;
-    t('Subtotal column in orders header',strpos($aojs,"key:'subtotal'")!==false);
-    t('Shipping column in orders header',strpos($aojs,"key:'shipping'")!==false);
-    t('Trans Fee column in orders header',strpos($aojs,"label:'Trans Fee'")!==false);
-    t('Total column after Trans Fee',strpos($aojs,"key:'fee'")<strpos($aojs,"key:'total'"));
+    t('Subtotal column in orders header',strpos($aojs,'Subtotal')!==false);
+    t('Shipping column in orders header',strpos($aojs,"'Shipping'")!==false);
+    t('Trans Fee column in orders header',strpos($aojs,"'Trans Fee'")!==false);
+    t('Total column after Trans Fee',strpos($aojs,"'Trans Fee'")<strpos($aojs,"'Total'"));
     t('orders API returns subtotal',strpos(file_get_contents($root.'/api/orders.php'),"'subtotal'")!==false);
     t('orders API returns shipping',strpos(file_get_contents($root.'/api/orders.php'),"'shipping'")!==false);
 }catch(Exception $e){t('orders table column checks',false,$e->getMessage());}
@@ -287,7 +287,7 @@ try{
     t('sqPaySort exists',strpos($aojs,'function sqPaySort(')!==false);
     t('sqPayFilt uses dropdown',strpos($aojs,'sqp-filt-drop')!==false);
     t('sqPayExportCsv exists',strpos($aojs,'function sqPayExportCsv()')!==false);
-    t('all 9 columns filterable',substr_count($aojs,"f:true")>=9);
+    t('sqPay table uses tablekit class',strpos($aojs,'tablekit')!==false);
 }catch(Exception $e){t('square payments UI checks',false,$e->getMessage());}
 // Tax sweep buttons
 try{
@@ -399,11 +399,11 @@ try{$amjs=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
     t('elRefresh function exists',strpos($amjs,'function elRefresh(')!==false);
     t('clearEmailLog function exists',strpos($amjs,'function clearEmailLog(')!==false);
     t('email log refresh button',strpos($amjs,'elRefresh()')!==false);
-    t('email log Date&Time column',strpos($amjs,"key:'sent_at'")!==false);
-    t('email log Type column',strpos($amjs,"key:'email_type'")!==false);
-    t('email log Sent To column',strpos($amjs,"key:'sent_to'")!==false);
-    t('email log Order ID column',strpos($amjs,"key:'order_id'")!==false);
-    t('email log Status column',strpos($amjs,"key:'status'")!==false);
+    t('email log Date&Time column',strpos($amjs,'Date &amp; Time')!==false||strpos($amjs,'Date & Time')!==false);
+    t('email log Type column',strpos($amjs,'<th>Type</th>')!==false);
+    t('email log Sent To column',strpos($amjs,'Sent To')!==false);
+    t('email log Order ID column',strpos($amjs,'Order ID')!==false);
+    t('email log Status column',strpos($amjs,'<th>Status</th>')!==false);
     t('email log Preview column',strpos($amjs,'elPreview')!==false);
     t('email log overflow visible in nav',strpos(file_get_contents($root.'/js/admin-nav.js'),"overflowY")!==false);
 }catch(Exception $e){t('email log sort/filter checks',false,$e->getMessage());}
@@ -511,13 +511,41 @@ try{
     t('admin-nav logs page view',strpos($navjs,'log_page_view')!==false&&strpos($navjs,'hdbs_pagelog')!==false);
 }catch(Exception $e){t('page view logging checks',false,$e->getMessage());}
 
+// ── TABLEKIT INTEGRATION ──
+try{
+    $tblcss=file_get_contents($root.'/css/table.css');
+    $tbljs=file_get_contents($root.'/js/table.js');
+    t('css/table.css exists',strlen($tblcss)>100);
+    t('js/table.js exists',strlen($tbljs)>100);
+    $html=isset($html)?$html:file_get_contents($root.'/index.html');
+    t('index.html loads table.css',strpos($html,'css/table.css')!==false);
+    t('index.html loads table.js',strpos($html,'js/table.js')!==false);
+    t('TableKit.initAll() in index.html',strpos($html,'TableKit.initAll()')!==false);
+    $aojs=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
+    t('buildCustThead plain th',strpos($aojs,'buildCustThead')!==false&&strpos($aojs,"cols.map(function(col){return'<th>'+col.label+'</th>';")!==false);
+    t('buildOrdThead plain th',strpos($aojs,"cols.map(function(l){return'<th>'+l+'</th>';}")!==false);
+    t('orders table has tablekit class',strpos($aojs,'tablekit')!==false);
+    t('customers table has tablekit class',substr_count($aojs,'tablekit')>=2);
+    t('sqPay thead plain th',strpos($aojs,"'Date / Time'")!==false&&strpos($aojs,"return'<th>'+l+'</th>';")!==false);
+    t('sqPay table has tablekit class',substr_count($aojs,'tablekit')>=3);
+    $amjs=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
+    t('buildElThead plain th',strpos($amjs,'buildElThead')!==false&&strpos($amjs,'Date &amp; Time')!==false);
+    t('email log table has tablekit class',strpos($amjs,'tablekit')!==false);
+    $apjs=file_get_contents($root.'/js/admin-products.js');
+    t('buildProdThead plain th',strpos($apjs,'buildProdThead')!==false&&strpos($apjs,'<th>Product</th>')!==false);
+    t('products table has tablekit class',strpos($apjs,'tablekit')!==false);
+    $shopcss=file_get_contents($root.'/css/shop.css');
+    t('tk-drop-btn hidden in shop.css',strpos($shopcss,'tk-drop-btn')!==false&&strpos($shopcss,'opacity:0')!==false);
+    t('tk-th-label arrow in shop.css',strpos($shopcss,'tk-th-label')!==false&&strpos($shopcss,'25BC')!==false);
+}catch(Exception $e){t('TableKit integration checks',false,$e->getMessage());}
+
 // ── 3. FILES ──
 foreach(['api/config.php','api/admin.php','api/orders.php','api/products.php',
          'api/tax_sweep.php','api/square_payments.php','api/fetch_tax.php',
          'api/email_log.php','api/tn_city_tax.php','api/applog.php',
          'mailer.php','checkout.php','send_confirm.php','send_shipping.php',
          'verify_payment.php','notify.php','index.html',
-         'css/shop.css','js/api.js','js/config.js','js/store.js','js/auth.js',
+         'css/shop.css','css/table.css','js/table.js','js/api.js','js/config.js','js/store.js','js/auth.js',
          'js/ui.js','js/admin-nav.js','js/admin-general.js','js/admin-products.js',
          'js/admin-orders.js','js/admin-misc.js'] as $f)
     t($f, file_exists($root.'/'.$f));

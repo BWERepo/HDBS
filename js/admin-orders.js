@@ -964,7 +964,10 @@ function ordFiltAll(listId,chk,evt){if(evt)evt.stopPropagation();var list=docume
 function ordFiltSearch(listId,q){var list=document.getElementById(listId);if(!list)return;var labels=list.querySelectorAll('label');for(var i=0;i<labels.length;i++){var txt=labels[i].textContent.toLowerCase();labels[i].style.display=(!q||txt.indexOf(q.toLowerCase())>=0)?'flex':'none';}}
 function ordFilt2(e,col){e.stopPropagation();document.querySelectorAll('.ord-fp').forEach(function(p){p.remove();});var th=e.target.closest('th');th.style.position='relative';var pop=document.createElement('div');pop.className='ord-fp';pop.style.cssText='position:absolute;top:100%;left:0;background:#fff;border:1.5px solid #e8e0b8;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);z-index:300;min-width:220px;padding:0;overflow:hidden';if(col==='date'){pop.innerHTML='<div style="padding:.5rem .7rem;background:#f9f4e4;border-bottom:1px solid #e8e0b8;font-size:.72rem;font-weight:700;color:#a07810;text-transform:uppercase">Date Range</div><div style="padding:.6rem .7rem"><div style="font-size:.72rem;color:#6b6040;margin-bottom:.2rem">From</div><input type="date" id="ord-fp-dfrom" style="width:100%;margin-bottom:.5rem;padding:.3rem .5rem;border:1px solid #e8e0b8;border-radius:5px;font-size:.78rem;box-sizing:border-box" value="'+ORD_F.dateFrom+'"><div style="font-size:.72rem;color:#6b6040;margin-bottom:.2rem">To</div><input type="date" id="ord-fp-dto" style="width:100%;padding:.3rem .5rem;border:1px solid #e8e0b8;border-radius:5px;font-size:.78rem;box-sizing:border-box" value="'+ORD_F.dateTo+'"></div><div style="padding:.5rem .7rem;border-top:1px solid #f0e8d0;display:flex;justify-content:space-between;align-items:center"><button style="font-size:.72rem;color:#a07810;background:none;border:none;cursor:pointer" onclick="ORD_F.dateFrom=\'\';ORD_F.dateTo=\'\';renderOrdersTable(document.getElementById(\'acnt\'));this.closest(\'.ord-fp\').remove()">Clear</button><button style="font-size:.72rem;color:#6b6040;background:none;border:none;cursor:pointer" onclick="this.closest(\'.ord-fp\').remove()">Close</button><button style="font-size:.78rem;background:#d4a017;color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;cursor:pointer;font-weight:600" onclick="var p=this.closest(\'.ord-fp\');ORD_F.dateFrom=p.querySelector(\'#ord-fp-dfrom\').value;ORD_F.dateTo=p.querySelector(\'#ord-fp-dto\').value;p.remove();renderOrdersTable(document.getElementById(\'acnt\'))">Apply</button></div>';}else{var allVals=[];var seen={};for(var i=0;i<ORDERS.length;i++){var v=String(ORDERS[i][col]||'(blank)');if(!seen[v]){seen[v]=true;allVals.push(v);}}allVals.sort();var selVals=ORD_F[col]?ORD_F[col].split('\x00'):null;var listId='ord-flist-'+col;var checkboxes=allVals.map(function(v){var chk=(selVals===null||selVals.indexOf(v)>=0)?'checked':'';return'<label style="display:flex;align-items:center;gap:.4rem;padding:.25rem .4rem;cursor:pointer;border-radius:4px;font-size:.8rem;color:#2d2220" onmouseover="this.style.background=\'#fffdf0\'" onmouseout="this.style.background=\'\'"><input type="checkbox" value="'+v.replace(/"/g,'&quot;')+'" '+chk+'><span>'+v+'</span></label>';}).join('');pop.innerHTML='<div style="padding:.5rem .7rem;background:#f9f4e4;border-bottom:1px solid #e8e0b8;font-size:.72rem;font-weight:700;color:#a07810;text-transform:uppercase">Filter: '+col+'</div><div style="padding:.4rem .7rem;border-bottom:1px solid #f0e8d0"><input type="text" style="width:100%;padding:.3rem .5rem;border:1px solid #e8e0b8;border-radius:5px;font-size:.8rem;box-sizing:border-box" placeholder="Search..." oninput="ordFiltSearch(\''+listId+'\',this.value)"></div><div style="padding:.3rem .4rem;border-bottom:1px solid #f0e8d0;display:flex;gap:.5rem"><button style="font-size:.72rem;color:#a07810;background:none;border:none;cursor:pointer;padding:0" onclick="ordFiltAll(\''+listId+'\',true)">Select All</button><span style="color:#e8e0b8">|</span><button style="font-size:.72rem;color:#a07810;background:none;border:none;cursor:pointer;padding:0" onclick="ordFiltAll(\''+listId+'\',false)">Clear All</button></div><div id="'+listId+'" style="max-height:180px;overflow-y:auto;padding:.2rem .3rem">'+checkboxes+'</div><div style="padding:.5rem .7rem;border-top:1px solid #f0e8d0;display:flex;justify-content:space-between;align-items:center"><button style="font-size:.72rem;color:#6b6040;background:none;border:none;cursor:pointer;padding:0" onclick="this.closest(\'.ord-fp\').remove()">Close</button><button style="font-size:.78rem;background:#d4a017;color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;cursor:pointer;font-weight:600" onclick="ordFiltApply(\''+col+'\',this)">Apply</button></div>';}th.appendChild(pop);setTimeout(function(){var inp=pop.querySelector('input');if(inp)inp.focus();},50);setTimeout(function(){document.addEventListener('click',function h(ev){if(!pop.contains(ev.target)){pop.remove();document.removeEventListener('click',h);}});},50);}
 function applyOrdFilters(){var result=ORDERS.filter(function(o){function chkF(fval,oval){if(!fval)return true;if(fval==='__NONE__')return false;return fval.split('\x00').indexOf(String(oval||'(blank)'))>=0;}if(ORD_F.id&&!chkF(ORD_F.id,o.id))return false;if(ORD_F.cust&&!chkF(ORD_F.cust,o.cust))return false;if(ORD_F.pay&&!chkF(ORD_F.pay,o.pay))return false;if(ORD_F.status&&!chkF(ORD_F.status,o.status))return false;if(ORD_F.swept_date&&!chkF(ORD_F.swept_date,o.swept_date||'\u2014'))return false;if(ORD_F.total&&(o.total||0).toFixed(2).indexOf(ORD_F.total)<0)return false;if(ORD_F.tax&&String((o.tax||0).toFixed(2)).indexOf(ORD_F.tax)<0)return false;if(ORD_F.dateFrom||ORD_F.dateTo){var norm=ordNormDate(o);if(ORD_F.dateFrom&&norm<ORD_F.dateFrom)return false;if(ORD_F.dateTo&&norm>ORD_F.dateTo)return false;}return true;});var sc=ORD_SORT.col,sd=ORD_SORT.dir;if(sc)result.sort(function(a,b){var av=a[sc]||'',bv=b[sc]||'';if(typeof av==='number'&&typeof bv==='number')return sd*(av-bv);if(sc==='date')return sd*ordNormDate(a).localeCompare(ordNormDate(b));return sd*String(av).localeCompare(String(bv));});return result;}
-function buildOrdThead(){var cols=[{key:'id',label:'Order ID'},{key:'cust',label:'Customer'},{key:'date',label:'Date'},{key:'time',label:'Time'},{key:'subtotal',label:'Subtotal'},{key:'shipping',label:'Shipping'},{key:'tax',label:'Tax'},{key:'fee',label:'Trans Fee'},{key:'total',label:'Total'},{key:'pay',label:'Paid By'},{key:'order_type',label:'Order Type'},{key:'status',label:'Status'},{key:'swept_date',label:'Tax Swept Date'}];var s='background:#a07810;color:#fff;padding:0;white-space:nowrap';var ths=cols.map(function(col){var isSort=ORD_SORT.col===col.key;var hasF=(ORD_F[col.key]&&ORD_F[col.key]!=='')||(col.key==='date'&&(ORD_F.dateFrom||ORD_F.dateTo));var arrow=isSort?(ORD_SORT.dir===1?'\u25b2':'\u25bc'):'\u25bf';return'<th style="'+s+';position:relative"><div style="display:flex;align-items:center;padding:5px 6px;gap:3px"><span style="font-size:.75rem;font-weight:700">'+col.label+'</span><span style="font-size:.65rem;color:'+(isSort?'#ffe082':'rgba(255,255,255,.75)')+';cursor:pointer" onclick="ordSort2(\''+col.key+'\')" title="Sort">'+arrow+'</span><span style="font-size:.65rem;background:'+(hasF?'#ffe082':'rgba(255,255,255,.2)')+';color:'+(hasF?'#5a3e00':'#fff')+';border-radius:3px;padding:1px 4px;cursor:pointer;line-height:1.4" onclick="ordFilt2(event,\''+col.key+'\')" title="Filter">\u25bc</span></div></th>';}).join('');return'<thead><tr>'+ths+'<th style="'+s+'"><div style="padding:5px 6px;font-size:.75rem;font-weight:700">Status / Pay</div></th><th style="'+s+'"><div style="padding:5px 6px;font-size:.75rem;font-weight:700">Actions</div></th></tr></thead>';}
+function buildOrdThead(){
+  var cols=['Order ID','Customer','Date','Time','Subtotal','Shipping','Tax','Trans Fee','Total','Paid By','Order Type','Status','Tax Swept Date','','Actions'];
+  return '<thead><tr>'+cols.map(function(l){return'<th>'+l+'</th>';}).join('')+'</tr></thead>';
+}
 function renderOrdersTable(el){
   var filt=applyOrdFilters();
   var rows='';
@@ -1003,7 +1006,7 @@ function renderOrdersTable(el){
     '<button class="bs" onclick="printOrdersPdf()" style="font-size:.78rem">🖨️ Print PDF</button>'+
     (ORDERS.length?'<button class="bd" onclick="deleteAllOrders()" style="font-size:.78rem">🗑 Delete All</button>':'')+
     '</div>'+
-    '<table>'+buildOrdThead()+
+    '<table class="tablekit">'+buildOrdThead()+
     '<tbody>'+(rows||'<tr><td colspan="11" style="text-align:center;padding:1.5rem;color:#6b6040">No orders yet</td></tr>')+'</tbody>'+
     '<tfoot><tr style="background:#fffdf0;font-weight:700;border-top:2px solid #e8e0b8">'+
       '<td colspan="4" style="padding:8px 12px;color:#6b6040;font-size:.82rem">'+filt.length+' order'+(filt.length!==1?'s':'')+(isF?' (filtered)':'')+'</td>'+
@@ -1015,6 +1018,7 @@ function renderOrdersTable(el){
       '<td colspan="3"></td>'+
     '</tr></tfoot>'+
     '</table>';
+  if(typeof TableKit!=='undefined')TableKit.initAll();
 }
 function applyOrderFilters(){
   return ORDERS.filter(function(o){
@@ -1213,20 +1217,7 @@ function applyCustomerFilters(){
 
 function buildCustThead(){
   var cols=[{key:'name',label:'Name'},{key:'em',label:'Email'},{key:'ph',label:'Phone'},{key:'joined',label:'Joined'},{key:'orders',label:'Orders'}];
-  var s='background:#a07810;color:#fff;padding:0;white-space:nowrap';
-  var filterCols=['name','em','orders'];
-  var ths=cols.map(function(col){
-    var isSort=CUST_SORT.col===col.key;
-    var hasF=CUST_F[col.key]&&CUST_F[col.key]!=='';
-    var arrow=isSort?(CUST_SORT.dir===1?'▲':'▼'):'▽';
-    var canFilter=filterCols.indexOf(col.key)>=0;
-    return '<th style="'+s+';position:relative"><div style="display:flex;align-items:center;padding:5px 6px;gap:3px">'+
-      '<span style="font-size:.75rem;font-weight:700">'+col.label+'</span>'+
-      '<span style="font-size:.65rem;color:'+(isSort?'#ffe082':'rgba(255,255,255,.75)')+';cursor:pointer" onclick="custSort(\''+col.key+'\')" title="Sort">'+arrow+'</span>'+
-      (canFilter?'<span style="font-size:.65rem;background:'+(hasF?'#ffe082':'rgba(255,255,255,.2)')+';color:'+(hasF?'#5a3e00':'#fff')+';border-radius:3px;padding:1px 4px;cursor:pointer;line-height:1.4" onclick="custFilt(event,\''+col.key+'\')" title="Filter">▾</span>':'')+
-    '</div></th>';
-  }).join('');
-  return '<thead><tr>'+ths+'</tr></thead>';
+  return '<thead><tr>'+cols.map(function(col){return'<th>'+col.label+'</th>';}).join('')+'</tr></thead>';
 }
 
 function renderCustsTable(el){
@@ -1242,7 +1233,8 @@ function renderCustsTable(el){
       (isFiltered?'<button class="bs" onclick="CUST_F={name:\'\',em:\'\',orders:\'\'};renderCustsTable(document.getElementById(\'acnt\'))" style="color:#c62828">✕ Clear Filters</button>':'')+
       '<span style="font-size:.78rem;color:#6b6040;margin-left:auto">'+filtered.length+' of '+CUSTS.length+' customers</span>'+
     '</div>'+
-    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'+buildCustThead()+'<tbody>'+(rows||'<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:#6b6040">No customers yet</td></tr>')+'</tbody></table></div>';
+    '<div style="overflow-x:auto"><table class="tablekit">'+buildCustThead()+'<tbody>'+(rows||'<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:#6b6040">No customers yet</td></tr>')+'</tbody></table></div>';
+  if(typeof TableKit!=='undefined')TableKit.initAll();
 }
 
 
@@ -1251,7 +1243,8 @@ function rInv(el){
   var sp=[].concat(PRODS).sort(function(a,b){return a.stock-b.stock;}),rows='';
   for(var j=0;j<sp.length;j++){var p=sp[j];var th=firstImg(p);rows+='<tr><td><div style="display:flex;align-items:center;gap:.5rem">'+(th?'<img src="'+th+'" style="width:32px;height:32px;border-radius:5px;object-fit:cover">':'<span>👜</span>')+'<span style="font-weight:600">'+p.name+'</span></div></td><td>'+p.cat+'</td><td>$'+p.price.toFixed(2)+'</td><td style="font-weight:700">'+p.stock+'</td><td><span class="badge '+(p.stock>5?'bg':p.stock>0?'ba':'br')+'">'+(p.stock>5?'In Stock':p.stock>0?'Low':'Out of Stock')+'</span></td><td><button onclick="adjSt(\''+p.id+'\',-1)" style="background:#fdf3d0;border:none;width:22px;height:22px;border-radius:50%;cursor:pointer;font-weight:700;color:#a07810">−</button> <input type="number" value="'+p.stock+'" min="0" style="width:48px;text-align:center;border:1.5px solid #e8e0b8;border-radius:5px;padding:.22rem;font-size:.78rem" onchange="setSt(\''+p.id+'\',this.value)"> <button onclick="adjSt(\''+p.id+'\',1)" style="background:#fdf3d0;border:none;width:22px;height:22px;border-radius:50%;cursor:pointer;font-weight:700;color:#a07810">+</button></td></tr>';}
   el.innerHTML='<div class="stats"><div class="stat"><div class="stl">Total Units</div><div class="stv">'+total+'</div></div><div class="stat"><div class="stl">Low Stock</div><div class="stv" style="color:#e65100">'+low+'</div></div><div class="stat"><div class="stl">Out of Stock</div><div class="stv" style="color:#c0392b">'+out+'</div></div><div class="stat"><div class="stl">SKUs</div><div class="stv">'+PRODS.length+'</div></div></div>'+
-    '<table><thead><tr><th>Product</th><th>Cat</th><th>Price</th><th>Stock</th><th>Status</th><th>Adjust</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    '<table class="tablekit"><thead><tr><th>Product</th><th>Cat</th><th>Price</th><th>Stock</th><th>Status</th><th>Adjust</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  if(typeof TableKit!=='undefined')TableKit.initAll();
 }
 function adjSt(id,d){var p=findProd(id);if(p){p.stock=Math.max(0,p.stock+d);
   apiFetch('products.php','POST',p).catch(function(){});
@@ -1280,8 +1273,8 @@ function renderSalesTable(el){
   var ts=[];for(var k in tp)ts.push([k,tp[k]]);ts.sort(function(a,b){return b[1]-a[1];});ts=ts.slice(0,5);
   var trows='';for(var q=0;q<ts.length;q++)trows+='<tr><td style="font-weight:600">'+ts[q][0]+'</td><td><span class="badge bg">'+ts[q][1]+' sold</span></td></tr>';
   el.innerHTML='<div class="stats"><div class="stat"><div class="stl">Revenue</div><div class="stv">$'+rev.toFixed(2)+'</div></div><div class="stat"><div class="stl">Orders</div><div class="stv">'+ORDERS.length+'</div></div><div class="stat"><div class="stl">Avg Order</div><div class="stv">$'+(ORDERS.length?(rev/ORDERS.length).toFixed(2):'0.00')+'</div></div><div class="stat"><div class="stl">Square Orders</div><div class="stv">'+(payGroups['Square']?payGroups['Square'].count:0)+'</div></div></div>'+
-    '<table><thead><tr><th>Top Product</th><th>Units Sold</th></tr></thead><tbody>'+(trows||'<tr><td colspan="2" style="text-align:center;padding:1.2rem;color:#6b6040">No sales yet</td></tr>')+'</tbody></table>'+
-    '<table><thead><tr><th>Payment Method</th><th>Orders</th><th>Revenue</th></tr></thead><tbody>'+
+    '<table class="tablekit"><thead><tr><th>Top Product</th><th>Units Sold</th></tr></thead><tbody>'+(trows||'<tr><td colspan="2" style="text-align:center;padding:1.2rem;color:#6b6040">No sales yet</td></tr>')+'</tbody></table>'+
+    '<table class="tablekit"><thead><tr><th>Payment Method</th><th>Orders</th><th>Revenue</th></tr></thead><tbody>'+
     (Object.keys(payGroups).length?Object.keys(payGroups).map(function(pm){
       return'<tr><td>💳 '+pm+'</td><td>'+payGroups[pm].count+'</td>'
       +'<td style="font-weight:700;color:#a07810">$'+payGroups[pm].total.toFixed(2)+'</td></tr>';
@@ -1296,6 +1289,7 @@ function renderSalesTable(el){
     '<button class="bp" style="font-size:.8rem" onclick="exportTaxCSV()">📥 Export Tax Report (CSV)</button>'+
     '</div>'+
     (ORDERS.length?'<div style="margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid #e8e0b8"><div style="font-size:.82rem;color:#6b6040;margin-bottom:.7rem">Use this to clear test orders before going live. This cannot be undone.</div><button class="bd" onclick="deleteAllOrders()" style="font-size:.82rem">🗑 Delete All Orders &amp; Sales Data</button></div>':'');
+  if(typeof TableKit!=='undefined')TableKit.initAll();
 }
 
 function rAdminFAQs(el){
@@ -1629,7 +1623,7 @@ function _rShippingRender(el){
     '<div style="background:#fff;border:1px solid #e8e0b8;border-radius:10px;padding:1.1rem;margin-bottom:.9rem">'+
       '<div style="font-weight:700;margin-bottom:.3rem">Weight Surcharges</div>'+
       '<div style="font-size:.78rem;color:#6b6040;margin-bottom:.8rem">Added on top of the zone rate based on total cart weight.</div>'+
-      '<table style="font-size:.83rem;width:100%;border-collapse:collapse">'+
+      '<table class="tablekit" style="font-size:.83rem">'+
       '<thead><tr>'+
         '<th style="text-align:left;padding:.4rem .6rem;color:#6b6040;border-bottom:1px solid #e8e0b8">Min (lbs)</th>'+
         '<th style="text-align:left;padding:.4rem .6rem;color:#6b6040;border-bottom:1px solid #e8e0b8">Max (lbs)</th>'+
@@ -2066,18 +2060,7 @@ function sqPayRenderTable(){
     if(typeof av==='number')return SQ_PAY_SORT.dir*(av-bv);
     return SQ_PAY_SORT.dir*String(av).localeCompare(String(bv));
   });
-  var ths=[{k:'created',l:'Date / Time',f:true},{k:'note',l:'Order',f:true},{k:'status',l:'Status',f:true},{k:'amount',l:'Amount',f:true},{k:'tax',l:'Tax',f:true},{k:'fee',l:'Fee',f:true},{k:'net',l:'Net',f:true},{k:'card',l:'Card',f:true},{k:'buyer',l:'Buyer',f:true}];
-  var hs=ths.map(function(col){
-    var isSort=SQ_PAY_SORT.col===col.k;
-    var arrow=isSort?(SQ_PAY_SORT.dir===1?'\u25b2':'\u25bc'):'\u25bf';
-    var hasF=col.f&&SQ_PAY_F[col.k];
-    return '<th style="background:#a07810;color:#fff;padding:0;white-space:nowrap">'+
-      '<div style="display:flex;align-items:center;padding:5px 8px;gap:3px">'+
-        '<span style="font-size:.75rem;font-weight:700;text-transform:uppercase">'+col.l+'</span>'+
-        '<span style="font-size:.65rem;color:'+(isSort?'#ffe082':'rgba(255,255,255,.7)')+';cursor:pointer" onclick="sqPaySort(\''+col.k+'\')" title="Sort">'+arrow+'</span>'+
-        (col.f?'<span style="font-size:.65rem;background:'+(hasF?'#ffe082':'rgba(255,255,255,.2)')+';color:'+(hasF?'#5a3e00':'#fff')+';border-radius:3px;padding:1px 4px;cursor:pointer" onclick="sqPayFilt(\''+col.k+'\')" title="Filter">\u25bc</span>':'')+
-      '</div></th>';
-  }).join('');
+  var hs=['Date / Time','Order','Status','Amount','Tax','Fee','Net','Card','Buyer'].map(function(l){return'<th>'+l+'</th>';}).join('');
   var rows=filt.map(function(p){
     var dt=p.created?new Date(p.created):'';
     var dtStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'--';
@@ -2097,9 +2080,10 @@ function sqPayRenderTable(){
   }).join('');
   wrap.innerHTML=filt.length===0?
     '<div style="text-align:center;padding:2rem;color:#6b6040">No payments found.</div>':
-    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.83rem">'+
+    '<div style="overflow-x:auto"><table class="tablekit" style="font-size:.83rem">'+
     '<thead><tr>'+hs+'</tr></thead><tbody>'+rows+'</tbody></table></div>'+
     '<div style="font-size:.78rem;color:#6b6040;margin-top:.5rem">'+filt.length+' of '+SQ_PAY_DATA.length+' payments</div>';
+  if(typeof TableKit!=='undefined')TableKit.initAll();
 }
 function sqPayExportCsv(){
   if(!SQ_PAY_DATA.length){alert('No payments to export.');return;}

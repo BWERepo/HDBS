@@ -46,9 +46,10 @@ function renderSubsTable(el){
     '<div style="font-size:.88rem;color:#6b6040">'+SUBS.length+' subscriber'+(SUBS.length!==1?'s':'')+'</div>' +
     '<button class="bp" onclick="exportSubs()" style="font-size:.78rem;padding:.38rem .8rem">⬇ Export CSV</button>' +
     '</div>' +
-    '<table><thead><tr><th>Email</th><th>Subscribed</th><th>Action</th></tr></thead><tbody>' +
+    '<table class="tablekit"><thead><tr><th>Email</th><th>Subscribed</th><th>Action</th></tr></thead><tbody>' +
     (rows||'<tr><td colspan="3" style="text-align:center;padding:2rem;color:#6b6040">No subscribers yet.<br><span style="font-size:.8rem">The newsletter section on the homepage will collect emails here.</span></td></tr>') +
     '</tbody></table>';
+  if(typeof TableKit!=='undefined')TableKit.initAll();
 }
 function delSub(email){
   if(!confirm('Remove '+email+' from the newsletter list?'))return;

@@ -2,8 +2,9 @@
 var RT_GROUPS={
   'DB Schema':['orders.tax_amount','orders.tax_swept_date','orders.payment_method','orders.customer_email','orders.total','orders.shipping_carrier','orders.tracking_number','orders.square_payment_id','products.sku','products.img1','products.price','products.name','products.stock','products.weight','orders table','products table','order_items table','settings table','tax_sweeps table','settings LONGTEXT','tax_swept removed'],
   'Data Integrity':['products exist','orders exist','settings exist','square_mode set','shipping_config','biz_profile','products have SKUs','no duplicate SKUs','product descriptions updated','hero.jpg exists','shop.css has /hero.jpg','store.js has sold-out diagonal','orders.php decrements stock','send_shipping uses EDT','send_confirm uses EDT','sitemap.xml exists','robots.txt exists','robots.txt references sitemap'],
-  'Required Files':['api/config.php','api/admin.php','api/orders.php','api/products.php','api/tax_sweep.php','api/square_payments.php','api/email_log.php','api/fetch_tax.php','mailer.php','checkout.php','send_confirm.php','send_shipping.php','index.html','css/shop.css','js/api.js','js/config.js','js/store.js','js/admin-orders.js','js/admin-misc.js'],
+  'Required Files':['api/config.php','api/admin.php','api/orders.php','api/products.php','api/tax_sweep.php','api/square_payments.php','api/email_log.php','api/fetch_tax.php','mailer.php','checkout.php','send_confirm.php','send_shipping.php','index.html','css/shop.css','css/table.css','js/api.js','js/config.js','js/store.js','js/table.js','js/admin-orders.js','js/admin-misc.js'],
   'JS Functions':['JS:openCheckout','JS:placeOrder','JS:renderOrdersTable','JS:viewOrder','JS:showManualOrderForm','JS:sendConfirmEmail','JS:rSweep','JS:rSqPay','JS:applyShippingConfig','JS:rBizProfile','JS:buildAdminNav','JS:saveNavOrder','JS:rRegTest','JS:runRegTests','JS:cancelRegTests','JS:SQ_FEE_PCT','JS:TAX_RATES','JS:admin-nav','JS:updCarrier','JS:updTracking','JS:deleteOrder','JS:sendShippingEmail','JS:pfNextSku','JS:pfAutoSku','JS:fetchOrderTax','JS:setPageLogMode'],
+  'TableKit Integration':['css/table.css exists','js/table.js exists','index.html loads table.css','index.html loads table.js','TableKit.initAll() in index.html','buildCustThead plain th','buildOrdThead plain th','buildElThead plain th','buildProdThead plain th','sqPay thead plain th','orders table has tablekit class','customers table has tablekit class','products table has tablekit class','email log table has tablekit class','sqPay table has tablekit class','tk-drop-btn hidden in shop.css','tk-th-label arrow in shop.css'],
   'Page View Logging':['pagelog() in applog.php','page_log_enabled() in applog.php','log_page_view action in admin.php','pages.log in read_log allowlist','setPageLogMode function exists','hdbs_pagelog in admin-misc.js','log_page_changes setting key used','goAbout logs visit','goFAQ logs visit','goCustom logs visit','goContact logs visit','goAuth logs visit','openCart logs visit','openCheckout logs visit','rLogs fetches pages.log','dblclick wired for pages log','Clear Pages button exists','pages.log in email dropdown','admin-nav logs page view']
 };
 function rtBuildSkeleton(){
@@ -151,7 +152,7 @@ function renderSweepPanel(el, d){
           '<div style="font-weight:700;font-size:.88rem;text-transform:uppercase;letter-spacing:.06em;color:#a07810">Sweep History</div>'+
           '<button class="bp" style="font-size:.78rem" onclick="showAddSweepForm()">+ Add Sweep Record</button>'+
         '</div>'+
-        '<table style="width:100%;min-width:680px;border-collapse:collapse;font-size:.83rem">'+
+        '<table class="tablekit" style="font-size:.83rem">'+
         '<thead><tr style="background:#a07810;color:#fff;white-space:nowrap">'+
           '<th style="padding:5px 10px;font-size:.75rem;font-weight:700;text-transform:uppercase;text-align:left">Sweep Date</th>'+
           '<th style="padding:5px 10px;font-size:.75rem;font-weight:700;text-transform:uppercase;text-align:left">Period From</th>'+
@@ -226,7 +227,7 @@ function renderSweepPanel(el, d){
           '</div>'+
           '<div style="margin-bottom:1rem;border:1px solid #e8e0b8;border-radius:8px;overflow:hidden">'+
             '<div style="padding:.5rem .8rem;background:#f9f4e4;font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810">Orders to Sweep</div>'+
-            '<table style="width:100%;border-collapse:collapse;font-size:.8rem">'+
+            '<table class="tablekit" style="font-size:.8rem">'+
             '<thead><tr style="background:#fffdf0">'+
               '<th style="padding:5px 10px;text-align:left;color:#6b6040;font-weight:700;border-bottom:1px solid #e8e0b8">Order ID</th>'+
               '<th style="padding:5px 10px;text-align:left;color:#6b6040;font-weight:700;border-bottom:1px solid #e8e0b8">Date</th>'+
@@ -259,6 +260,7 @@ function renderSweepPanel(el, d){
     }
 
     el.innerHTML='<div style="max-width:700px">'+pendingHtml+histHtml+'</div>';
+    if(typeof TableKit!=='undefined')TableKit.initAll();
   }).catch(function(){
     el.innerHTML='<div style="color:#c62828;padding:1rem">Failed to load sweep history.</div>';
   });
@@ -705,25 +707,7 @@ function applyElFilters(){
 }
 
 function buildElThead(){
-  var cols=[
-    {key:'sent_at',   label:'Date & Time'},
-    {key:'email_type',label:'Type'},
-    {key:'sent_to',   label:'Sent To'},
-    {key:'order_id',  label:'Order ID'},
-    {key:'status',    label:'Status'}
-  ];
-  var s='background:#a07810;color:#fff;padding:0;white-space:nowrap';
-  var ths=cols.map(function(col){
-    var isSort=EL_SORT.col===col.key;
-    var hasF=EL_F[col.key]&&EL_F[col.key]!=='';
-    var arrow=isSort?(EL_SORT.dir===1?'▲':'▼'):'▽';
-    return '<th style="'+s+';position:relative"><div style="display:flex;align-items:center;padding:5px 6px;gap:3px">'+
-      '<span style="font-size:.75rem;font-weight:700">'+col.label+'</span>'+
-      '<span style="font-size:.65rem;color:'+(isSort?'#ffe082':'rgba(255,255,255,.75)')+';cursor:pointer" onclick="elSort(\''+col.key+'\')" title="Sort">'+arrow+'</span>'+
-      '<span style="font-size:.65rem;background:'+(hasF?'#ffe082':'rgba(255,255,255,.2)')+';color:'+(hasF?'#5a3e00':'#fff')+';border-radius:3px;padding:1px 4px;cursor:pointer;line-height:1.4" onclick="elFilt(event,\''+col.key+'\')" title="Filter">▾</span>'+
-    '</div></th>';
-  }).join('');
-  return '<thead><tr>'+ths+'<th style="'+s+'"><div style="padding:5px 6px;font-size:.75rem;font-weight:700">Preview</div></th></tr></thead>';
+  return '<thead><tr><th>Date &amp; Time</th><th>Type</th><th>Sent To</th><th>Order ID</th><th>Status</th><th>Preview</th></tr></thead>';
 }
 
 function elFmtDate(dtStr){
@@ -808,7 +792,8 @@ function rEmailLog(el){
       '<button class="bp" style="font-size:.75rem" onclick="elRefresh()">&#x21BA; Refresh</button>'+
       '<span style="font-size:.78rem;color:#6b6040;margin-left:auto">'+filtered.length+' of '+ELOGS.length+' emails</span>'+
     '</div>'+
-    '<div id="el-table" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'+buildElThead()+'<tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:#6b6040">No emails logged.</td></tr>')+'</tbody></table></div>';
+    '<div id="el-table" style="overflow-x:auto"><table class="tablekit">'+buildElThead()+'<tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:#6b6040">No emails logged.</td></tr>')+'</tbody></table></div>';
+  if(typeof TableKit!=='undefined')TableKit.initAll();
 }
 
 // ── TN CITY TAX ──
@@ -845,7 +830,7 @@ function rTnCity(el){
           '<button class="bs" style="font-size:.78rem" onclick="document.getElementById(\'add-tncity-form\').style.display=\'none\'">Cancel</button>'+
         '</div>'+
       '</div>'+
-      '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;overflow:visible;border-radius:0">'+
+      '<div style="overflow-x:auto"><table class="tablekit">'+
         '<thead><tr style="background:#a07810;color:#fff">'+
           '<th style="padding:.4rem .7rem;text-align:left;font-size:.75rem">City</th>'+
           '<th style="padding:.4rem .7rem;text-align:left;font-size:.75rem">County</th>'+
@@ -855,6 +840,7 @@ function rTnCity(el){
         '</tr></thead>'+
         '<tbody>'+rows+'</tbody>'+
       '</table></div>';
+    if(typeof TableKit!=='undefined')TableKit.initAll();
   }).catch(function(){el.innerHTML='<div style="color:#c62828;padding:1rem">Could not load TN city tax table</div>';});
 }
 function showAddTnCity(){var f=document.getElementById('add-tncity-form');if(f){f.style.display='block';document.getElementById('tncity-city').focus();}}

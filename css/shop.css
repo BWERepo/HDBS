@@ -347,3 +347,6 @@ label.fl{display:block;font-size:.77rem;font-weight:600;margin-bottom:.26rem;col
 #pd-page .gdot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.5);cursor:pointer;border:2px solid rgba(255,255,255,.8);padding:0}
 #pd-page .gdot.on{background:#fff}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* TableKit: hide ▼ button but keep it clickable across the full header cell */
+.tk-drop-btn{position:absolute;inset:0;opacity:0;width:100%;height:100%;font-size:0;padding:0;cursor:pointer;border-radius:0}
+.tk-th-label::after{content:' \25BC';font-size:.6em;vertical-align:middle;opacity:.7}

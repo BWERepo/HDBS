@@ -1,0 +1,170 @@
+/* TableKit — column dropdown sort/filter */
+
+.tk-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+table.tablekit {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+table.tablekit th,
+table.tablekit td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+  white-space: nowrap;
+}
+
+/* Header cells */
+table.tablekit thead th {
+  background: #f0f4f8;
+  font-weight: 600;
+  position: relative;
+  white-space: nowrap;
+}
+
+/* Header inner layout */
+.tk-th-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tk-th-label {
+  flex: 1;
+}
+
+/* Sort indicator on label */
+.tk-th-inner[data-sort="asc"]  .tk-th-label::after { content: " ▲"; font-size: 0.7em; color: #4a90d9; }
+.tk-th-inner[data-sort="desc"] .tk-th-label::after { content: " ▼"; font-size: 0.7em; color: #4a90d9; }
+
+/* Active filter indicator */
+.tk-th-inner[data-filtered="true"] .tk-drop-btn {
+  color: #4a90d9;
+}
+
+/* Dropdown toggle button */
+.tk-drop-btn {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: #888;
+  font-size: 0.75rem;
+  line-height: 1;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.tk-drop-btn:hover {
+  background: #dce6f0;
+  color: #333;
+}
+
+/* Dropdown panel */
+.tk-dropdown {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  min-width: 180px;
+  padding: 8px 0;
+}
+
+.tk-dropdown.open {
+  display: block;
+}
+
+.tk-sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 7px 14px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-align: left;
+  color: #333;
+}
+
+.tk-sort-btn:hover {
+  background: #f0f4f8;
+}
+
+.tk-sort-btn.active {
+  color: #4a90d9;
+  font-weight: 600;
+}
+
+.tk-dropdown-divider {
+  height: 1px;
+  background: #e0e0e0;
+  margin: 6px 0;
+}
+
+.tk-checklist-wrap {
+  padding: 4px 0 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tk-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #333;
+  user-select: none;
+}
+
+.tk-checklist-item:hover {
+  background: #f0f4f8;
+}
+
+.tk-checklist-item input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #4a90d9;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.tk-checklist-all {
+  font-weight: 600;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 2px;
+}
+
+/* Hidden rows */
+table.tablekit tbody tr[data-tk-hidden="true"] {
+  display: none;
+}
+
+table.tablekit tbody tr:hover {
+  background: #f7fafd;
+}
+
+/* Empty state */
+.tk-empty-msg {
+  text-align: center;
+  color: #999;
+  padding: 20px;
+  font-style: italic;
+  display: none;
+}
+
+.tk-empty-msg.visible {
+  display: block;
+}
