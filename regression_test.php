@@ -546,6 +546,7 @@ try{
     t('increment_minor_version action',strpos($adphp,"increment_minor_version")!==false);
     $ihtml=isset($ihtml)?$ihtml:file_get_contents($root.'/index.html');
     t('version line in footer',strpos($ihtml,'site-version-line')!==false);
+    t('version line brightness matches footer (.5 opacity)',strpos($ihtml,'site-version-line')!==false&&strpos($ihtml,'rgba(255,255,255,.25)')===false,'should use .5 not .25');
     t('version fetch script in index.html',strpos($ihtml,'get_version')!==false);
     $amjs=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
     t('saveVersion function exists',strpos($amjs,'function saveVersion(')!==false);
