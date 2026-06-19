@@ -21,6 +21,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // ── Square credentials ──
 require_once dirname(__DIR__) . '/secrets.php'; // outside public_html
 
+// ── Read incoming JSON ──
+$raw  = file_get_contents('php://input');
+$data = json_decode($raw, true);
+
 // ── Test / Live mode ──
 $mode = $data['mode'] ?? 'live';
 if ($mode === 'test') {
@@ -30,13 +34,7 @@ if ($mode === 'test') {
     define('SQUARE_ACCESS_TOKEN', defined('SQUARE_TOKEN') ? SQUARE_TOKEN : '');
     define('SQUARE_API_URL_FINAL', 'https://connect.squareup.com/v2/online-checkout/payment-links');
 }
-// Location IDs differ between sandbox and production
 define('SQUARE_LOCATION_ID', $mode === 'test' ? 'SANDBOX_LOCATION_ID_HERE' : 'LJP687TQBTWTA');
-// API URL set by mode above
-
-// ── Read incoming JSON ──
-$raw  = file_get_contents('php://input');
-$data = json_decode($raw, true);
 
 if (!$data || empty($data['total']) || empty($data['order_id'])) {
     http_response_code(400);

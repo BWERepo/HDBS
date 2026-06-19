@@ -62,11 +62,37 @@ if ($method === 'POST' && $action === 'register') {
 if ($method === 'POST' && $action === 'login') {
     if (empty($d['em']) || empty($d['pw'])) fail('Email and password required');
 
+    // Rate limit: 10 attempts per email, 15-minute lockout
+    $pdo->exec("CREATE TABLE IF NOT EXISTS customer_login_attempts (
+        email_hash CHAR(32) PRIMARY KEY,
+        attempts   INT NOT NULL DEFAULT 0,
+        last_at    INT NOT NULL DEFAULT 0
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $eHash = md5(strtolower(trim($d['em'])));
+    $now   = time();
+    $aRow  = $pdo->prepare("SELECT attempts, last_at FROM customer_login_attempts WHERE email_hash = ?");
+    $aRow->execute([$eHash]);
+    $aRow  = $aRow->fetch() ?: ['attempts' => 0, 'last_at' => 0];
+    if ($aRow['attempts'] >= 10 && ($now - $aRow['last_at']) < 900) {
+        $mins = (int)ceil((900 - ($now - $aRow['last_at'])) / 60);
+        fail("Too many failed attempts. Try again in {$mins} minute" . ($mins === 1 ? '' : 's') . '.');
+    }
+    if ($aRow['attempts'] >= 10) {
+        $pdo->prepare("INSERT INTO customer_login_attempts (email_hash,attempts,last_at) VALUES (?,0,0) ON DUPLICATE KEY UPDATE attempts=0,last_at=0")->execute([$eHash]);
+        $aRow = ['attempts' => 0, 'last_at' => 0];
+    }
+
     $stmt = $pdo->prepare("SELECT * FROM customers WHERE email = ?");
     $stmt->execute([$d['em']]);
     $cust = $stmt->fetch();
 
-    if (!$cust || !password_verify($d['pw'], $cust['password_hash'])) fail('Incorrect email or password');
+    if (!$cust || !password_verify($d['pw'], $cust['password_hash'])) {
+        $newAttempts = $aRow['attempts'] + 1;
+        $pdo->prepare("INSERT INTO customer_login_attempts (email_hash,attempts,last_at) VALUES (?,?,?) ON DUPLICATE KEY UPDATE attempts=?,last_at=?")->execute([$eHash,$newAttempts,$now,$newAttempts,$now]);
+        fail('Incorrect email or password');
+    }
+    // Success — clear attempts
+    $pdo->prepare("INSERT INTO customer_login_attempts (email_hash,attempts,last_at) VALUES (?,0,0) ON DUPLICATE KEY UPDATE attempts=0,last_at=0")->execute([$eHash]);
 
     ok([
         'id'     => $cust['id'],
@@ -95,11 +121,36 @@ if ($method === 'POST' && $action === 'get_sec_question') {
 if ($method === 'POST' && $action === 'reset_password') {
     if (empty($d['em']) || empty($d['answer']) || empty($d['new_pw'])) fail('Missing fields');
 
+    // Rate limit: 5 attempts per email, 15-minute lockout (separate key from login)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS customer_login_attempts (
+        email_hash CHAR(32) PRIMARY KEY,
+        attempts   INT NOT NULL DEFAULT 0,
+        last_at    INT NOT NULL DEFAULT 0
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $rHash = md5('reset_' . strtolower(trim($d['em'])));
+    $now   = time();
+    $rRow  = $pdo->prepare("SELECT attempts, last_at FROM customer_login_attempts WHERE email_hash = ?");
+    $rRow->execute([$rHash]);
+    $rRow  = $rRow->fetch() ?: ['attempts' => 0, 'last_at' => 0];
+    if ($rRow['attempts'] >= 5 && ($now - $rRow['last_at']) < 900) {
+        $mins = (int)ceil((900 - ($now - $rRow['last_at'])) / 60);
+        fail("Too many failed attempts. Try again in {$mins} minute" . ($mins === 1 ? '' : 's') . '.');
+    }
+    if ($rRow['attempts'] >= 5) {
+        $pdo->prepare("INSERT INTO customer_login_attempts (email_hash,attempts,last_at) VALUES (?,0,0) ON DUPLICATE KEY UPDATE attempts=0,last_at=0")->execute([$rHash]);
+        $rRow = ['attempts' => 0, 'last_at' => 0];
+    }
+
     $stmt = $pdo->prepare("SELECT id, sec_answer FROM customers WHERE email = ?");
     $stmt->execute([$d['em']]);
     $row = $stmt->fetch();
     if (!$row) fail('Account not found');
-    if (strtolower(trim($d['answer'])) !== $row['sec_answer']) fail('Incorrect answer');
+    if (strtolower(trim($d['answer'])) !== $row['sec_answer']) {
+        $newAttempts = $rRow['attempts'] + 1;
+        $pdo->prepare("INSERT INTO customer_login_attempts (email_hash,attempts,last_at) VALUES (?,?,?) ON DUPLICATE KEY UPDATE attempts=?,last_at=?")->execute([$rHash,$newAttempts,$now,$newAttempts,$now]);
+        fail('Incorrect answer');
+    }
+    $pdo->prepare("INSERT INTO customer_login_attempts (email_hash,attempts,last_at) VALUES (?,0,0) ON DUPLICATE KEY UPDATE attempts=0,last_at=0")->execute([$rHash]);
     if (strlen($d['new_pw']) < 6) fail('Password must be at least 6 characters');
 
     $hash = password_hash($d['new_pw'], PASSWORD_DEFAULT);

@@ -100,8 +100,8 @@ if (!$matched) {
     foreach ($payments as $pmt) {
         if ($pmt['status'] === 'COMPLETED' || $pmt['status'] === 'APPROVED') {
             $pmt_cents = isset($pmt['total_money']['amount']) ? $pmt['total_money']['amount'] : 0;
-            // Match within $1 of order total
-            if (abs($pmt_cents - $order_total_cents) <= 100) {
+            // Match within $0.01 (1 cent) of order total
+            if (abs($pmt_cents - $order_total_cents) <= 1) {
                 // Check it was recent (within 2 hours)
                 $created = strtotime(isset($pmt['created_at']) ? $pmt['created_at'] : '');
                 if ($created && (time() - $created) < 7200) {

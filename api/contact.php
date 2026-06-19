@@ -2,6 +2,7 @@
 // api/contact.php — Sends contact form messages to Suzi's email
 
 require_once __DIR__ . '/config.php';
+require_once dirname(__DIR__) . '/mailer.php';
 cors();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -22,22 +23,7 @@ if (!filter_var(trim($d['email'] ?? ''), FILTER_VALIDATE_EMAIL)) {
 }
 
 $to       = 'handmadedesignsbysuzi@yahoo.com';
-$from     = 'susan@handmadedesignsbysuzi.com';
 $fullsubj = 'Website Contact: ' . ($subject ?: 'New Message') . ' — ' . $name;
-
-$text_body = "
-NEW CONTACT MESSAGE — Handmade Designs By Suzi
-================================================
-From    : {$name}
-Email   : {$email}
-Subject : {$subject}
-
-Message:
-{$message}
-
----
-Reply to this email to respond to {$name}.
-";
 
 $html_body = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head>
 <body style='margin:0;padding:0;background:#fffdf0;font-family:sans-serif'>
@@ -63,26 +49,9 @@ $html_body = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head>
 </div>
 </body></html>";
 
-$boundary = md5(time());
-$headers  = implode("\r\n", [
-    "From: Handmade Designs By Suzi <{$from}>",
-    "Reply-To: {$name} <{$email}>",
-    "MIME-Version: 1.0",
-    "Content-Type: multipart/alternative; boundary=\"{$boundary}\"",
-    "X-Mailer: PHP/" . phpversion(),
-]);
+$result = sendEmail($to, $fullsubj, $html_body, trim($d['email'] ?? ''), $name);
 
-$msg = "--{$boundary}\r\n"
-    . "Content-Type: text/plain; charset=UTF-8\r\n\r\n"
-    . $text_body . "\r\n\r\n"
-    . "--{$boundary}\r\n"
-    . "Content-Type: text/html; charset=UTF-8\r\n\r\n"
-    . $html_body . "\r\n\r\n"
-    . "--{$boundary}--";
-
-$sent = mail($to, $fullsubj, $msg, $headers);
-
-if ($sent) {
+if ($result === true) {
     ok(['message' => 'Message sent']);
 } else {
     fail('Failed to send — please email us directly at handmadedesignsbysuzi@yahoo.com', 500);

@@ -13,6 +13,7 @@ require_once __DIR__ . '/applog.php';
 try {
     $pdo = db();
 } catch(Exception $e){ sq_fail('db error: '.$e->getMessage()); }
+requireAdmin();
 
 try {
     $secretsPath = dirname(dirname(__DIR__)) . '/secrets.php';

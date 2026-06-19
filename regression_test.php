@@ -34,7 +34,7 @@ register_shutdown_function(function(){
     }
 });
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: ' . ALLOWED_ORIGIN);
 set_time_limit(20);
 $results=[];$pass=0;$fail=0;
 function t($n,$ok,$d=''){global $results,$pass,$fail;$ok?$pass++:$fail++;$results[]=['name'=>$n,'ok'=>(bool)$ok,'detail'=>(string)$d];}
@@ -676,8 +676,12 @@ try{
     // Live check — only runs if github_token is set (private repo requires auth)
     $ghTok=$pdo->query("SELECT value FROM settings WHERE key_name='github_token' LIMIT 1")->fetchColumn();
     if($ghTok){
+        // github_log.php now requires admin auth
+        $ghAdminTok=$pdo->query("SELECT value FROM settings WHERE key_name='admin_session_token' LIMIT 1")->fetchColumn();
         $ch=curl_init('https://handmadedesignsbysuzi.com/api/github_log.php');
-        curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>15]);
+        $ghHdrs=['Content-Type: application/json'];
+        if($ghAdminTok)$ghHdrs[]='X-Admin-Token: '.$ghAdminTok;
+        curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>15,CURLOPT_HTTPHEADER=>$ghHdrs]);
         $body=curl_exec($ch);curl_close($ch);
         $gd=json_decode($body,true);
         t('github_log returns commits',isset($gd['commits'])&&count($gd['commits'])>0);
@@ -1203,6 +1207,92 @@ try{
     $sessExpExists=$pdo->query("SELECT COUNT(*) FROM settings WHERE key_name='admin_session_expires'")->fetchColumn();
     t('admin_session_token row in settings DB',(int)$sessTokExists>0);
     t('admin_session_expires row in settings DB',(int)$sessExpExists>0);
+
+    // Webhook signature mandatory
+    $wphp=file_get_contents($root.'/api/square-webhook.php');
+    t('webhook signature check is mandatory',strpos($wphp,'Missing signature')!==false&&strpos($wphp,'if (!$sq_sig)')!==false);
+    t('webhook signature key reads from secrets.php',strpos($wphp,'SQUARE_WEBHOOK_SIG_KEY')!==false);
+    t('webhook no longer skips sig check when header absent',strpos($wphp,'if ($sq_sig) {')===false);
+
+    // Previously unprotected endpoints now have requireAdmin
+    t('products_csv.php has requireAdmin()',strpos(file_get_contents($root.'/api/products_csv.php'),'requireAdmin()')!==false);
+    t('deploy_log.php GET has requireAdmin()',strpos(file_get_contents($root.'/api/deploy_log.php'),'requireAdmin()')!==false);
+    t('prompt_log.php has requireAdmin()',strpos(file_get_contents($root.'/api/prompt_log.php'),'requireAdmin()')!==false);
+    t('email_log.php GET has requireAdmin()',strpos(file_get_contents($root.'/api/email_log.php'),'requireAdmin()')!==false);
+    t('tax_sweep.php has requireAdmin()',strpos(file_get_contents($root.'/api/tax_sweep.php'),'requireAdmin()')!==false);
+    t('square_payments.php has requireAdmin()',strpos(file_get_contents($root.'/api/square_payments.php'),'requireAdmin()')!==false);
+    t('github_log.php has requireAdmin()',strpos(file_get_contents($root.'/api/github_log.php'),'requireAdmin()')!==false);
+
+    // Security question rate limiting
+    $adphp=isset($adphp)?$adphp:file_get_contents($root.'/api/admin.php');
+    t('sec_answer rate limiting exists',strpos($adphp,'sec_fail_count')!==false&&strpos($adphp,'sec_fail_time')!==false);
+    t('reset_password invalidates session on success',strpos($adphp,"admin_session_token','")!==false||strpos($adphp,"'admin_session_token',   ''")!==false);
+
+    // Customer login rate limiting
+    $custphp=file_get_contents($root.'/api/customers.php');
+    t('customer login rate limiting exists',strpos($custphp,'customer_login_attempts')!==false&&strpos($custphp,'Too many failed attempts')!==false);
+
+    // checkout.php $data parsed before $mode
+    $ckphp=file_get_contents($root.'/checkout.php');
+    // $raw/$data must appear before $mode assignment — find their positions
+    $posData=strpos($ckphp,'$data = json_decode(');
+    $posMode=strpos($ckphp,'$mode = $data[');
+    t('checkout.php $data parsed before $mode',$posData!==false&&$posMode!==false&&$posData<$posMode);
+
+    // config.php generic DB error
+    $cfgphp2=file_get_contents($root.'/api/config.php');
+    t('config.php DB error does not leak connection details',strpos($cfgphp2,"'DB connection failed: '.\$e->getMessage()")===false&&strpos($cfgphp2,'Service temporarily unavailable')!==false);
+
+    // contact.php uses sendEmail not mail()
+    $ctphp=file_get_contents($root.'/api/contact.php');
+    t('contact.php uses sendEmail() not mail()',strpos($ctphp,'sendEmail(')!==false&&strpos($ctphp,'= mail(')===false);
+
+    // auth.js dead CUR_USER.pw check removed
+    $authjs2=file_get_contents($root.'/js/auth.js');
+    t('auth.js CUR_USER.pw dead check removed',strpos($authjs2,'CUR_USER.pw')===false);
+
+    // regression_test.php CORS no longer wildcard (check the header() call specifically)
+    $rtphp=file_get_contents($root.'/regression_test.php');
+    t('regression_test.php CORS not wildcard',strpos($rtphp,"header('Access-Control-Allow-Origin: "."*')")===false);
+    t('regression_test.php CORS uses ALLOWED_ORIGIN',strpos($rtphp,"header('Access-Control-Allow-Origin: ' . ALLOWED_ORIGIN)")!==false);
+
+    // Round 3 fixes
+    // tn_tax + tn_city_tax write/delete requires auth
+    $tntax=file_get_contents($root.'/api/tn_tax.php');
+    t('tn_tax.php POST has requireAdmin()',substr_count($tntax,'requireAdmin()')>=1&&strpos($tntax,"'POST'")!==false);
+    t('tn_tax.php DELETE has requireAdmin()',substr_count($tntax,'requireAdmin()')>=2);
+    $tncity=file_get_contents($root.'/api/tn_city_tax.php');
+    t('tn_city_tax.php POST has requireAdmin()',strpos($tncity,'requireAdmin()')!==false);
+    t('tn_city_tax.php no duplicate require applog',substr_count($tncity,"require_once __DIR__ . '/applog.php'")===1);
+    // email_log POST now requires auth
+    t('email_log.php POST has requireAdmin()',substr_count(file_get_contents($root.'/api/email_log.php'),'requireAdmin()')>=3);
+    // deploy_log POST has size cap
+    $dlphp=file_get_contents($root.'/api/deploy_log.php');
+    t('deploy_log.php POST has size cap',strpos($dlphp,'filesize')!==false&&strpos($dlphp,'512')!==false);
+    // customer reset_password rate limiting
+    $custphp=file_get_contents($root.'/api/customers.php');
+    t('customers.php reset_password rate limited',substr_count($custphp,"'reset_'")>=1&&substr_count($custphp,'customer_login_attempts')>=2);
+    // admin sec answer hashed
+    $adphp2=isset($adphp)?$adphp:file_get_contents($root.'/api/admin.php');
+    t('admin sec answer stored as bcrypt hash',strpos($adphp2,"password_hash(\$a, PASSWORD_DEFAULT)")!==false&&strpos($adphp2,'admin_sec_answer')!==false);
+    t('admin sec answer verified with password_verify',strpos($adphp2,'password_verify($ans, $stored)')!==false);
+    // js_debug_log size cap
+    t('js_debug_log has size cap',strpos($adphp2,'2 * 1024 * 1024')!==false&&strpos($adphp2,'js_debug_log')!==false);
+    // product image upload size + magic byte check
+    $prodphp=file_get_contents($root.'/api/products.php');
+    t('products.php image max size check',strpos($prodphp,'Image too large')!==false&&strpos($prodphp,'4 * 1024 * 1024')!==false);
+    t('products.php magic byte check for JPEG/PNG',strpos($prodphp,'xFF\xD8')!==false&&strpos($prodphp,'x89PNG')!==false);
+    // verify_payment amount fallback tolerance tightened
+    $vpphp2=file_get_contents($root.'/verify_payment.php');
+    t('verify_payment amount fallback <= 1 cent',strpos($vpphp2,'<= 1')!==false&&strpos($vpphp2,'cent')!==false);
+    t('verify_payment no $1 tolerance window',strpos($vpphp2,'<= 100')===false);
+    // fetch_tax.php include order fixed + requireAdmin
+    $ftphp=file_get_contents($root.'/api/fetch_tax.php');
+    t('fetch_tax.php config loaded before dbg() call',strpos($ftphp,'require_once')!==false&&strpos($ftphp,'requireAdmin()')!==false);
+    t('fetch_tax.php requireAdmin added',strpos($ftphp,'requireAdmin()')!==false);
+    // webhook fallback key removed (TODO — manual step)
+    $wphp2=file_get_contents($root.'/api/square-webhook.php');
+    t('webhook reads key from secrets.php',strpos($wphp2,'require_once')!==false&&strpos($wphp2,'SQUARE_WEBHOOK_SIG_KEY')!==false);
 }catch(Exception $e){t('production hardening checks',false,$e->getMessage());}
 
 // ── HTTP helpers (used by sections 10+) ──

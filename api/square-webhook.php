@@ -4,18 +4,23 @@
 require_once __DIR__ . '/config.php';
 
 // ── Verify Square signature ──
-$signature_key = 'FjK9QJMJbxQI9tht0ZaPyQ';
+// TODO: after adding SQUARE_WEBHOOK_SIG_KEY to secrets.php, remove the hardcoded fallback
+// and change this line to: if (!defined('SQUARE_WEBHOOK_SIG_KEY')) { http_response_code(500); exit('Webhook key not configured'); }
+require_once dirname(dirname(__DIR__)) . '/secrets.php';
+$signature_key = defined('SQUARE_WEBHOOK_SIG_KEY') ? SQUARE_WEBHOOK_SIG_KEY : 'FjK9QJMJbxQI9tht0ZaPyQ';
 $callback_url  = 'https://handmadedesignsbysuzi.com/api/square-webhook.php';
 
-$payload   = file_get_contents('php://input');
-$sq_sig    = $_SERVER['HTTP_X_SQUARE_HMACSHA256_SIGNATURE'] ?? '';
+$payload = file_get_contents('php://input');
+$sq_sig  = $_SERVER['HTTP_X_SQUARE_HMACSHA256_SIGNATURE'] ?? '';
 
-if ($sq_sig) {
-    $expected = base64_encode(hash_hmac('sha256', $callback_url . $payload, $signature_key, true));
-    if (!hash_equals($expected, $sq_sig)) {
-        http_response_code(403);
-        exit('Invalid signature');
-    }
+if (!$sq_sig) {
+    http_response_code(403);
+    exit('Missing signature');
+}
+$expected = base64_encode(hash_hmac('sha256', $callback_url . $payload, $signature_key, true));
+if (!hash_equals($expected, $sq_sig)) {
+    http_response_code(403);
+    exit('Invalid signature');
 }
 
 $event = json_decode($payload, true);

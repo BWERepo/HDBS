@@ -98,20 +98,44 @@ if ($method === 'POST' && $action === 'get_sec_question') {
     ok(['question' => $q]);
 }
 
-if ($method === 'POST' && $action === 'verify_sec_answer') {
-    $ans    = strtolower(trim($d['answer'] ?? ''));
-    $stored = getSetting($pdo, 'admin_sec_answer');
-    if (!$stored || $ans !== $stored) fail('Incorrect answer');
-    ok(['message' => 'Verified']);
-}
+if ($method === 'POST' && ($action === 'verify_sec_answer' || $action === 'reset_password')) {
+    // Rate limit: 5 attempts, 15-minute lockout (shared with login lockout)
+    $secFails = (int)(getSetting($pdo, 'sec_fail_count') ?? 0);
+    $secTime  = (int)(getSetting($pdo, 'sec_fail_time')  ?? 0);
+    $now      = time();
+    if ($secFails >= 5 && ($now - $secTime) >= 900) { $secFails = 0; setSetting($pdo, 'sec_fail_count', '0'); }
+    if ($secFails >= 5) {
+        $mins = (int)ceil((900 - ($now - $secTime)) / 60);
+        fail("Too many failed attempts. Try again in {$mins} minute" . ($mins === 1 ? '' : 's') . '.');
+    }
 
-if ($method === 'POST' && $action === 'reset_password') {
     $ans    = strtolower(trim($d['answer'] ?? ''));
     $stored = getSetting($pdo, 'admin_sec_answer');
-    $new    = $d['new'] ?? '';
-    if (!$stored || $ans !== $stored) fail('Incorrect answer');
+    // Support both bcrypt-hashed answers (new) and legacy plain-text answers (migration)
+    $answerOk = $stored && (
+        (str_starts_with($stored, '$2y$') && password_verify($ans, $stored)) ||
+        (!str_starts_with($stored, '$2y$') && $ans === $stored)
+    );
+    if (!$answerOk) {
+        $secFails++;
+        setSetting($pdo, 'sec_fail_count', (string)$secFails);
+        setSetting($pdo, 'sec_fail_time',  (string)$now);
+        $left = 5 - $secFails;
+        if ($left > 0) fail("Incorrect answer. {$left} attempt" . ($left === 1 ? '' : 's') . ' remaining.');
+        fail('Too many failed attempts. Try again in 15 minutes.');
+    }
+    setSetting($pdo, 'sec_fail_count', '0');
+    setSetting($pdo, 'sec_fail_time',  '0');
+
+    if ($action === 'verify_sec_answer') ok(['message' => 'Verified']);
+
+    // reset_password
+    $new = $d['new'] ?? '';
     if (!$new) fail('Password cannot be empty');
     setSetting($pdo, 'admin_password', password_hash($new, PASSWORD_DEFAULT));
+    // Invalidate any existing admin session so the user must log in with the new password
+    setSetting($pdo, 'admin_session_token',   '');
+    setSetting($pdo, 'admin_session_expires', '0');
     ok(['message' => 'Password reset']);
 }
 
@@ -124,7 +148,7 @@ if ($method === 'POST' && $action === 'save_sec_question') {
     if (!$a) fail('Answer required');
     if ($a !== $a2) fail('Answers do not match');
     setSetting($pdo, 'admin_sec_question', $q);
-    setSetting($pdo, 'admin_sec_answer', $a);
+    setSetting($pdo, 'admin_sec_answer', password_hash($a, PASSWORD_DEFAULT));
     ok(['message' => 'Security question saved']);
 }
 
@@ -259,12 +283,15 @@ if ($method === 'POST' && $action === 'clear_error_log') {
 // ── JS debug log ──
 if ($method === 'POST' && $action === 'js_debug_log') {
     if (debug_enabled()) {
-        $ctx  = $d['ctx']  ?? 'js';
-        $msg  = $d['msg']  ?? '';
-        $data = $d['data'] ?? '';
+        $ctx  = substr($d['ctx']  ?? 'js',  0, 64);
+        $msg  = substr($d['msg']  ?? '',    0, 500);
+        $data = substr($d['data'] ?? '',    0, 1000);
         $edt  = (new DateTime('now', new DateTimeZone('America/New_York')))->format('Y-m-d g:i:s A') . ' EDT';
         $line = "$edt | JS-DEBUG | $ctx | $msg" . ($data ? " | $data" : "") . "\n";
-        file_put_contents(dirname(__DIR__) . '/error_log.txt', $line, FILE_APPEND | LOCK_EX);
+        $logfile = dirname(__DIR__) . '/error_log.txt';
+        if (!file_exists($logfile) || filesize($logfile) < 2 * 1024 * 1024) {
+            file_put_contents($logfile, $line, FILE_APPEND | LOCK_EX);
+        }
     }
     ok(['message' => 'logged']);
 }

@@ -4,6 +4,7 @@ require_once __DIR__ . '/config.php';
 cors();
 
 $pdo = db();
+requireAdmin();
 
 function getSetting($pdo, $key) {
     $s = $pdo->prepare("SELECT value FROM settings WHERE key_name = ?");

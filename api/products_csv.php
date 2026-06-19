@@ -1,7 +1,9 @@
 <?php
 // products_csv.php — Export/import products as CSV
 require_once __DIR__ . '/config.php';
+cors();
 $pdo = db();
+requireAdmin();
 $method = $_SERVER['REQUEST_METHOD'];
 
 // ── EXPORT (GET) ──

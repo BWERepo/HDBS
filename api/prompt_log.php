@@ -4,6 +4,7 @@ require_once __DIR__ . '/config.php';
 cors();
 
 $pdo = db();
+requireAdmin();
 $pdo->exec("CREATE TABLE IF NOT EXISTS prompt_log (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

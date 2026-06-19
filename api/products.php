@@ -60,10 +60,18 @@ if ($method === 'POST') { requireAdmin(); dbg('products','POST save product');
         if (strpos($val, 'data:image') === false) { $saved_imgs[] = $val; continue; }
         // Save base64 as file
         if (preg_match('/^data:image\/(\w+);base64,(.+)$/s', $val, $m)) {
-            $ext      = strtolower($m[1]) === 'png' ? 'png' : 'jpg';
+            // Cap raw base64 at ~4MB decoded
+            if (strlen($m[2]) > 4 * 1024 * 1024 * 4 / 3) fail('Image too large (max 4MB)', 400);
+            $bytes = base64_decode($m[2], true);
+            if (!$bytes) { $saved_imgs[] = ''; continue; }
+            // Validate magic bytes: JPEG = FF D8, PNG = 89 50 4E 47
+            $magic = substr($bytes, 0, 4);
+            $isJpeg = (substr($magic, 0, 2) === "\xFF\xD8");
+            $isPng  = ($magic === "\x89PNG");
+            if (!$isJpeg && !$isPng) fail('Invalid image format — only JPEG and PNG are accepted', 400);
+            $ext      = $isPng ? 'png' : 'jpg';
             $filename = 'prod_' . $prod_id . '_' . $col . '.' . $ext;
-            $bytes    = base64_decode($m[2]);
-            if ($bytes) file_put_contents($upload_dir . $filename, $bytes);
+            file_put_contents($upload_dir . $filename, $bytes);
             $saved_imgs[] = $upload_url . $filename;
         } else { $saved_imgs[] = ''; }
     }

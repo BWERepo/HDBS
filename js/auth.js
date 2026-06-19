@@ -57,7 +57,6 @@ function renderAcct(){
 function changeCustPw(){
   var c=document.getElementById('cpw-c').value,n=document.getElementById('cpw-n').value,cf=document.getElementById('cpw-cf').value;
   var ok=document.getElementById('cpw-ok'),err=document.getElementById('cpw-err');ok.style.display='none';err.style.display='none';
-  if(c!==CUR_USER.pw){err.textContent='Current password is incorrect.';err.style.display='block';return;}
   if(!n||n.length<6){err.textContent='New password must be at least 6 characters.';err.style.display='block';return;}
   if(n!==cf){err.textContent='Passwords do not match.';err.style.display='block';return;}
   apiFetch('customers.php','POST',{action:'change_password',id:CUR_USER.id,old_pw:c,new_pw:n}).then(function(d){

@@ -5,16 +5,17 @@ header('Content-Type: application/json');
 function ft_ok($d)  { ob_end_clean(); $d['success']=true;  echo json_encode($d); exit; }
 function ft_err($e) { ob_end_clean(); echo json_encode(['success'=>false,'error'=>$e]); exit; }
 
-// Write log AFTER ob_start so output buffering doesn't interfere
+// Load config and helpers before any function calls
+try {
+    require_once __DIR__ . '/config.php';
+    require_once __DIR__ . '/applog.php';
+} catch(Exception $e){ ft_err('config error: '.$e->getMessage()); }
+
+requireAdmin();
+
 $_ftlog = dirname(__DIR__) . '/fetch_tax_log.txt';
 file_put_contents($_ftlog, (new DateTime('now', new DateTimeZone('America/New_York')))->format('Y-m-d g:i A') . ' EDT' . " | fetch_tax.php called\n", FILE_APPEND|LOCK_EX);
 dbg('fetch_tax', 'called body='.substr(file_get_contents('php://input'),0,200));
-
-try {
-    require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/applog.php';
-    file_put_contents($_ftlog, (new DateTime('now', new DateTimeZone('America/New_York')))->format('Y-m-d g:i A') . ' EDT' . " | config loaded\n", FILE_APPEND|LOCK_EX);
-} catch(Exception $e){ ft_err('config error: '.$e->getMessage()); }
 
 try {
     $secretsPath = dirname(dirname(__DIR__)) . '/secrets.php';

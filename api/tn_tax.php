@@ -31,6 +31,7 @@ if ($method === 'GET') {
 
 // POST — add or update county
 if ($method === 'POST') {
+    requireAdmin();
     $county = trim($d['county'] ?? '');
     $rate   = isset($d['tax_rate']) ? (float)$d['tax_rate'] : null;
     if (!$county || $rate === null) tntfail('Missing county or tax_rate');
@@ -41,6 +42,7 @@ if ($method === 'POST') {
 
 // DELETE — remove county
 if ($method === 'DELETE') {
+    requireAdmin();
     $id = (int)($d['id'] ?? 0);
     if (!$id) tntfail('Missing id');
     $pdo->prepare("DELETE FROM tn_sales_tax WHERE id=?")->execute([$id]);

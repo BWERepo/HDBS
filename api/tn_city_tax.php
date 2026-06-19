@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/applog.php';
-require_once __DIR__ . '/applog.php';
 header('Content-Type: application/json');
 $pdo = db();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -30,6 +29,7 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    requireAdmin();
     $city   = trim($d['city'] ?? '');
     $county = trim($d['county'] ?? '');
     $rate   = isset($d['tax_rate']) ? (float)$d['tax_rate'] : null;
@@ -42,6 +42,7 @@ if ($method === 'POST') {
 }
 
 if ($method === 'DELETE') {
+    requireAdmin();
     $id = (int)($d['id'] ?? 0);
     if (!$id) ctfail('Missing id');
     $pdo->prepare("DELETE FROM tn_city_tax WHERE id=?")->execute([$id]);

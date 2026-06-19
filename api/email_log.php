@@ -8,6 +8,7 @@ dbg('email_log', "REQUEST method=$method");
 
 // GET — return email log with optional filters
 if($method === 'GET'){
+    requireAdmin();
     $where = '1=1';
     $params = [];
     if(!empty($_GET['order_id'])){ $where .= ' AND order_id=?'; $params[] = $_GET['order_id']; }
@@ -19,8 +20,9 @@ dbg('email_log', 'GET returning '.count($logs).' rows');
 ok(['logs' => $logs]);
 }
 
-// POST — log a sent email
+// POST — log a sent email (admin only — internal server-side calls use direct SQL)
 if($method === 'POST'){
+    requireAdmin();
     $d = body();
     $stmt = $pdo->prepare("INSERT INTO email_log (sent_at, email_type, sent_to, order_id, subject, status, error_msg)
         VALUES (CONVERT_TZ(NOW(),'+00:00','-04:00'), :type, :to, :order_id, :subject, :status, :error)");
@@ -38,6 +40,7 @@ ok(['message' => 'Logged']);
 
 // DELETE — clear all email log entries
 if($method === 'DELETE'){
+    requireAdmin();
     dbg('email_log','DELETE clearing all log entries');
     $pdo->exec('DELETE FROM email_log');
     ok(['message' => 'Email log cleared']);

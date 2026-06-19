@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/config.php';
 header('Content-Type: application/json');
+requireAdmin();
 
 function ts_ok($d){
     $d['success'] = true;
