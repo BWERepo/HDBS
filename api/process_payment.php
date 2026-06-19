@@ -153,6 +153,7 @@ $html = "<!DOCTYPE html><html><body>
 <div style='background:#2d2220;padding:16px 28px;text-align:center'>
   <div style='color:rgba(255,255,255,.6);font-size:.8rem'>
     Handmade Designs By Suzi &bull; Knoxville, TN<br>
+    <a href='https://handmadedesignsbysuzi.com' style='color:#d4a017'>handmadedesignsbysuzi.com</a><br>
     Questions? <a href='mailto:handmadedesignsbysuzi@yahoo.com' style='color:#d4a017'>handmadedesignsbysuzi@yahoo.com</a>
   </div>
 </div>

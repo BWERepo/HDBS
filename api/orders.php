@@ -73,7 +73,7 @@ if ($method === 'GET') { requireAdmin(); dbg('orders','GET all orders');
 if ($method === 'POST') { dbg('orders','POST new order body='.substr(file_get_contents('php://input'),0,300));
     $d = body();
     if (empty($d['id']) || empty($d['total'])) fail('Missing order id or total');
-    $isAdmin = !empty($_SERVER['HTTP_X_ADMIN_TOKEN']);
+    $isAdmin = isAdminRequest();
     if (!$isAdmin) $d['status'] = 'Awaiting Payment'; // guests cannot set arbitrary status
 
     $pdo->beginTransaction();
@@ -115,12 +115,16 @@ if ($method === 'POST') { dbg('orders','POST new order body='.substr(file_get_co
             }
         }
 
-        // Decrement stock for each product ordered
+        // Decrement stock atomically — WHERE stock >= qty prevents overselling
         if (!empty($d['items'])) {
-            $stStmt = $pdo->prepare("UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ? AND id != '_ship'");
+            $stStmt = $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ? AND id != '_ship' AND stock >= ?");
             foreach ($d['items'] as $item) {
                 if (!empty($item['id']) && $item['id'] !== '_ship') {
-                    $stStmt->execute([(int)($item['q'] ?? 1), $item['id']]);
+                    $qty = (int)($item['q'] ?? 1);
+                    $stStmt->execute([$qty, $item['id'], $qty]);
+                    if ($stStmt->rowCount() === 0) {
+                        throw new Exception('Item is out of stock: ' . ($item['name'] ?? $item['id']));
+                    }
                 }
             }
         }

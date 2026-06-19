@@ -999,7 +999,7 @@ try{
 // Check store.js has sold-out diagonal
 try{$sjs=file_get_contents($root.'/js/store.js');t('store.js has sold-out diagonal',strpos($sjs,'stroke-width')!==false&&strpos($sjs,'SOLD OUT')!==false);}catch(Exception $e){t('sold-out diagonal',false,$e->getMessage());}
 // Check orders.php has stock decrement
-try{$oapi=file_get_contents($root.'/api/orders.php');t('orders.php decrements stock',strpos($oapi,'GREATEST')!==false);}catch(Exception $e){t('stock decrement',false,$e->getMessage());}
+try{$oapi=file_get_contents($root.'/api/orders.php');t('orders.php decrements stock',strpos($oapi,'stock = stock - ?')!==false);}catch(Exception $e){t('stock decrement',false,$e->getMessage());}
     foreach($fns as $fn){
         $found=(bool)preg_match('/function\s+'.preg_quote($fn,'/').'[\s(]|var\s+'.preg_quote($fn,'/').'[\s=;,]/', $js);
         t('JS:'.$fn, $found);
@@ -1655,6 +1655,43 @@ try{
     t('admin.php wraps getSetting with function_exists',strpos(file_get_contents($root.'/api/admin.php'),"function_exists('getSetting')")!==false);
 
 }catch(Exception $e){t('embedded Square SDK checks',false,$e->getMessage());}
+
+// ── Round 5 hardening: isAdminRequest + atomic stock decrement ──
+try {
+    $ordPhp2 = file_get_contents($root . '/api/orders.php');
+    $cfgPhp2 = file_get_contents($root . '/api/config.php');
+
+    // isAdminRequest() must exist in config.php and orders.php must use it
+    t('config.php defines isAdminRequest', strpos($cfgPhp2, 'function isAdminRequest') !== false);
+    t('orders.php uses isAdminRequest()', strpos($ordPhp2, 'isAdminRequest()') !== false);
+    t('orders.php no longer uses !empty HTTP_X_ADMIN_TOKEN', strpos($ordPhp2, "!empty(\$_SERVER['HTTP_X_ADMIN_TOKEN'])") === false);
+
+    // Atomic stock guard
+    t('orders.php stock decrement uses AND stock >= ?', strpos($ordPhp2, 'AND stock >= ?') !== false);
+    t('orders.php stock decrement checks rowCount', strpos($ordPhp2, 'rowCount() === 0') !== false && strpos($ordPhp2, 'out of stock') !== false);
+    t('orders.php no longer uses GREATEST(0, stock -', strpos($ordPhp2, 'GREATEST(0, stock -') === false);
+
+    // Live: POST order with bogus X-Admin-Token via curl — status must be clamped to Awaiting Payment
+    $fakeOid = 'RT-FKADM-' . time();
+    $fakePayload = json_encode(['id'=>$fakeOid,'total'=>1.00,'cust'=>'Test','email'=>'rt@test.com','status'=>'Paid']);
+    $ch = curl_init($base . '/api/orders.php');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_POST=>true,
+        CURLOPT_POSTFIELDS=>$fakePayload,
+        CURLOPT_HTTPHEADER=>['Content-Type: application/json','X-Admin-Token: not-a-real-token'],
+        CURLOPT_TIMEOUT=>8]);
+    $rb = curl_exec($ch); curl_close($ch);
+    $rj = @json_decode($rb, true);
+    // Clean up the test order if it was created
+    if (!empty($rj['success'])) {
+        $pdo->prepare("DELETE FROM orders WHERE id=?")->execute([$fakeOid]);
+    }
+    // Check DB: order should not exist with status Paid (it was either rejected or clamped)
+    $chk = $pdo->prepare("SELECT status FROM orders WHERE id=?"); $chk->execute([$fakeOid]);
+    $chkRow = $chk->fetch();
+    $fakeAdminOk = !$chkRow || $chkRow['status'] !== 'Paid';
+    t('orders.php rejects fake admin token (status not Paid)', $fakeAdminOk, $chkRow ? 'status='.$chkRow['status'] : 'order not created');
+    if ($chkRow) $pdo->prepare("DELETE FROM orders WHERE id=?")->execute([$fakeOid]);
+} catch (Exception $e) { t('round 5 hardening checks', false, $e->getMessage()); }
 
 }catch(Exception $e){t('Exception',false,$e->getMessage().' line '.$e->getLine());}
 

@@ -136,9 +136,12 @@ dbg('send_shipping', "START order_id=$order_id");
     <p style='color:#6b6040;font-size:.88rem'>Please allow 24–48 hours for tracking information to update.</p>
     <p style='margin-top:20px;color:#6b6040'>Thank you so much for your order!</p>
     <p><em style='color:#a07810'>— Susan &#127864;</em></p>
-    <div style='margin-top:20px;padding-top:16px;border-top:1px solid #e8e0b8;font-size:.8rem;color:#6b6040;text-align:center'>
-      <div>Website: <a href='{$biz_url2}' style='color:#a07810;text-decoration:underline'>{$biz_url_display2}</a></div>
-      <div>Email: <a href='mailto:{$biz_email2}' style='color:#a07810;text-decoration:underline'>{$biz_email2}</a></div>
+  </div>
+  <div style='background:#2d2220;padding:16px 28px;text-align:center'>
+    <div style='color:rgba(255,255,255,.6);font-size:.8rem'>
+      Handmade Designs By Suzi &bull; Knoxville, TN<br>
+      <a href='https://handmadedesignsbysuzi.com' style='color:#d4a017'>handmadedesignsbysuzi.com</a><br>
+      Questions? <a href='mailto:{$biz_email2}' style='color:#d4a017'>{$biz_email2}</a>
     </div>
   </div>
 </div></body></html>";

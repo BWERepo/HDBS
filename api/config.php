@@ -19,6 +19,21 @@ function cors() {
 }
 
 // ── Admin session auth ──
+function isAdminRequest() {
+    $token = $_SERVER['HTTP_X_ADMIN_TOKEN'] ?? '';
+    if (!$token) return false;
+    try {
+        $pdo = db();
+        $s = $pdo->prepare("SELECT value FROM settings WHERE key_name = ?");
+        $s->execute(['admin_session_token']);
+        $stored = ($s->fetch(PDO::FETCH_ASSOC) ?: [])['value'] ?? '';
+        $s->execute(['admin_session_expires']);
+        $expiry = (int)(($s->fetch(PDO::FETCH_ASSOC) ?: [])['value'] ?? 0);
+        return $stored && hash_equals($stored, $token) && time() <= $expiry;
+    } catch (Exception $e) {
+        return false;
+    }
+}
 function requireAdmin() {
     $token = $_SERVER['HTTP_X_ADMIN_TOKEN'] ?? '';
     if (!$token) fail('Unauthorized', 401);
