@@ -995,6 +995,7 @@ function saveSQ(){
     SEC={q:q,a:a.toLowerCase().trim()};
     document.getElementById('sq-a').value='';document.getElementById('sq-a2').value='';
     ok.style.display='block';
+    setTimeout(function(){var el=document.getElementById('acnt');if(el)rSettings(el);},800);
   }).catch(function(){err.textContent='Network error.';err.style.display='block';});
 }
 
@@ -1497,7 +1498,7 @@ window.addEventListener('load', function(){
       '</div>'+
       '<div id="ghtoken-status" style="font-size:.78rem;margin-top:.4rem;color:#6b6040"></div>';
     card2.insertAdjacentElement('afterend', card3);
-    apiFetch('admin.php','POST',{action:'get_setting',key:'github_token'}).then(function(d){
+    apiFetch('admin.php','POST',{action:'get_github_token'}).then(function(d){
       var inp = document.getElementById('ghtoken-input');
       var st  = document.getElementById('ghtoken-status');
       if(inp && d && d.value) inp.value = d.value;
@@ -1595,7 +1596,7 @@ function saveGitHubToken(){
   var st  = document.getElementById('ghtoken-status');
   if(!inp) return;
   if(st) st.textContent = 'Saving…';
-  apiFetch('admin.php','POST',{action:'set_setting',key:'github_token',value:inp.value.trim()}).then(function(d){
+  apiFetch('admin.php','POST',{action:'save_github_token',value:inp.value.trim()}).then(function(d){
     if(st) st.textContent = d && d.success ? 'Token saved.' : 'Save failed.';
   }).catch(function(){if(st) st.textContent = 'Save failed.';});
 }

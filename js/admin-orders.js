@@ -1214,25 +1214,92 @@ function applyCustomerFilters(){
 
 function buildCustThead(){
   var cols=[{key:'name',label:'Name'},{key:'em',label:'Email'},{key:'ph',label:'Phone'},{key:'joined',label:'Joined'},{key:'orders',label:'Orders'}];
-  return '<thead><tr>'+cols.map(function(col){return'<th>'+col.label+'</th>';}).join('')+'</tr></thead>';
+  return '<colgroup><col style="width:220px"><col style="width:220px"><col style="width:130px"><col style="width:90px"><col style="width:85px"><col style="width:175px"></colgroup>'+
+    '<thead><tr>'+cols.map(function(col){return'<th>'+col.label+'</th>';}).join('')+'<th>Actions</th></tr></thead>';
 }
 
+var CUST_EDITID=null;
+function custInpStyle(){return 'style="width:100%;box-sizing:border-box;border:1.5px solid #d4c8a0;border-radius:5px;padding:.25rem .4rem;font-size:.82rem;font-family:inherit;background:#fffdf0"';}
+function custEditRow(c){
+  // c=null means new row
+  var s=custInpStyle();
+  var sh='style="width:50%;box-sizing:border-box;border:1.5px solid #d4c8a0;border-radius:5px;padding:.25rem .4rem;font-size:.82rem;font-family:inherit;background:#fffdf0"';
+  return '<tr style="background:#fffdf0">'+
+    '<td><div style="display:flex;gap:4px"><input id="ci-fn" '+sh+' value="'+(c?c.fn:'')+'" placeholder="First"><input id="ci-ln" '+sh+' value="'+(c?c.ln:'')+'" placeholder="Last"></div></td>'+
+    '<td><input id="ci-em" '+s+' value="'+(c?c.em:'')+'" placeholder="email@example.com"></td>'+
+    '<td><input id="ci-ph" '+s+' value="'+(c?c.ph||'':'')+'" placeholder="Phone"></td>'+
+    '<td>'+(c?c.joined||'—':'—')+'</td>'+
+    '<td>'+(c?'<span class="badge bb">'+(c.orders||0)+' orders</span>':'')+'</td>'+
+    '<td><button class="bp" style="font-size:.72rem" onclick="saveCust()">💾 '+(c?'Update':'Add')+'</button> <button class="bs" style="font-size:.72rem" onclick="cancelCustForm()">Cancel</button></td>'+
+  '</tr>';
+}
 function renderCustsTable(el){
   var filtered=applyCustomerFilters();
   var rows='';
+  if(CUST_EDITID==='__new__')rows+=custEditRow(null);
   for(var i=0;i<filtered.length;i++){
     var c=filtered[i];
-    rows+='<tr><td style="font-weight:600">'+c.name+'</td><td>'+c.em+'</td><td>'+(c.ph||'—')+'</td><td>'+(c.joined||'—')+'</td><td><span class="badge bb">'+(c.orders||0)+' orders</span></td></tr>';
+    if(CUST_EDITID&&CUST_EDITID===c.id){rows+=custEditRow(c);continue;}
+    rows+='<tr>'+
+      '<td style="font-weight:600">'+c.name+'</td>'+
+      '<td>'+c.em+'</td>'+
+      '<td>'+(c.ph||'—')+'</td>'+
+      '<td>'+(c.joined||'—')+'</td>'+
+      '<td><span class="badge bb">'+(c.orders||0)+' orders</span></td>'+
+      '<td><button class="be" style="font-size:.72rem" onclick="showCustForm(\''+c.id+'\')">✏️ Edit</button> <button class="bd" style="font-size:.72rem" onclick="deleteCust(\''+c.id+'\',\''+c.name.replace(/'/g,'\\\'')+'\'  )">Delete</button></td>'+
+    '</tr>';
   }
   var isFiltered=CUST_F.name||CUST_F.em||CUST_F.orders;
   el.innerHTML=
     '<div style="display:flex;gap:.6rem;margin-bottom:.6rem;align-items:center">'+
+      '<div id="cust-action-btns">'+(!CUST_EDITID?'<button class="bp" onclick="showCustForm(null)">+ Add Customer</button>':'')+'</div>'+
       (isFiltered?'<button class="bs" onclick="CUST_F={name:\'\',em:\'\',orders:\'\'};renderCustsTable(document.getElementById(\'acnt\'))" style="color:#c62828">✕ Clear Filters</button>':'')+
       '<span style="font-size:.78rem;color:#6b6040;margin-left:auto">'+filtered.length+' of '+CUSTS.length+' customers</span>'+
     '</div>'+
-    '<div style="overflow-x:auto"><table class="tablekit">'+buildCustThead()+'<tbody>'+(rows||'<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:#6b6040">No customers yet</td></tr>')+'</tbody></table></div>';
+    '<div style="max-width:950px"><table class="tablekit" style="table-layout:fixed;width:950px">'+buildCustThead()+'<tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:#6b6040">No customers yet</td></tr>')+'</tbody></table></div>';
   if(typeof TableKit!=='undefined')TableKit.initAll();
   showPageToolbar({title:'Customers',logoText:'Handmade Designs By Suzi'});
+}
+function showCustForm(id){
+  CUST_EDITID=id||'__new__';
+  renderCustsTable(document.getElementById('acnt'));
+  setTimeout(function(){var f=document.getElementById('ci-fn');if(f)f.focus();},50);
+}
+function cancelCustForm(){
+  CUST_EDITID=null;
+  renderCustsTable(document.getElementById('acnt'));
+}
+function saveCust(){
+  var fn=(document.getElementById('ci-fn')||{value:''}).value.trim();
+  var ln=(document.getElementById('ci-ln')||{value:''}).value.trim();
+  var em=(document.getElementById('ci-em')||{value:''}).value.trim();
+  var ph=(document.getElementById('ci-ph')||{value:''}).value.trim();
+  if(!em){alert('Email is required.');return;}
+  var editId=CUST_EDITID;
+  if(editId&&editId!=='__new__'){
+    apiFetch('customers.php','POST',{action:'update_customer',id:editId,fn:fn,ln:ln,em:em,ph:ph})
+      .then(function(d){
+        if(!d.success){alert(d.error||'Save failed');return;}
+        for(var i=0;i<CUSTS.length;i++){if(CUSTS[i].id===editId){CUSTS[i].fn=fn;CUSTS[i].ln=ln;CUSTS[i].name=fn+' '+ln;CUSTS[i].em=em;CUSTS[i].ph=ph;break;}}
+        CUST_EDITID=null;renderCustsTable(document.getElementById('acnt'));
+      }).catch(function(){alert('Network error');});
+  } else {
+    apiFetch('customers.php','POST',{action:'add_customer',fn:fn,ln:ln,em:em,ph:ph})
+      .then(function(d){
+        if(!d.success){alert(d.error||'Add failed');return;}
+        CUSTS.unshift({id:d.id,fn:fn,ln:ln,name:(fn+' '+ln).trim(),em:em,ph:ph,orders:0,joined:'today'});
+        CUST_EDITID=null;renderCustsTable(document.getElementById('acnt'));
+      }).catch(function(){alert('Network error');});
+  }
+}
+function deleteCust(id,name){
+  if(!confirm('Delete customer "'+name+'"? This cannot be undone.'))return;
+  apiFetch('customers.php','POST',{action:'delete_customer',id:id})
+    .then(function(d){
+      if(!d.success){alert(d.error||'Delete failed');return;}
+      CUSTS=CUSTS.filter(function(c){return c.id!==id;});
+      renderCustsTable(document.getElementById('acnt'));
+    }).catch(function(){alert('Network error');});
 }
 
 
@@ -1893,6 +1960,10 @@ function setSquareMode(mode){
   rSettings(document.getElementById('acnt'));
 }
 function rSettings(el){
+  if(!SEC){apiFetch('admin.php','POST',{action:'get_sec_question'}).then(function(d){if(d&&d.success)SEC={q:d.question};rSettings(el);}).catch(function(){rSettingsInner(el);});return;}
+  rSettingsInner(el);
+}
+function rSettingsInner(el){
   var modeColor=SQUARE_MODE==='test'?'#fff8e1':'#e8f5e9';
   var modeBorder=SQUARE_MODE==='test'?'#ffe082':'#a5d6a7';
   var modeText=SQUARE_MODE==='test'?'TEST MODE — No real payments':'LIVE MODE — Real payments active';

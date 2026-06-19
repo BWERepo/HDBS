@@ -128,4 +128,34 @@ if ($method === 'POST' && $action === 'inc_orders') {
     ok();
 }
 
+// POST — admin: add customer
+if ($method === 'POST' && $action === 'add_customer') {
+    if (empty($d['em'])) fail('Email required');
+    $check = $pdo->prepare("SELECT id FROM customers WHERE email = ?");
+    $check->execute([$d['em']]);
+    if ($check->fetch()) fail('Email already registered');
+    $id   = 'C' . time() . rand(100, 999);
+    $hash = password_hash($d['pw'] ?? 'TempPass1!', PASSWORD_DEFAULT);
+    $stmt = $pdo->prepare("INSERT INTO customers (id, first_name, last_name, email, password_hash, phone) VALUES (?,?,?,?,?,?)");
+    $stmt->execute([$id, $d['fn'] ?? '', $d['ln'] ?? '', $d['em'], $hash, $d['ph'] ?? '']);
+    ok(['id' => $id, 'message' => 'Customer added']);
+}
+
+// POST — admin: update customer
+if ($method === 'POST' && $action === 'update_customer') {
+    $id = $d['id'] ?? '';
+    if (!$id) fail('Missing id');
+    $stmt = $pdo->prepare("UPDATE customers SET first_name=?, last_name=?, email=?, phone=? WHERE id=?");
+    $stmt->execute([$d['fn'] ?? '', $d['ln'] ?? '', $d['em'] ?? '', $d['ph'] ?? '', $id]);
+    ok(['message' => 'Customer updated']);
+}
+
+// POST — admin: delete customer
+if ($method === 'POST' && $action === 'delete_customer') {
+    $id = $d['id'] ?? '';
+    if (!$id) fail('Missing id');
+    $pdo->prepare("DELETE FROM customers WHERE id = ?")->execute([$id]);
+    ok(['message' => 'Customer deleted']);
+}
+
 fail('Unknown action', 400);

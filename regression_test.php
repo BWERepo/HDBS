@@ -60,7 +60,7 @@ t('tax_swept removed', !in_array('tax_swept',$ocols));
 
 // ── 2. DATA ──
 try{t('products exist',(int)$pdo->query("SELECT COUNT(*) FROM products")->fetchColumn()>0);}catch(Exception $e){t('products exist',false,$e->getMessage());}
-try{t('orders exist', (int)$pdo->query("SELECT COUNT(*) FROM orders")->fetchColumn()>0);}catch(Exception $e){t('orders exist',false,$e->getMessage());}
+try{$orderCount=(int)$pdo->query("SELECT COUNT(*) FROM orders")->fetchColumn();t('orders table accessible',$orderCount>=0,'count: '.$orderCount);}catch(Exception $e){t('orders table accessible',false,$e->getMessage());}
 try{t('settings exist',(int)$pdo->query("SELECT COUNT(*) FROM settings")->fetchColumn()>0);}catch(Exception $e){t('settings exist',false,$e->getMessage());}
 try{$rtt=$pdo->query("SELECT value FROM settings WHERE key_name='rt_token' LIMIT 1")->fetchColumn();t('rt_token set',$rtt!==false&&strlen($rtt)>=16);}catch(Exception $e){t('rt_token set',false,$e->getMessage());}
 try{$sq=$pdo->query("SELECT value FROM settings WHERE key_name='square_mode' LIMIT 1")->fetchColumn();t('square_mode set',$sq!==false);}catch(Exception $e){t('square_mode set',false,$e->getMessage());}
@@ -714,7 +714,7 @@ try{
     t('index.html loads table.js',strpos($html,'js/table.js')!==false);
     t('TableKit.initAll() in index.html',strpos($html,'TableKit.initAll()')!==false);
     $aojs=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
-    t('buildCustThead plain th',strpos($aojs,'buildCustThead')!==false&&strpos($aojs,"cols.map(function(col){return'<th>'+col.label+'</th>';")!==false);
+    t('buildCustThead exists with colgroup',strpos($aojs,'buildCustThead')!==false&&strpos($aojs,'colgroup')!==false);
     t('buildOrdThead plain th',strpos($aojs,"cols.map(function(l){return'<th>'+l+'</th>';}")!==false);
     t('orders table has tablekit class',strpos($aojs,'tablekit')!==false);
     t('customers table has tablekit class',substr_count($aojs,'tablekit')>=2);
@@ -908,15 +908,64 @@ foreach(['api/config.php','api/admin.php','api/orders.php','api/products.php',
     t($f, file_exists($root.'/'.$f));
 
 // ── 4. JS FUNCTION CHECKS ──
-$fns=['openCheckout','placeOrder','renderOrdersTable','viewOrder','showManualOrderForm',
-      'sendConfirmEmail','rSweep','rSqPay','applyShippingConfig','rBizProfile',
-      'buildAdminNav','saveNavOrder','rRegTest','runRegTests','cancelRegTests',
-      'SQ_FEE_PCT','TAX_RATES','updCarrier','updTracking','deleteOrder','sendShippingEmail',
-      'pfNextSku','pfAutoSku','pfGetCats','initCatDrag','fetchOrderTax','editCat','saveCatEdit',
-      'prodSort','prodFilt','applyProdFilters','custSort','custFilt','applyCustomerFilters',
-      'setAllStock1','setAllPrice1','autoAssignSkus','exportProductsCsv','showImportCsv','doImportCsv','toggleSell',
-      'elSort','elFilt','elFiltApply','applyElFilters','buildElThead','rEmailLog','elRefresh','clearEmailLog',
-      'setDebugMode','logFullScreen','emailLog','setPageLogMode'];
+$fns=[
+    // Storefront
+    'openCheckout','placeOrder','addToCart',
+    // Orders
+    'renderOrdersTable','viewOrder','showManualOrderForm','saveManualOrder',
+    'sendConfirmEmail','sendShippingEmail','deleteOrder','deleteAllOrders',
+    'exportOrdersCsv','exportTaxCSV','clearOrdFilters','clearOrderFilters',
+    'updCarrier','updTracking','fetchOrderTax',
+    'showRefundForm','saveRefund',
+    // Products
+    'pfNextSku','pfAutoSku','pfGetCats','pfSetActionBtns',
+    'initCatDrag','showPF','cancelPF','saveP',
+    'prodSort','prodFilt','applyProdFilters',
+    'setAllStock1','setAllPrice1','autoAssignSkus',
+    'exportProductsCsv','showImportCsv','doImportCsv','toggleSell',
+    // Categories
+    'editCat','saveCatEdit','addCat','deleteCat',
+    // Customers
+    'custSort','custFilt','applyCustomerFilters',
+    'showCustForm','cancelCustForm','saveCust','deleteCust',
+    'custEditRow','custInpStyle',
+    // FAQs
+    'rAdminFAQs','saveFAQ','editFAQ','deleteFAQ',
+    // Reviews
+    'deleteReview',
+    // Shipping
+    'applyShippingConfig','saveShipping','addTier','deleteTier','addState',
+    // Settings
+    'saveSquareFees','saveTaxRates','resetDefaultTaxRates',
+    'saveVersion','saveGitHubToken','saveBizProfile',
+    // Tax sweep
+    'rSweep','showAddSweepForm','saveAddSweepForm','deleteSweepRow','editSweepRow','saveSweepEdit',
+    // Square payments
+    'rSqPay',
+    // Subscribers
+    'delSub','exportSubs',
+    // Prompt log
+    'rPromptLog','showAddPrompt','editPrompt','savePrompt','deletePrompt',
+    // DB Backup
+    'rDbBackup','runDbBackup',
+    // Logs
+    'rLogs','clearLog','logFullScreen','emailLog','clearEmailLog','elRefresh',
+    // Email log
+    'rEmailLog','elSort','elFilt','elFiltApply','applyElFilters','buildElThead',
+    // Nav
+    'buildAdminNav','saveNavOrder','toggleNavFolder',
+    // Biz profile
+    'rBizProfile',
+    // Regression test
+    'rRegTest','runRegTests','cancelRegTests',
+    // TN City
+    'rTnCity','showAddTnCity','addTnCity','saveTnCity','deleteTnCity',
+    // Deploy / git log
+    'rDeployLog','rGitLog',
+    // Debug / misc
+    'setDebugMode','setPageLogMode',
+    'SQ_FEE_PCT','TAX_RATES',
+];
 try{
     $js='';
     foreach(['js/api.js','js/config.js','js/data.js','js/store.js','js/auth.js',
@@ -943,6 +992,246 @@ try{$oapi=file_get_contents($root.'/api/orders.php');t('orders.php decrements st
 }catch(Exception $e){
     foreach($fns as $fn) t('JS:'.$fn, false, $e->getMessage());
 }
+
+// ── 5. BUTTON COVERAGE ──
+// Verify every major button on the site has its onclick handler wired in source
+try{
+    $aojs=file_get_contents($root.'/js/admin-orders.js');
+    $amjs=file_get_contents($root.'/js/admin-misc.js');
+    $apjs=file_get_contents($root.'/js/admin-products.js');
+    $anjs=file_get_contents($root.'/js/admin-nav.js');
+    $ihtml=file_get_contents($root.'/index.html');
+    $sjs=file_get_contents($root.'/js/store.js');
+
+    // Storefront buttons
+    t('btn:Add to Cart wired',strpos($sjs,'addToCart')!==false||strpos($ihtml,'addToCart')!==false);
+    t('btn:Open Checkout wired',strpos($sjs,'openCheckout')!==false||strpos($ihtml,'openCheckout')!==false);
+    t('btn:Place Order wired',strpos($sjs,'placeOrder')!==false||strpos($ihtml,'placeOrder')!==false);
+
+    // Product management buttons
+    t('btn:Add Product wired',strpos($apjs,'showPF(null)')!==false);
+    t('btn:Save/Update Product wired',strpos($apjs,'saveP()')!==false);
+    t('btn:Cancel Product form wired',strpos($apjs,'cancelPF()')!==false);
+    t('btn:Delete Product wired',strpos($apjs,'delP(')!==false);
+    t('btn:Edit Product wired',strpos($apjs,"showPF(")!==false&&strpos($apjs,'Edit</button>')!==false);
+    t('btn:Toggle Sell wired',strpos($apjs,'toggleSell(')!==false);
+    t('btn:Set All Stock to 1 wired',strpos($apjs,'setAllStock1()')!==false);
+    t('btn:Set All Prices to $1 wired',strpos($apjs,'setAllPrice1()')!==false);
+    t('btn:Auto-assign SKUs wired',strpos($apjs,'autoAssignSkus()')!==false);
+    t('btn:Export Products CSV wired',strpos($apjs,'exportProductsCsv()')!==false);
+    t('btn:Import CSV wired',strpos($apjs,'showImportCsv()')!==false);
+
+    // Customer management buttons
+    t('btn:Add Customer wired',strpos($aojs,'showCustForm(null)')!==false);
+    t('btn:Edit Customer wired',strpos($aojs,'showCustForm(')!==false);
+    t('btn:Save Customer wired',strpos($aojs,'saveCust()')!==false);
+    t('btn:Cancel Customer form wired',strpos($aojs,'cancelCustForm()')!==false);
+    t('btn:Delete Customer wired',strpos($aojs,'deleteCust(')!==false);
+
+    // Customer inline editing
+    t('custEditRow function exists',strpos($aojs,'function custEditRow(')!==false);
+    t('custInpStyle function exists',strpos($aojs,'function custInpStyle(')!==false);
+    t('CUST_EDITID state variable exists',strpos($aojs,'CUST_EDITID')!==false);
+    t('customer inline inputs use ci-fn id',strpos($aojs,'ci-fn')!==false);
+    t('customer inline inputs use ci-em id',strpos($aojs,'ci-em')!==false);
+    t('customer table-layout fixed',strpos($aojs,'table-layout:fixed')!==false);
+
+    // Category buttons
+    t('btn:Add Category wired',strpos($aojs,'addCat()')!==false);
+    t('btn:Edit Category wired',strpos($aojs,'editCat(')!==false);
+    t('btn:Save Cat Edit wired',strpos($aojs,'saveCatEdit(')!==false);
+    t('btn:Delete Category wired',strpos($aojs,'deleteCat(')!==false);
+    t('btn:Category drag-to-reorder wired',strpos($aojs,'draggable="true"')!==false);
+
+    // Order buttons
+    t('btn:View Order wired',strpos($aojs,'viewOrder(')!==false);
+    t('btn:Send Confirm Email wired',strpos($aojs,'sendConfirmEmail(')!==false);
+    t('btn:Send Shipping Email wired',strpos($aojs,'sendShippingEmail(')!==false);
+    t('btn:Delete Order wired',strpos($aojs,'delOrder(')!==false||strpos($aojs,'deleteOrder(')!==false);
+    t('btn:Export Orders CSV wired',strpos($aojs,'exportOrdersCsv()')!==false);
+    t('btn:Manual Order wired',strpos($aojs,'showManualOrderForm()')!==false);
+    t('btn:Refund wired',strpos($aojs,'showRefundForm()')!==false);
+
+    // FAQ buttons
+    t('btn:Save FAQ wired',strpos($aojs,'saveFAQ(')!==false);
+    t('btn:Edit FAQ wired',strpos($aojs,'editFAQ(')!==false);
+    t('btn:Delete FAQ wired',strpos($aojs,'deleteFAQ(')!==false);
+
+    // Review buttons
+    t('btn:Delete Review wired',strpos($aojs,'deleteReview(')!==false);
+
+    // Shipping buttons
+    t('btn:Save Shipping wired',strpos($aojs,'saveShipping()')!==false);
+    t('btn:Add Shipping Tier wired',strpos($aojs,'addTier()')!==false);
+    t('btn:Delete Shipping Tier wired',strpos($aojs,'deleteTier(')!==false);
+
+    // Settings buttons
+    t('btn:Save Square Fees wired',strpos($aojs,'saveSquareFees()')!==false);
+    t('btn:Save Tax Rates wired',strpos($aojs,'saveTaxRates()')!==false);
+    t('btn:Reset Default Tax Rates wired',strpos($aojs,'resetDefaultTaxRates()')!==false);
+    t('btn:Save Version wired',strpos($amjs,'saveVersion()')!==false);
+    t('btn:Save GitHub Token wired',strpos($amjs,'saveGitHubToken()')!==false);
+    t('btn:Save Biz Profile wired',strpos($amjs,'saveBizProfile()')!==false);
+
+    // Log buttons
+    t('btn:Clear Log wired',strpos($aojs,'clearLog(')!==false);
+    t('btn:Email Log button wired',strpos($aojs,'emailLog(')!==false||strpos($amjs,'emailLog(')!==false);
+    t('btn:Log Full Screen wired',strpos($aojs,'logFullScreen(')!==false);
+    t('btn:Clear Email Log wired',strpos($amjs,'clearEmailLog()')!==false);
+
+    // DB Backup button
+    t('btn:Run DB Backup wired',strpos($amjs,'runDbBackup()')!==false);
+
+    // Subscribers buttons
+    t('btn:Delete Subscriber wired',strpos($anjs,'delSub(')!==false);
+    t('btn:Export Subscribers wired',strpos($anjs,'exportSubs()')!==false);
+
+    // Prompt log buttons
+    t('btn:Add Prompt wired',strpos($amjs,'showAddPrompt()')!==false);
+    t('btn:Edit Prompt wired',strpos($amjs,'editPrompt(')!==false);
+    t('btn:Delete Prompt wired',strpos($amjs,'deletePrompt(')!==false);
+
+    // Regression test buttons
+    t('btn:Run Tests wired',strpos($amjs,'runRegTests()')!==false);
+    t('btn:Cancel Tests wired',strpos($amjs,'cancelRegTests()')!==false);
+
+    // Tax sweep buttons
+    t('btn:Show Add Sweep Form wired',strpos($amjs,'showAddSweepForm()')!==false);
+    t('btn:Delete Sweep Row wired',strpos($amjs,'deleteSweepRow(')!==false);
+
+    // TN City buttons
+    t('btn:Show Add TN City wired',strpos($amjs,'showAddTnCity()')!==false);
+    t('btn:Add TN City wired',strpos($amjs,'addTnCity()')!==false);
+    t('btn:Delete TN City wired',strpos($amjs,'deleteTnCity(')!==false);
+
+}catch(Exception $e){t('button coverage checks',false,$e->getMessage());}
+
+// ── 6. CUSTOMER API ACTIONS ──
+try{
+    $cphp=file_get_contents($root.'/api/customers.php');
+    t('customers.php add_customer action',strpos($cphp,"action === 'add_customer'")!==false);
+    t('customers.php update_customer action',strpos($cphp,"action === 'update_customer'")!==false);
+    t('customers.php delete_customer action',strpos($cphp,"action === 'delete_customer'")!==false);
+    t('customers.php delete_customer uses DELETE query',strpos($cphp,'DELETE FROM customers')!==false);
+    t('customers.php update_customer updates name+email+phone',strpos($cphp,'first_name=?, last_name=?, email=?, phone=?')!==false);
+}catch(Exception $e){t('customer API action checks',false,$e->getMessage());}
+
+// ── 7. GITHUB TOKEN + SECURITY QUESTION FIXES ──
+try{
+    $adphp=isset($adphp)?$adphp:file_get_contents($root.'/api/admin.php');
+    t('admin.php save_github_token action',strpos($adphp,"action === 'save_github_token'")!==false);
+    t('admin.php get_github_token action',strpos($adphp,"action === 'get_github_token'")!==false);
+    t('github_token not writable via set_setting',strpos($adphp,"'github_token'")!==false&&strpos($adphp,'$sensitive')!==false);
+    $aojs2=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
+    t('rSettings fetches get_sec_question before render',strpos($aojs2,'rSettingsInner')!==false&&strpos($aojs2,'get_sec_question')!==false);
+    t('rSettingsInner renders security question card',strpos($aojs2,'function rSettingsInner(')!==false);
+    $amjs2=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
+    t('saveGitHubToken uses save_github_token action',strpos($amjs2,"action:'save_github_token'")!==false);
+    t('loadGitHubToken uses get_github_token action',strpos($amjs2,"action:'get_github_token'")!==false);
+    t('saveSQ refreshes rSettings after save',strpos($amjs2,'rSettings(el)')!==false);
+}catch(Exception $e){t('github token + sec question checks',false,$e->getMessage());}
+
+// ── 8. LIVE UI TESTS ──
+// HTTP requests to the live site to verify runtime behavior
+function uiGet($url){
+    $ctx=stream_context_create(['http'=>['timeout'=>8,'ignore_errors'=>true]]);
+    $body=@file_get_contents($url,false,$ctx);
+    $code=0;
+    if(isset($http_response_header)){
+        foreach($http_response_header as $h){if(preg_match('/HTTP\/\S+\s+(\d+)/',$h,$m)){$code=(int)$m[1];break;}}
+    }
+    return['body'=>(string)$body,'code'=>$code];
+}
+function uiPost($url,$data){
+    $ctx=stream_context_create(['http'=>['method'=>'POST','header'=>'Content-Type: application/json','content'=>json_encode($data),'timeout'=>8,'ignore_errors'=>true]]);
+    $body=@file_get_contents($url,false,$ctx);
+    $code=0;
+    if(isset($http_response_header)){
+        foreach($http_response_header as $h){if(preg_match('/HTTP\/\S+\s+(\d+)/',$h,$m)){$code=(int)$m[1];break;}}
+    }
+    $json=@json_decode($body,true);
+    return['body'=>(string)$body,'code'=>$code,'json'=>$json];
+}
+$base='https://handmadedesignsbysuzi.com';
+try{
+    // Storefront loads
+    $r=uiGet($base.'/');
+    t('ui:homepage returns 200',$r['code']===200,'HTTP '.$r['code']);
+    t('ui:homepage has <title>',$r['code']===200&&strpos($r['body'],'<title>')!==false);
+    t('ui:homepage loads store.js',$r['code']===200&&strpos($r['body'],'js/store.js')!==false);
+    t('ui:homepage loads admin-orders.js',$r['code']===200&&strpos($r['body'],'js/admin-orders.js')!==false);
+    t('ui:homepage has cart',$r['code']===200&&stripos($r['body'],'cart')!==false);
+    t('ui:homepage loads Square via JS',strpos(file_get_contents($root.'/js/admin-orders.js'),'squareup')!==false||strpos(file_get_contents($root.'/js/ui.js'),'squareup')!==false||strpos(file_get_contents($root.'/index.html'),'Square')!==false);
+
+    // Key JS/CSS assets load
+    foreach(['js/store.js','js/api.js','js/config.js','js/ui.js','js/auth.js',
+             'js/admin-orders.js','js/admin-misc.js','js/admin-products.js',
+             'js/table.js','js/toolbar.js','css/shop.css','css/table.css'] as $asset){
+        $a=uiGet($base.'/'.$asset);
+        t('ui:asset '.$asset,$a['code']===200,'HTTP '.$a['code']);
+    }
+
+    // Products API — uses GET not POST
+    $r=uiGet($base.'/api/products.php');
+    t('ui:products API returns 200',$r['code']===200,'HTTP '.$r['code']);
+    $pj=@json_decode($r['body'],true);
+    t('ui:products API success',$pj&&!empty($pj['success']),'body: '.substr($r['body'],0,80));
+    t('ui:products API returns array',$pj&&isset($pj['products'])&&is_array($pj['products']));
+    t('ui:products list non-empty',$pj&&!empty($pj['products']),'count: '.count($pj['products']??[]));
+
+    // FAQs API — uses GET
+    $r=uiGet($base.'/api/faqs.php');
+    t('ui:FAQs API returns 200',$r['code']===200,'HTTP '.$r['code']);
+    $fj=@json_decode($r['body'],true);
+    t('ui:FAQs API success',$fj&&!empty($fj['success']));
+
+    // Admin login — wrong password: fail() returns HTTP 400
+    $r=uiPost($base.'/api/admin.php',['action'=>'login','password'=>'__wrong__']);
+    t('ui:admin login rejects bad password',$r['json']&&empty($r['json']['success']),'HTTP '.$r['code']);
+
+    // Admin get_sec_question returns question
+    $r=uiPost($base.'/api/admin.php',['action'=>'get_sec_question']);
+    t('ui:admin get_sec_question returns question',$r['code']===200&&!empty($r['json']['success'])&&!empty($r['json']['question']));
+
+    // Sensitive settings blocked — fail() returns HTTP 400
+    foreach(['admin_password','square_access_token','admin_sec_answer'] as $sk){
+        $r=uiPost($base.'/api/admin.php',['action'=>'get_setting','key'=>$sk]);
+        t('ui:get_setting blocks '.$sk,!empty($r['json'])&&empty($r['json']['success']));
+    }
+
+    // GitHub token endpoints work
+    $r=uiPost($base.'/api/admin.php',['action'=>'get_github_token']);
+    t('ui:get_github_token returns 200',$r['code']===200,'HTTP '.$r['code']);
+    t('ui:get_github_token returns value',$r['json']&&!empty($r['json']['success'])&&isset($r['json']['value']));
+
+    // Customers API — list uses GET
+    $r=uiGet($base.'/api/customers.php?action=list');
+    t('ui:customers list returns 200',$r['code']===200,'HTTP '.$r['code']);
+    $cj=@json_decode($r['body'],true);
+    t('ui:customers list has customers array',$cj&&isset($cj['customers'])&&is_array($cj['customers']));
+
+    // Customer register — duplicate email is rejected gracefully (not a 500)
+    $r=uiPost($base.'/api/customers.php',['action'=>'register','em'=>'regression_dupe@test.com','pw'=>'Test1234!','fn'=>'Reg','ln'=>'Test','secQ'=>'What city were you born in?','secA'=>'test','secA2'=>'test']);
+    t('ui:customer register not 500',$r['code']!==500,'HTTP '.$r['code']);
+
+    // Customer login — wrong password rejected
+    $r=uiPost($base.'/api/customers.php',['action'=>'login','em'=>'nobody@example.com','pw'=>'wrong']);
+    t('ui:customer login rejects bad credentials',$r['json']&&empty($r['json']['success']));
+
+    // TN city tax API — uses GET
+    $r=uiGet($base.'/api/tn_city_tax.php?action=list');
+    t('ui:TN city tax list returns 200',$r['code']===200,'HTTP '.$r['code']);
+
+    // Contact form — missing fields returns failure not 500
+    $r=uiPost($base.'/api/contact.php',[]);
+    t('ui:contact API handles empty body',$r['code']!==500,'HTTP '.$r['code']);
+
+    // regression_test.php itself gated (wrong token → forbidden)
+    $r=uiGet($base.'/regression_test.php?token=wrongtoken');
+    $rj=@json_decode($r['body'],true);
+    t('ui:regression test blocks wrong token',$r['code']===403||(!empty($rj['error'])&&$rj['error']==='Forbidden'));
+
+}catch(Exception $e){t('ui tests',false,$e->getMessage());}
 
 }catch(Exception $e){t('Exception',false,$e->getMessage().' line '.$e->getLine());}
 

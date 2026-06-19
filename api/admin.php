@@ -126,6 +126,16 @@ if ($method === 'POST' && ($action === 'set_setting' || $action === 'save_settin
     ok(['message' => 'Setting saved']);
 }
 
+if ($method === 'POST' && $action === 'save_github_token') {
+    $val = $d['value'] ?? '';
+    setSetting($pdo, 'github_token', $val);
+    ok(['message' => 'Token saved']);
+}
+
+if ($method === 'POST' && $action === 'get_github_token') {
+    ok(['value' => getSetting($pdo, 'github_token')]);
+}
+
 // ── Log file reader ──
 if ($method === 'POST' && $action === 'read_log') {
     $allowed = ['notify_log.txt', 'webhook_log.txt', 'error_log.txt', 'pages.log'];
