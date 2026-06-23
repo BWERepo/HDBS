@@ -57,7 +57,7 @@ nav.scrolled{background:rgba(160,120,16,.82);backdrop-filter:blur(14px);-webkit-
 
 /* PRODUCT CARD IMAGE - shows first photo */
 .cimg{height:160px;background:#fdf3d0;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:3rem;margin-bottom:.8rem;overflow:hidden;position:relative}
-.cimg img{width:100%;height:100%;object-fit:cover}
+.cimg img{width:100%;height:100%;object-fit:contain;object-position:center}
 .cimg-dots{position:absolute;bottom:6px;left:0;right:0;display:flex;justify-content:center;gap:4px}
 .cimg-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.6)}
 .cimg-dot.on{background:#fff}

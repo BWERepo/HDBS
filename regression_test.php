@@ -91,7 +91,7 @@ try{
     $elHasConvertTz2=strpos(file_get_contents($root.'/send_confirm.php'),'CONVERT_TZ')!==false;
     t('send_confirm uses EDT',   $elHasConvertTz2);
 }catch(Exception $e){t('email_log checks',false,$e->getMessage());}
-try{t('shop.css has /hero.jpg', strpos(file_get_contents($root.'/css/shop.css'),'url("/hero.jpg")')!==false);}catch(Exception $e){t('shop.css check',false,$e->getMessage());}
+try{$shopcss0=file_get_contents($root.'/css/shop.css');t('shop.css has /hero.jpg',strpos($shopcss0,'url("/hero.jpg")')!==false);t('product card image (.cimg img) uses contain',strpos($shopcss0,'.cimg img{width:100%;height:100%;object-fit:contain')!==false);}catch(Exception $e){t('shop.css check',false,$e->getMessage());}
 
 // ── 2b. NEW SESSION CHECKS ──
 // orders.square_payment_id column
