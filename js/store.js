@@ -81,12 +81,12 @@ function openPD(id){
     gallerySlides='<div class="gallery-img on"><div class="no-img">👜</div></div>';
   } else {
     for(var i=0;i<validImgs.length;i++){
-      gallerySlides+='<div class="gallery-img'+(i===0?' on':'')+'" id="gslide-'+i+'"><img src="'+validImgs[i]+'" alt="'+p.name+'"></div>';
+      gallerySlides+='<div class="gallery-img'+(i===0?' on':'')+'" id="gslide-'+i+'"><img src="'+validImgs[i]+'" alt="'+p.name+'" onerror="this.parentNode.style.display=\'none\'"></div>';
       dots+='<button class="gdot'+(i===0?' on':'')+'" onclick="goSlide('+i+')"></button>';
     }
     if(validImgs.length>1){
       thumbsHtml='<div class="pd-thumbs">';
-      for(var t=0;t<validImgs.length;t++)thumbsHtml+='<img class="pd-thumb'+(t===0?' on':'')+'" src="'+validImgs[t]+'" onclick="goSlide('+t+')">';
+      for(var t=0;t<validImgs.length;t++)thumbsHtml+='<img class="pd-thumb'+(t===0?' on':'')+'" src="'+validImgs[t]+'" onclick="goSlide('+t+')" onerror="this.style.display=\'none\'">';
       thumbsHtml+='</div>';
     }
   }
