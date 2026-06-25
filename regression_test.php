@@ -591,6 +591,13 @@ try{
     // PageToolbar Close calls window.close() (blocked in SPA); showPageToolbar overrides it to navigate to dashboard
     t('showPageToolbar overrides toolbar Close button',strpos($anjs,'tk-btn-close')!==false&&strpos($anjs,'cloneNode')!==false);
     t('toolbar Close override navigates in-SPA',strpos($anjs,'tk-btn-close')!==false&&strpos($anjs,"aNavById('dash')")!==false);
+    // showPageToolbar per-screen Export/Import overrides (toolbar's generic ones don't fit product data)
+    t('showPageToolbar supports onExport override',strpos($anjs,'opts.onExport')!==false&&strpos($anjs,"trim()==='Export'")!==false);
+    t('showPageToolbar supports onImport override',strpos($anjs,'opts.onImport')!==false&&strpos($anjs,"trim()==='Import'")!==false);
+    $apjs=isset($apjs)?$apjs:file_get_contents($root.'/js/admin-products.js');
+    t('products screen wires onExport/onImport',strpos($apjs,'onExport:exportProductsCsv')!==false&&strpos($apjs,'onImport:showImportCsv')!==false);
+    t('exportProductsCsv fetches CSV with admin token',strpos($apjs,'products_csv.php')!==false&&strpos($apjs,'X-Admin-Token')!==false&&strpos($apjs,'function exportProductsCsv(')!==false);
+    t('doImportCsv POSTs with admin token',strpos($apjs,"method:'POST',body:fd,headers:{'X-Admin-Token'")!==false);
     t('aNavById hides toolbar on nav',strpos($anjs,"page-toolbar")!==false&&strpos($anjs,"display='none'")!==false);
     t('aNavById restores aptitle on nav',strpos($anjs,"aptitle")!==false&&strpos($anjs,"display=''")!==false);
     $amjs=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');

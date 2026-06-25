@@ -13,6 +13,32 @@ function showPageToolbar(opts){
     cb.parentNode.replaceChild(fresh,cb);
     fresh.addEventListener('click',function(){aNavById('dash');});
   }
+  // Optional per-screen Export override: the toolbar's generic Export dumps the visible table
+  // (incl. Actions column, no image URLs). Screens can pass opts.onExport for a custom export.
+  if(opts&&typeof opts.onExport==='function'){
+    var ebtns=document.querySelectorAll('#page-toolbar .tk-toolbar-actions .tk-btn');
+    for(var i=0;i<ebtns.length;i++){
+      if(ebtns[i].textContent.trim()==='Export'){
+        var ex=ebtns[i].cloneNode(true);
+        ebtns[i].parentNode.replaceChild(ex,ebtns[i]);
+        ex.addEventListener('click',opts.onExport);
+        break;
+      }
+    }
+  }
+  // Per-screen Import override: the toolbar's generic Import only rewrites the visible table
+  // (no DB save, column mismatch). Screens can pass opts.onImport for a real importer.
+  if(opts&&typeof opts.onImport==='function'){
+    var ibtns=document.querySelectorAll('#page-toolbar .tk-toolbar-actions .tk-btn');
+    for(var j=0;j<ibtns.length;j++){
+      if(ibtns[j].textContent.trim()==='Import'){
+        var im=ibtns[j].cloneNode(true);
+        ibtns[j].parentNode.replaceChild(im,ibtns[j]);
+        im.addEventListener('click',opts.onImport);
+        break;
+      }
+    }
+  }
 }
 function aNavById(sec){
   var tb=document.getElementById('page-toolbar');if(tb)tb.style.display='none';
