@@ -279,10 +279,28 @@
         <div class="os-row" style="font-style:italic;color:#6b6040"><span id="oc-tax-label">Sales Tax</span><span id="oc-tax" style="font-size:.78rem">Calc. by Square</span></div>
         <div class="os-total"><span>Est. Total</span><span id="oc-tot">$0.00</span></div>
       </div>
-      <div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.8rem 1rem;font-size:.8rem;color:#6b6040;margin-bottom:.9rem;line-height:1.6">
+      <!-- InPerson payment options (shown only when store is in InPerson mode) -->
+      <div id="co-inperson" style="display:none">
+        <div class="fsec">Payment</div>
+        <label class="fl">Payment Method</label>
+        <select class="fi" id="co-paymethod" onchange="updateInPersonUI()">
+          <option>Cash</option>
+          <option>Check</option>
+          <option>Credit Card</option>
+        </select>
+        <div id="co-checknum-wrap" style="display:none">
+          <label class="fl">Check Number</label>
+          <input class="fi" id="co-checknum" placeholder="Check number">
+        </div>
+        <label style="display:flex;align-items:center;gap:.5rem;margin:.5rem 0 .9rem;font-size:.85rem;color:#2d2220;cursor:pointer">
+          <input type="checkbox" id="co-ship-req" checked onchange="updateShippingDisplay()">
+          <span>Add shipping charge</span>
+        </label>
+      </div>
+      <div id="co-secure-note" style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.8rem 1rem;font-size:.8rem;color:#6b6040;margin-bottom:.9rem;line-height:1.6">
         🔒 Your payment is processed securely by Square. Card details are never stored on our site.
       </div>
-      <button class="mbtn" onclick="placeOrder()">Review &amp; Pay →</button>
+      <button class="mbtn" id="co-submit-btn" onclick="placeOrder()">Review &amp; Pay →</button>
     </div>
     <!-- STEP 2: Embedded card payment -->
     <div id="co-payment" style="display:none;padding:1.5rem">
@@ -732,9 +750,8 @@
 <div id="apanel" style="display:none">
   <div class="aside">
     <div class="alogo">Handmade Designs By Suzi<br>By Suzi<span class="asub">Back Office</span></div>
-        <div id="admin-nav"></div>
-    <div style="flex:1"></div>
     <button class="sbk" onclick="goStore()">← Back to Store</button>
+        <div id="admin-nav"></div>
   </div>
   <div class="amain">
     <div class="atop"><span id="aptitle">Dashboard</span><button class="bp" id="addbtn" style="display:none" onclick="showPF(null)">+ Add Product</button></div>

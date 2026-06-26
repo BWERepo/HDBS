@@ -183,7 +183,7 @@ footer{background:#2d2220;color:rgba(255,255,255,.65);text-align:center;padding:
 .sitem.drag-over{border-top:2px solid #d4a017}
 .sitem:hover{background:rgba(255,255,255,.07);color:#fff}
 .sitem.on{background:rgba(212,160,23,.2);color:#fff;border-left-color:#d4a017}
-.sbk{margin:auto 1.2rem 1.2rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.5);padding:.5rem;border-radius:6px;cursor:pointer;font-size:.78rem;width:calc(100% - 2.4rem);font-family:sans-serif}
+.sbk{margin:1.2rem 1.2rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.5);padding:.5rem;border-radius:6px;cursor:pointer;font-size:.78rem;width:calc(100% - 2.4rem);font-family:sans-serif}
 .sbk:hover{background:rgba(255,255,255,.15);color:#fff}
 .amain{flex:1;background:#f7f0f4;overflow-y:auto;display:flex;flex-direction:column}
 .atop{background:#fff;border-bottom:1px solid #e8e0b8;padding:.8rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}

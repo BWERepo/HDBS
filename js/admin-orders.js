@@ -110,6 +110,11 @@ function editOrderDetail(oid){
         '<select class="afi" id="eo-pay">'+
         ['Credit Card','Cash','Check','Square','Other'].map(function(p){return'<option'+(p===(order.pay||'Credit Card')?' selected':'')+'>'+p+'</option>';}).join('')+
         '</select></div>'+
+      '<div><label class="fl">Check #</label><input class="afi" id="eo-checknum" value="'+(order.check_number||'')+'" placeholder="Check number"></div>'+
+      '<div><label class="fl">Payment Config</label>'+
+        '<select class="afi" id="eo-payconfig">'+
+        ['Online','InPerson','Test'].map(function(pc){return'<option'+(pc===(order.payment_config||'Online')?' selected':'')+'>'+pc+'</option>';}).join('')+
+        '</select></div>'+
       '<div><label class="fl">Tax Swept Date</label>'+
         '<input class="afi" id="eo-swept-date" type="date" value="'+(order.swept_date||'')+'">'+
       '</div>'+
@@ -137,6 +142,8 @@ function saveEditOrder(oid){
   var fee=parseFloat(document.getElementById('eo-fee').value)||0;
   var status=document.getElementById('eo-status').value;
   var pay=document.getElementById('eo-pay').value;
+  var checkNum=document.getElementById('eo-checknum')?document.getElementById('eo-checknum').value.trim():'';
+  var payConfig=document.getElementById('eo-payconfig')?document.getElementById('eo-payconfig').value:'';
   var sweptDate=document.getElementById('eo-swept-date').value;
   var carrier=document.getElementById('eo-carrier').value;
   var tracking=document.getElementById('eo-tracking').value.trim();
@@ -144,11 +151,12 @@ function saveEditOrder(oid){
   var err=document.getElementById('eo-err');
   ok.style.display='none';err.style.display='none';
   if(!cust){err.textContent='Customer name required.';err.style.display='block';return;}
-  apiFetch('orders.php','PUT',{id:oid,status:status,pay:pay,cust:cust,email:email,phone:phone,addr:addr,total:total,tax:tax,fee:fee,swept_date:sweptDate,carrier:carrier,tracking:tracking})
+  apiFetch('orders.php','PUT',{id:oid,status:status,pay:pay,check_number:checkNum,payment_config:payConfig,cust:cust,email:email,phone:phone,addr:addr,total:total,tax:tax,fee:fee,swept_date:sweptDate,carrier:carrier,tracking:tracking})
   .then(function(d){
     // Update local ORDERS array
     order.cust=cust;order.email=email;order.phone=phone;order.addr=addr;
     order.total=total;order.tax=tax;order.fee=fee;order.status=status;order.pay=pay;
+    order.check_number=checkNum;order.payment_config=payConfig;
     order.swept_date=sweptDate;order.carrier=carrier;order.tracking=tracking;
     ok.style.display='block';
     setTimeout(function(){viewOrder(oid);},1000);
@@ -441,9 +449,10 @@ function showManualOrderForm(){
       '</div>'+
     '</div>'+
     '<div class="g2" style="margin-bottom:.5rem">'+
-      '<div><label class="fl">Paid By</label><select class="afi" id="mo-pay" onchange="moUpdateFee();moRecalc();var _ot=document.getElementById(\'mo-type\');if(_ot){var _pm={Cash:\'In Person\',Check:\'Phone\',\'Credit Card\':\'Phone\'};if(_pm[this.value])_ot.value=_pm[this.value];}">'+
+      '<div><label class="fl">Paid By</label><select class="afi" id="mo-pay" onchange="moUpdateFee();moRecalc();moToggleCheckNum(this.value);var _ot=document.getElementById(\'mo-type\');if(_ot){var _pm={Cash:\'In Person\',Check:\'Phone\',\'Credit Card\':\'Phone\'};if(_pm[this.value])_ot.value=_pm[this.value];}">'+
         ['Credit Card','Cash','Check','Other'].map(function(p){return'<option'+(p==='Other'?' selected':'')+'>'+p+'</option>';}).join('')+
       '</select></div>'+
+      '<div id="mo-checknum-wrap" style="display:none"><label class="fl">Check #</label><input class="afi" id="mo-checknum" placeholder="Check number"></div>'+
     '</div>'+
     '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.9rem;margin-bottom:.8rem">'+
       '<div style="font-size:.75rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.7rem">Order Totals</div>'+
@@ -761,7 +770,7 @@ function printOrdersPdf(){
 function exportOrdersCsv(){
   var filt=applyOrdFilters();
   if(!filt.length){alert('No orders to export.');return;}
-  var cols=['Order ID','Customer','Email','Phone','Date','Time','Subtotal','Shipping','Tax','Trans Fee','Total','Paid By','Order Type','Status','Tax Swept Date','Address'];
+  var cols=['Order ID','Customer','Email','Phone','Date','Time','Subtotal','Shipping','Tax','Trans Fee','Total','Paid By','Check #','Payment Config','Order Type','Status','Tax Swept Date','Address'];
   var rows=[cols.join(',')];
   filt.forEach(function(o){
     var row=[
@@ -777,6 +786,8 @@ function exportOrdersCsv(){
       (o.fee||0).toFixed(2),
       o.total.toFixed(2),
       '"'+(o.pay||'').replace(/"/g,'""')+'"',
+      '"'+(o.check_number||'').replace(/"/g,'""')+'"',
+      '"'+(o.payment_config||'').replace(/"/g,'""')+'"',
       '"'+(o.order_type||'').replace(/"/g,'""')+'"',
       '"'+(o.status||'').replace(/"/g,'""')+'"',
       '"'+(o.swept_date||'').replace(/"/g,'""')+'"',
@@ -829,6 +840,7 @@ function saveManualOrder(){
   if(city&&addr&&addr.indexOf(city)<0)addr=addr+(addr?', ':'')+city;
   var pay=document.getElementById('mo-pay').value;
   var otype=document.getElementById('mo-type')?document.getElementById('mo-type').value:'Phone';
+  var checkNum=(pay==='Check'&&document.getElementById('mo-checknum'))?document.getElementById('mo-checknum').value.trim():'';
   var status='Paid';
   if(!fn||!ln){alert('Please enter the customer name.');return;}
   var items=[];
@@ -859,6 +871,8 @@ function saveManualOrder(){
     shipping:moShip,
     pay:pay,
     order_type:otype,
+    payment_config:'InPerson',
+    check_number:checkNum,
     fee:parseFloat(document.getElementById('mo-fee').value)||0,
     status:status
   }).then(function(d){
@@ -881,6 +895,10 @@ function saveManualOrder(){
       setTimeout(function(){toast.remove();},3000);
     }
   }).catch(function(){alert('Failed to save order.');});
+}
+function moToggleCheckNum(pay){
+  var w=document.getElementById('mo-checknum-wrap');
+  if(w)w.style.display=(pay==='Check')?'block':'none';
 }
 function showTestOrderForm(){
   var el=document.getElementById('acnt');
@@ -965,7 +983,7 @@ function ordFiltSearch(listId,q){var list=document.getElementById(listId);if(!li
 function ordFilt2(e,col){e.stopPropagation();document.querySelectorAll('.ord-fp').forEach(function(p){p.remove();});var th=e.target.closest('th');th.style.position='relative';var pop=document.createElement('div');pop.className='ord-fp';pop.style.cssText='position:absolute;top:100%;left:0;background:#fff;border:1.5px solid #e8e0b8;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);z-index:300;min-width:220px;padding:0;overflow:hidden';if(col==='date'){pop.innerHTML='<div style="padding:.5rem .7rem;background:#f9f4e4;border-bottom:1px solid #e8e0b8;font-size:.72rem;font-weight:700;color:#a07810;text-transform:uppercase">Date Range</div><div style="padding:.6rem .7rem"><div style="font-size:.72rem;color:#6b6040;margin-bottom:.2rem">From</div><input type="date" id="ord-fp-dfrom" style="width:100%;margin-bottom:.5rem;padding:.3rem .5rem;border:1px solid #e8e0b8;border-radius:5px;font-size:.78rem;box-sizing:border-box" value="'+ORD_F.dateFrom+'"><div style="font-size:.72rem;color:#6b6040;margin-bottom:.2rem">To</div><input type="date" id="ord-fp-dto" style="width:100%;padding:.3rem .5rem;border:1px solid #e8e0b8;border-radius:5px;font-size:.78rem;box-sizing:border-box" value="'+ORD_F.dateTo+'"></div><div style="padding:.5rem .7rem;border-top:1px solid #f0e8d0;display:flex;justify-content:space-between;align-items:center"><button style="font-size:.72rem;color:#a07810;background:none;border:none;cursor:pointer" onclick="ORD_F.dateFrom=\'\';ORD_F.dateTo=\'\';renderOrdersTable(document.getElementById(\'acnt\'));this.closest(\'.ord-fp\').remove()">Clear</button><button style="font-size:.72rem;color:#6b6040;background:none;border:none;cursor:pointer" onclick="this.closest(\'.ord-fp\').remove()">Close</button><button style="font-size:.78rem;background:#d4a017;color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;cursor:pointer;font-weight:600" onclick="var p=this.closest(\'.ord-fp\');ORD_F.dateFrom=p.querySelector(\'#ord-fp-dfrom\').value;ORD_F.dateTo=p.querySelector(\'#ord-fp-dto\').value;p.remove();renderOrdersTable(document.getElementById(\'acnt\'))">Apply</button></div>';}else{var allVals=[];var seen={};for(var i=0;i<ORDERS.length;i++){var v=String(ORDERS[i][col]||'(blank)');if(!seen[v]){seen[v]=true;allVals.push(v);}}allVals.sort();var selVals=ORD_F[col]?ORD_F[col].split('\x00'):null;var listId='ord-flist-'+col;var checkboxes=allVals.map(function(v){var chk=(selVals===null||selVals.indexOf(v)>=0)?'checked':'';return'<label style="display:flex;align-items:center;gap:.4rem;padding:.25rem .4rem;cursor:pointer;border-radius:4px;font-size:.8rem;color:#2d2220" onmouseover="this.style.background=\'#fffdf0\'" onmouseout="this.style.background=\'\'"><input type="checkbox" value="'+v.replace(/"/g,'&quot;')+'" '+chk+'><span>'+v+'</span></label>';}).join('');pop.innerHTML='<div style="padding:.5rem .7rem;background:#f9f4e4;border-bottom:1px solid #e8e0b8;font-size:.72rem;font-weight:700;color:#a07810;text-transform:uppercase">Filter: '+col+'</div><div style="padding:.4rem .7rem;border-bottom:1px solid #f0e8d0"><input type="text" style="width:100%;padding:.3rem .5rem;border:1px solid #e8e0b8;border-radius:5px;font-size:.8rem;box-sizing:border-box" placeholder="Search..." oninput="ordFiltSearch(\''+listId+'\',this.value)"></div><div style="padding:.3rem .4rem;border-bottom:1px solid #f0e8d0;display:flex;gap:.5rem"><button style="font-size:.72rem;color:#a07810;background:none;border:none;cursor:pointer;padding:0" onclick="ordFiltAll(\''+listId+'\',true)">Select All</button><span style="color:#e8e0b8">|</span><button style="font-size:.72rem;color:#a07810;background:none;border:none;cursor:pointer;padding:0" onclick="ordFiltAll(\''+listId+'\',false)">Clear All</button></div><div id="'+listId+'" style="max-height:180px;overflow-y:auto;padding:.2rem .3rem">'+checkboxes+'</div><div style="padding:.5rem .7rem;border-top:1px solid #f0e8d0;display:flex;justify-content:space-between;align-items:center"><button style="font-size:.72rem;color:#6b6040;background:none;border:none;cursor:pointer;padding:0" onclick="this.closest(\'.ord-fp\').remove()">Close</button><button style="font-size:.78rem;background:#d4a017;color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;cursor:pointer;font-weight:600" onclick="ordFiltApply(\''+col+'\',this)">Apply</button></div>';}th.appendChild(pop);setTimeout(function(){var inp=pop.querySelector('input');if(inp)inp.focus();},50);setTimeout(function(){document.addEventListener('click',function h(ev){if(!pop.contains(ev.target)){pop.remove();document.removeEventListener('click',h);}});},50);}
 function applyOrdFilters(){var result=ORDERS.filter(function(o){function chkF(fval,oval){if(!fval)return true;if(fval==='__NONE__')return false;return fval.split('\x00').indexOf(String(oval||'(blank)'))>=0;}if(ORD_F.id&&!chkF(ORD_F.id,o.id))return false;if(ORD_F.cust&&!chkF(ORD_F.cust,o.cust))return false;if(ORD_F.pay&&!chkF(ORD_F.pay,o.pay))return false;if(ORD_F.status&&!chkF(ORD_F.status,o.status))return false;if(ORD_F.swept_date&&!chkF(ORD_F.swept_date,o.swept_date||'\u2014'))return false;if(ORD_F.total&&(o.total||0).toFixed(2).indexOf(ORD_F.total)<0)return false;if(ORD_F.tax&&String((o.tax||0).toFixed(2)).indexOf(ORD_F.tax)<0)return false;if(ORD_F.dateFrom||ORD_F.dateTo){var norm=ordNormDate(o);if(ORD_F.dateFrom&&norm<ORD_F.dateFrom)return false;if(ORD_F.dateTo&&norm>ORD_F.dateTo)return false;}return true;});var sc=ORD_SORT.col,sd=ORD_SORT.dir;if(sc)result.sort(function(a,b){var av=a[sc]||'',bv=b[sc]||'';if(typeof av==='number'&&typeof bv==='number')return sd*(av-bv);if(sc==='date')return sd*ordNormDate(a).localeCompare(ordNormDate(b));return sd*String(av).localeCompare(String(bv));});return result;}
 function buildOrdThead(){
-  var cols=['Order ID','Customer','Date','Time','Subtotal','Shipping','Tax','Trans Fee','Total','Paid By','Order Type','Status','Tax Swept Date','','Actions'];
+  var cols=['Order ID','Customer','Date','Time','Subtotal','Shipping','Tax','Trans Fee','Total','Paid By','Payment Config','Order Type','Status','Tax Swept Date','','Actions'];
   return '<thead><tr>'+cols.map(function(l){return'<th>'+l+'</th>';}).join('')+'</tr></thead>';
 }
 function renderOrdersTable(el){
@@ -984,7 +1002,8 @@ function renderOrdersTable(el){
       '<td style="font-size:.78rem">$'+parseFloat(o.fee||0).toFixed(2)+'</td>'+
       '<td style="font-weight:700;color:#a07810">$'+o.total.toFixed(2)+'</td>'+
 
-      '<td>'+(o.pay==='Test'?'<span class="badge bt">Test</span>':o.pay)+'</td>'+
+      '<td>'+(o.pay==='Test'?'<span class="badge bt">Test</span>':o.pay)+(o.check_number?'<br><span style="font-size:.7rem;color:#6b6040">Chk #'+o.check_number+'</span>':'')+'</td>'+
+      '<td style="font-size:.78rem;color:#6b6040">'+(o.payment_config||'Online')+'</td>'+
       '<td style="font-size:.78rem;color:#6b6040">'+(o.order_type||'Online')+'</td>'+
       '<td><span class="badge '+(o.status==='Delivered'||o.status==='Paid'?'bg':o.status==='Shipped'?'bb':o.status==='Cancelled'||o.status==='Refunded'?'br':o.status==='Awaiting Payment'?'bw':'ba')+'">'+o.status+'</span></td>'+
       '<td style="text-align:center;font-size:.78rem;color:'+(o.swept_date?'#2e7d32':'#6b6040')+'">'+
@@ -1949,6 +1968,11 @@ function emailLog(){
 
 
 
+function setPayConfig(mode){
+  PAY_CONFIG=mode;
+  apiFetch('admin.php','POST',{action:'save_setting',key:'payment_configuration',value:mode}).catch(function(){});
+  var ok=document.getElementById('payconf-ok');if(ok){ok.style.display='block';setTimeout(function(){ok.style.display='none';},1500);}
+}
 function setSquareMode(mode){
   SQUARE_MODE=mode;
   // Save to DB so all browsers see the same mode
@@ -1964,20 +1988,14 @@ function rSettings(el){
   rSettingsInner(el);
 }
 function rSettingsInner(el){
-  var modeColor=SQUARE_MODE==='test'?'#fff8e1':'#e8f5e9';
-  var modeBorder=SQUARE_MODE==='test'?'#ffe082':'#a5d6a7';
-  var modeText=SQUARE_MODE==='test'?'TEST MODE — No real payments':'LIVE MODE — Real payments active';
-  var modeTextColor=SQUARE_MODE==='test'?'#e65100':'#2e7d32';
   el.innerHTML='<div style="max-width:420px">'+
-  '<div style="background:'+modeColor+';border:2px solid '+modeBorder+';border-radius:10px;padding:1.2rem;margin-bottom:1.2rem">'+
-    '<div style="font-weight:700;margin-bottom:.5rem;color:'+modeTextColor+'">'+modeText+'</div>'+
-    '<div style="font-size:.8rem;color:#6b6040;margin-bottom:.9rem;line-height:1.6">'+
-      (SQUARE_MODE==='test'?'Square sandbox is active. Use test card <strong>4111 1111 1111 1111</strong>, any future date, any CVV.':'Live mode active. Real customer cards will be charged.')+
-    '</div>'+
-    '<div style="display:flex;gap:.6rem">'+
-      '<button class="bp" style="background:'+(SQUARE_MODE==='live'?'#2e7d32':'#d4a017')+';font-size:.82rem" onclick="setSquareMode(\'live\')">Switch to Live</button>'+
-      '<button class="bp" style="background:'+(SQUARE_MODE==='test'?'#e65100':'#6b6040')+';font-size:.82rem" onclick="setSquareMode(\'test\')">Switch to Test</button>'+
-    '</div>'+
+  '<div style="background:#fff;border-radius:10px;border:1px solid #e8e0b8;padding:1.2rem;margin-bottom:1.2rem">'+
+    '<div style="font-weight:700;margin-bottom:.4rem">💳 Payment Configuration</div>'+
+    '<div style="font-size:.8rem;color:#6b6040;margin-bottom:.9rem;line-height:1.6">Controls the storefront checkout. <strong>Online</strong>: customers pay by credit card via Square. <strong>InPerson</strong>: customers choose cash, check, or credit card (shipping optional). <strong>Test</strong>: checkout is simulated &mdash; no payment is taken.</div>'+
+    '<select class="afi" id="payconf-sel" onchange="setPayConfig(this.value)">'+
+      ['Online','InPerson','Test'].map(function(m){return'<option'+(PAY_CONFIG===m?' selected':'')+'>'+m+'</option>';}).join('')+
+    '</select>'+
+    '<div class="aok" id="payconf-ok" style="display:none">Saved!</div>'+
   '</div>'+
   '<div style="background:#fff;border-radius:10px;border:1px solid #e8e0b8;padding:1.2rem;margin-bottom:1.2rem">'+
     '<div style="font-weight:700;margin-bottom:.9rem">Change Admin Password</div>'+

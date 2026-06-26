@@ -268,6 +268,10 @@ function updateShippingDisplay(){
   var base=sub>=FREE_THRESHOLD?0:(ZONE_RATES[zone]||15);
   var wsur=sub>=FREE_THRESHOLD?0:weightSurcharge(wt);
   var ship=base+wsur;
+  // InPerson: shipping is optional via the "Add shipping charge" checkbox
+  var shipReqEl=document.getElementById('co-ship-req');
+  var noShip=PAY_CONFIG==='InPerson'&&shipReqEl&&!shipReqEl.checked;
+  if(noShip)ship=0;
   var tax=Math.round(sub*0.0975*100)/100;
   var shipEl=document.getElementById('oc-ship');
   var totEl=document.getElementById('oc-tot');
@@ -275,6 +279,13 @@ function updateShippingDisplay(){
   var zoneNames=['','Tennessee','South','East Coast','Midwest','West'];
   var zoneEl=document.getElementById('oc-zone');
   if(taxEl)taxEl.textContent='$'+tax.toFixed(2);
+  // No shipping (InPerson pickup): total computes without an address
+  if(noShip){
+    if(zoneEl)zoneEl.textContent='';
+    if(shipEl)shipEl.textContent='None';
+    if(totEl)totEl.textContent='$'+(sub+tax).toFixed(2);
+    return;
+  }
   if(!st.trim()){
     if(zoneEl)zoneEl.textContent='';
     if(shipEl)shipEl.textContent=sub>=FREE_THRESHOLD?'Free 🎉':'Enter address';
@@ -336,7 +347,20 @@ function openCheckout(){
   document.getElementById('oc-ship').textContent=sub>=FREE_THRESHOLD?'Free 🎉':'Enter address';
   document.getElementById('oc-tot').textContent=sub>=FREE_THRESHOLD?'$'+(sub+tax).toFixed(2):'—';
   if(CUR_USER){document.getElementById('co-fn').value=CUR_USER.fn||'';document.getElementById('co-ln').value=CUR_USER.ln||'';document.getElementById('co-em').value=CUR_USER.em||'';document.getElementById('co-ph').value=CUR_USER.ph||'';}
+  updateInPersonUI();
   openModal('co-modal');
+}
+
+// Toggle the storefront checkout UI for the active Payment Configuration.
+function updateInPersonUI(){
+  var inPerson=PAY_CONFIG==='InPerson';
+  var ip=document.getElementById('co-inperson');if(ip)ip.style.display=inPerson?'block':'none';
+  var method=document.getElementById('co-paymethod')?document.getElementById('co-paymethod').value:'Credit Card';
+  var cw=document.getElementById('co-checknum-wrap');if(cw)cw.style.display=(inPerson&&method==='Check')?'block':'none';
+  var cardPay=(!inPerson)||method==='Credit Card';
+  var note=document.getElementById('co-secure-note');if(note)note.style.display=cardPay?'block':'none';
+  var btn=document.getElementById('co-submit-btn');if(btn)btn.textContent=cardPay?'Review & Pay →':'Place Order';
+  updateShippingDisplay();
 }
 
 function _showCheckoutModal(){
@@ -346,13 +370,23 @@ function _showCheckoutModal(){
   var _r=document.getElementById('co-result');if(_r)_r.style.display='none';
   if(CUR_USER){document.getElementById('co-fn').value=CUR_USER.fn||'';document.getElementById('co-ln').value=CUR_USER.ln||'';document.getElementById('co-em').value=CUR_USER.em||'';document.getElementById('co-ph').value=CUR_USER.ph||'';}
   openModal('co-modal');
-  updateShippingDisplay();
+  updateInPersonUI();
 }
 function placeOrder(){
   var fn=document.getElementById('co-fn').value.trim(),em=document.getElementById('co-em').value.trim();
   var ad=document.getElementById('co-ad').value.trim();
   if(!fn||!em){alert('Please enter your name and email.');return;}
-  if(!ad){alert('Please enter your shipping address.');return;}
+  // Payment Configuration: Online | InPerson | Test
+  var mode=PAY_CONFIG;
+  var method='Credit Card',checkNum='';
+  if(mode==='InPerson'){
+    method=document.getElementById('co-paymethod')?document.getElementById('co-paymethod').value:'Credit Card';
+    if(method==='Check')checkNum=document.getElementById('co-checknum')?document.getElementById('co-checknum').value.trim():'';
+  }
+  var shipReqEl=document.getElementById('co-ship-req');
+  var noShip=mode==='InPerson'&&shipReqEl&&!shipReqEl.checked;
+  if(!ad&&!noShip){alert('Please enter your shipping address.');return;}
+  var isCard=(mode!=='InPerson')||method==='Credit Card';
   var oid='ORD-'+Date.now().toString(36).toUpperCase();
   var items=[];for(var i=0;i<CART.length;i++){var p=findProd(CART[i].id);if(p)items.push({id:CART[i].id,name:p.name,price:p.price,q:CART[i].q});}
   var subtotal=cartTotal();
@@ -361,7 +395,7 @@ function placeOrder(){
   var shipZone=getZone(shipState);
   var shipBase=subtotal>=FREE_THRESHOLD?0:(ZONE_RATES[shipZone]||15);
   var shipSur=subtotal>=FREE_THRESHOLD?0:weightSurcharge(shipWt);
-  var shipping=shipBase+shipSur;
+  var shipping=noShip?0:(shipBase+shipSur);
   var tax=Math.round(subtotal*0.0975*100)/100;
   var total=Math.round((subtotal+shipping+tax)*100)/100;
   var now=new Date();
@@ -369,10 +403,13 @@ function placeOrder(){
   var dispDate=(now.getMonth()+1)+'/'+now.getDate()+'/'+now.getFullYear();
   var hrs=now.getHours();var mins=String(now.getMinutes()).padStart(2,'0');
   var dispTime=(hrs%12||12)+':'+mins+' '+(hrs<12?'AM':'PM');
+  var addr=ad?(ad+', '+document.getElementById('co-ci').value+' '+document.getElementById('co-sz').value):'';
   var o={id:oid,date:isoDate,dispDate:dispDate,time:dispTime,cust:fn+' '+document.getElementById('co-ln').value.trim(),email:em,
     phone:document.getElementById('co-ph').value,
-    addr:ad+', '+document.getElementById('co-ci').value+' '+document.getElementById('co-sz').value,
-    items:items,total:total,subtotal:subtotal,shipping:shipping,tax:tax,pay:'Credit Card',order_type:'Online',status:'Awaiting Payment'};
+    addr:addr,
+    items:items,total:total,subtotal:subtotal,shipping:shipping,tax:tax,
+    pay:method,order_type:(mode==='InPerson'?'In Person':'Online'),payment_config:mode,check_number:checkNum,
+    status:(mode==='InPerson'&&!isCard)?'Paid':'Awaiting Payment'};
   // Decrement local stock
   for(var j=0;j<CART.length;j++){var p2=findProd(CART[j].id);if(p2)p2.stock=Math.max(0,p2.stock-CART[j].q);}
   // Update local customer list
@@ -387,7 +424,7 @@ function placeOrder(){
   window._pendingShipping=shipping;
   window._pendingTax=tax;
   // ── Test mode: skip card form, show mock confirmation ──
-  if(SQUARE_MODE==='test'){
+  if(mode==='Test'){
     apiFetch('orders.php','POST',o).then(function(){}).catch(function(){});
     apiFetch('customers.php','POST',{action:'inc_orders',em:em}).catch(function(){});
     CART=[];window._pendingCartItems=null;updCartCount();renderStore();
@@ -400,7 +437,19 @@ function placeOrder(){
     showTestOrderConfirm(oid,total,o);
     return;
   }
-  // ── Live mode: save order then show embedded card form ──
+  // ── InPerson cash/check: save as Paid, no online payment ──
+  if(mode==='InPerson'&&!isCard){
+    apiFetch('orders.php','POST',o).then(function(){}).catch(function(){});
+    apiFetch('customers.php','POST',{action:'inc_orders',em:em}).catch(function(){});
+    CART=[];window._pendingCartItems=null;updCartCount();renderStore();
+    var nOpts={method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({order_id:oid,date:o.date,customer_name:o.cust,customer_email:o.email,
+        phone:o.phone||'',address:o.addr||'',subtotal:subtotal,shipping:shipping,total:total,items:items})};
+    fetch(SITE_ORIGIN+'/notify.php',nOpts).catch(function(){});
+    showInPersonConfirm(oid,total,o,method,checkNum);
+    return;
+  }
+  // ── Card flow (Online, or InPerson credit card): save order then show embedded card form ──
   _hide('co-form');_show('co-processing');
   apiFetch('orders.php','POST',o)
     .then(function(d){
@@ -524,6 +573,38 @@ function backToCheckoutForm(){
   }
   _hide('co-payment');_show('co-form');
   updateShippingDisplay();
+}
+
+// ── IN-PERSON (cash/check) ORDER CONFIRMATION ──
+function showInPersonConfirm(oid,total,o,method,checkNum){
+  closeModal('co-modal');
+  var existing=document.getElementById('inperson-confirm-modal');
+  if(existing)existing.remove();
+  var div=document.createElement('div');
+  div.id='inperson-confirm-modal';
+  div.className='modal-ov on';
+  div.style.zIndex='300';
+  div.innerHTML=
+    '<div class="modal-box" style="max-width:460px;text-align:center;padding:0;overflow:hidden">'+
+    '<div style="background:#2e7d32;padding:1.5rem 2rem">'+
+      '<div style="font-size:1.8rem;margin-bottom:.3rem">✅</div>'+
+      '<div style="color:#fff;font-weight:700;font-size:1.1rem">Order Placed</div>'+
+      '<div style="color:rgba(255,255,255,.85);font-size:.82rem;margin-top:.3rem">Paid by '+method+(checkNum?' (Check #'+checkNum+')':'')+'</div>'+
+    '</div>'+
+    '<div style="padding:1.8rem 2rem">'+
+      '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:10px;padding:1rem;margin-bottom:1.2rem;font-size:.88rem">'+
+        '<div style="display:flex;justify-content:space-between;margin-bottom:.4rem"><span style="color:#6b6040">Order ID</span><strong style="font-family:monospace">#'+oid+'</strong></div>'+
+        '<div style="display:flex;justify-content:space-between;margin-bottom:.4rem"><span style="color:#6b6040">Customer</span><strong>'+o.cust+'</strong></div>'+
+        '<div style="display:flex;justify-content:space-between"><span style="color:#6b6040">Total</span><strong style="color:#a07810;font-size:1.1rem">$'+total.toFixed(2)+'</strong></div>'+
+      '</div>'+
+      '<div style="font-size:.82rem;color:#6b6040;margin-bottom:1.2rem;line-height:1.6">'+
+        'Your order has been saved with status <strong>Paid</strong>.<br>'+
+        'A confirmation email has been sent to <strong>'+o.email+'</strong>.'+
+      '</div>'+
+      '<button class="mbtn" style="max-width:240px;margin:0 auto" onclick="document.getElementById(\'inperson-confirm-modal\').remove()">Close</button>'+
+    '</div>'+
+    '</div>';
+  document.body.appendChild(div);
 }
 
 // ── TEST MODE ORDER CONFIRMATION ──

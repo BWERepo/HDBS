@@ -98,9 +98,9 @@ function tryLoad(){
   apiFetch('admin.php','POST',{action:'get_setting',key:'shipping_config'}).then(function(d){
     if(d.success&&d.value){try{applyShippingConfig(JSON.parse(d.value));}catch(e){}}
   }).catch(function(){});
-  // Load Square mode from DB - applies to all browsers
-  apiFetch('admin.php','POST',{action:'get_setting',key:'square_mode'}).then(function(md){
-    if(md.success&&md.value){SQUARE_MODE=md.value;if(SQUARE_MODE==='test')setSquareMode('test');}
+  // Load Payment Configuration from DB - applies to all browsers (Online | InPerson | Test)
+  apiFetch('admin.php','POST',{action:'get_setting',key:'payment_configuration'}).then(function(md){
+    if(md.success&&md.value)PAY_CONFIG=md.value;
   }).catch(function(){});
   // Load confirm token for order_confirm.php auth
   apiFetch('admin.php','POST',{action:'get_setting',key:'confirm_token'}).then(function(d){

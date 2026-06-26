@@ -1,6 +1,7 @@
 // ── GLOBALS ──
 var SEC=null;
 var SQUARE_MODE='live';
+var PAY_CONFIG='Online'; // global store payment mode: Online | InPerson | Test
 var SQ_FEE_PCT=2.6;
 var SQ_FEE_CENTS=0.10;
 var TAX_RATES={
@@ -161,6 +162,8 @@ function submitContact(){
 function goAdminLogin(){document.getElementById('lpw').value='';document.getElementById('lerr').style.display='none';showOnly('alog',true);setTimeout(function(){var f=document.getElementById('lpw');if(f)f.focus();},50);}
 function goPanel(){
   showOnly('apanel',true);
+  // Collapse Shop and Developer folders each time the back office is opened
+  var nf=_navFolderState();nf.shop=false;nf.developer=false;localStorage.setItem('hdbs_nav_folders',JSON.stringify(nf));
   buildAdminNav();
   // Show loading state on dashboard
   document.getElementById('aptitle').textContent='Dashboard';

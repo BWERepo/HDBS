@@ -10,6 +10,14 @@ applog('orders', "$method ".($_GET['id']??$_GET['status']??''));
 dbg('orders', "REQUEST method=$method id=".($_GET['id']??'').' status='.($_GET['status']??'').' body='.substr(file_get_contents('php://input'),0,200));
 $pdo    = db();
 
+// Idempotent schema: ensure payment_configuration + check_number columns exist
+foreach ([
+    'payment_configuration' => "ALTER TABLE orders ADD COLUMN payment_configuration VARCHAR(20) DEFAULT 'Online'",
+    'check_number'          => "ALTER TABLE orders ADD COLUMN check_number VARCHAR(40) DEFAULT NULL",
+] as $col => $ddl) {
+    if (empty($pdo->query("SHOW COLUMNS FROM orders LIKE '$col'")->fetchAll())) $pdo->exec($ddl);
+}
+
 // GET — return all orders with items
 if ($method === 'GET') { requireAdmin(); dbg('orders','GET all orders');
     $orders = $pdo->query("SELECT * FROM orders ORDER BY created_at DESC")->fetchAll();
@@ -42,6 +50,8 @@ if ($method === 'GET') { requireAdmin(); dbg('orders','GET all orders');
             'total'  => (float)$o['total'],
             'pay'    => $o['payment_method'],
             'order_type' => $o['order_type'] ?? 'Online',
+            'payment_config' => $o['payment_configuration'] ?? 'Online',
+            'check_number'   => $o['check_number'] ?? '',
             'fee'    => (float)($o['transaction_fee'] ?? 0),
             'status' => $o['status'],
             'tax'        => (float)($o['tax_amount'] ?? 0),
@@ -80,8 +90,10 @@ if ($method === 'POST') { dbg('orders','POST new order body='.substr(file_get_co
     try {
         $stmt = $pdo->prepare("
             INSERT INTO orders (id, customer_name, customer_email, customer_phone,
-                shipping_address, total, tax_amount, transaction_fee, payment_method, status, order_date, order_type)
-            VALUES (:id, :name, :email, :phone, :addr, :total, :tax, :fee, :pay, :status, :date, :order_type)
+                shipping_address, total, tax_amount, transaction_fee, payment_method, status, order_date, order_type,
+                payment_configuration, check_number)
+            VALUES (:id, :name, :email, :phone, :addr, :total, :tax, :fee, :pay, :status, :date, :order_type,
+                :payment_config, :check_number)
         ");
         $stmt->execute([
             ':id'    => $d['id'],
@@ -96,6 +108,8 @@ if ($method === 'POST') { dbg('orders','POST new order body='.substr(file_get_co
             ':status'=> $d['status'] ?? 'Awaiting Payment',
             ':date'  => $d['date'] ?? date('Y-m-d H:i:s'),
             ':tax'   => (float)($d['tax'] ?? 0),
+            ':payment_config' => $d['payment_config'] ?? 'Online',
+            ':check_number'   => $d['check_number'] ?? null,
         ]);
         // Store shipping as a note in order_items if provided
         $shipping = (float)($d['shipping'] ?? 0);
@@ -150,6 +164,8 @@ if ($method === 'PUT') { requireAdmin(); dbg('orders','PUT update id='.($_GET['i
     if (isset($d['status']))   { $sets[] = 'status = ?';            $vals[] = $d['status']; }
     if (isset($d['pay']))      { $sets[] = 'payment_method = ?';    $vals[] = $d['pay']; }
     if (isset($d['order_type'])) { $sets[] = 'order_type = ?';       $vals[] = $d['order_type']; }
+    if (isset($d['payment_config'])) { $sets[] = 'payment_configuration = ?'; $vals[] = $d['payment_config']; }
+    if (isset($d['check_number']))   { $sets[] = 'check_number = ?';          $vals[] = $d['check_number']; }
     if (isset($d['fee']))        { $sets[] = 'transaction_fee = ?';  $vals[] = (float)$d['fee']; }
     if (isset($d['cust']))     { $sets[] = 'customer_name = ?';     $vals[] = $d['cust']; }
     if (isset($d['email']))    { $sets[] = 'customer_email = ?';    $vals[] = $d['email']; }
