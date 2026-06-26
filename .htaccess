@@ -32,7 +32,7 @@ Header always set Content-Security-Policy "upgrade-insecure-requests"
     CacheLookup off
 </IfModule>
 
-<FilesMatch "\.(js|css|php)$">
+<FilesMatch "\.(js|css|php|html)$">
     Header set Cache-Control "no-store, no-cache, must-revalidate"
     Header set Pragma "no-cache"
     Header unset Expires
