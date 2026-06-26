@@ -78,6 +78,12 @@
 </head>
 <body>
 
+  <!-- Staging-only DEVELOPMENT banner shown on EVERY screen. Gated on the staging hostname, so it
+       can NEVER render in production (handmadedesignsbysuzi.com has no "staging" in the host).
+       Sits above all SPA page sections. -->
+  <div id="dev-banner" style="display:none;background:#c62828;color:#fff;text-align:center;font-weight:700;letter-spacing:.12em;padding:.4rem 1rem;font-size:.85rem">&#9888; DEVELOPMENT &mdash; staging environment</div>
+  <script>if(location.hostname.indexOf('staging')!==-1){var _db=document.getElementById('dev-banner');if(_db)_db.style.display='block';}</script>
+
   <!-- SIDE MENU OVERLAY -->
   <div class="menu-overlay" id="menu-overlay" onclick="closeMenu()"></div>
 
@@ -125,10 +131,6 @@
 
 <!-- STORE -->
 <div id="store">
-  <!-- Staging-only DEVELOPMENT banner: gated on the staging hostname, so it can NEVER render
-       in production (handmadedesignsbysuzi.com has no "staging" in the host). -->
-  <div id="dev-banner" style="display:none;background:#c62828;color:#fff;text-align:center;font-weight:700;letter-spacing:.12em;padding:.4rem 1rem;font-size:.85rem">&#9888; DEVELOPMENT &mdash; staging environment</div>
-  <script>if(location.hostname.indexOf('staging')!==-1){var _db=document.getElementById('dev-banner');if(_db)_db.style.display='block';}</script>
 
   <nav>
     <div style="display:flex;align-items:center;gap:.3rem">
