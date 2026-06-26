@@ -626,7 +626,7 @@ function rDeployLog(el){
         last.count=last.files.length;
         if(dep.mode==='full')last.mode='full';
       } else {
-        sessions.push({ts:dep.ts,count:dep.count,mode:dep.mode,files:(dep.files||[]).slice()});
+        sessions.push({ts:dep.ts,count:dep.count,mode:dep.mode,version:dep.version,files:(dep.files||[]).slice()});
       }
     });
     var rows=sessions.map(function(dep){
@@ -647,6 +647,7 @@ function rDeployLog(el){
         '<td style="white-space:nowrap">'+dateStr+'<br><span style="font-size:.78rem;color:#999">'+timeStr+'</span></td>'+
         '<td style="text-align:center">'+n+'</td>'+
         '<td>'+badge+'</td>'+
+        '<td style="text-align:center;font-family:monospace;font-size:.8rem;color:#6b6040">'+(dep.version||'—')+'</td>'+
         '<td>'+fileList+'</td>'+
         '</tr>';
     }).join('');
@@ -655,7 +656,7 @@ function rDeployLog(el){
         '<div style="font-size:.85rem;color:#6b6040">'+sessions.length+' deploy session'+(sessions.length!==1?'s':'')+' recorded</div>'+
         '<button class="bp" onclick="rDeployLog(document.getElementById(\'acnt\'))" style="font-size:.78rem;padding:.35rem .8rem">↻ Refresh</button>'+
       '</div>'+
-      '<table class="tablekit"><thead><tr><th>Date</th><th>Files</th><th>Type</th><th>Details</th></tr></thead>'+
+      '<table class="tablekit"><thead><tr><th>Date</th><th>Files</th><th>Type</th><th>Version</th><th>Details</th></tr></thead>'+
       '<tbody>'+rows+'</tbody></table>';
     if(typeof TableKit!=='undefined')TableKit.initAll();
     showPageToolbar({title:'Deploy History',logoText:'Handmade Designs By Suzi'});
@@ -686,29 +687,46 @@ function rGitLog(el){
       return;
     }
     if(!d.commits||!d.commits.length){el.innerHTML='<div style="padding:2rem;color:#6b6040">No commits found.</div>';return;}
-    var rows=d.commits.map(function(c){
-      var dt=c.date?new Date(c.date):null;
-      var dateStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—';
-      var timeStr=dt?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
-      var files=c.files!=null?c.files+' file'+(c.files!==1?'s':''):'—';
-      var sha='<a href="'+c.url+'" target="_blank" style="color:#a07810;font-family:monospace;font-size:.8rem">'+c.sha+'</a>';
-      return '<tr><td style="white-space:nowrap">'+dateStr+'<br><span style="font-size:.78rem;color:#999">'+timeStr+'</span></td>'+
-        '<td>'+escHtml(c.message)+'</td>'+
-        '<td style="text-align:center;white-space:nowrap">'+files+'</td>'+
-        '<td>'+sha+'</td></tr>';
-    }).join('');
-    el.innerHTML=
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">'+
-        '<div style="font-size:.85rem;color:#6b6040">Last '+d.commits.length+' commits · <span style="font-size:.78rem">cached 10 min</span></div>'+
-        '<button class="bp" onclick="rGitLog(document.getElementById(\'acnt\'))" style="font-size:.78rem;padding:.35rem .8rem">↻ Refresh</button>'+
-      '</div>'+
-      '<table class="tablekit"><thead><tr><th>Date</th><th>Description</th><th>Files</th><th>SHA</th></tr></thead>'+
-      '<tbody>'+rows+'</tbody></table>';
-    if(typeof TableKit!=='undefined')TableKit.initAll();
-    showPageToolbar({title:'Change History',logoText:'Handmade Designs By Suzi'});
+    // Pull deploy versions so each commit can be tagged with the version it shipped in
+    apiFetch('deploy_log.php','GET').then(function(dl){_renderGitLog(el,d,(dl&&dl.deploys)||[]);}).catch(function(){_renderGitLog(el,d,[]);});
   }).catch(function(e){
     el.innerHTML='<div style="padding:2rem;color:#c62828">Error loading history: '+escHtml(e.message)+'</div>';
   });
+}
+function _renderGitLog(el,d,deploys){
+  // Versioned deploys oldest→newest; a commit's version = the first deploy at/after the commit date
+  var dvs=(deploys||[]).filter(function(x){return x.version&&x.ts;})
+    .map(function(x){return {t:new Date(x.ts).getTime(),v:x.version};})
+    .sort(function(a,b){return a.t-b.t;});
+  function verForCommit(cd){
+    if(!cd)return '';
+    var ct=new Date(cd).getTime();
+    for(var i=0;i<dvs.length;i++){if(dvs[i].t>=ct)return dvs[i].v;}
+    return '';
+  }
+  var rows=d.commits.map(function(c){
+    var dt=c.date?new Date(c.date):null;
+    var dateStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—';
+    var timeStr=dt?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+    var files=c.files!=null?c.files+' file'+(c.files!==1?'s':''):'—';
+    var sha='<a href="'+c.url+'" target="_blank" style="color:#a07810;font-family:monospace;font-size:.8rem">'+c.sha+'</a>';
+    var ver=verForCommit(c.date)||'—';
+    return '<tr><td style="white-space:nowrap">'+dateStr+'<br><span style="font-size:.78rem;color:#999">'+timeStr+'</span></td>'+
+      '<td>'+escHtml(c.message)+'</td>'+
+      '<td style="text-align:center;white-space:nowrap">'+files+'</td>'+
+      '<td style="text-align:center;font-family:monospace;font-size:.8rem;color:#6b6040">'+ver+'</td>'+
+      '<td>'+sha+'</td></tr>';
+  }).join('');
+  el.innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">'+
+      '<div style="font-size:.85rem;color:#6b6040">Last '+d.commits.length+' commits · Version <span id="gitlog-ver" style="font-family:monospace;color:#a07810">…</span> · <span style="font-size:.78rem">cached 10 min</span></div>'+
+      '<button class="bp" onclick="rGitLog(document.getElementById(\'acnt\'))" style="font-size:.78rem;padding:.35rem .8rem">↻ Refresh</button>'+
+    '</div>'+
+    '<table class="tablekit"><thead><tr><th>Date</th><th>Description</th><th>Files</th><th>Version</th><th>SHA</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table>';
+  if(typeof TableKit!=='undefined')TableKit.initAll();
+  apiFetch('admin.php','POST',{action:'get_version'}).then(function(v){var s=document.getElementById('gitlog-ver');if(s)s.textContent=(v&&v.version)?v.version:'—';}).catch(function(){});
+  showPageToolbar({title:'Change History',logoText:'Handmade Designs By Suzi'});
 }
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 

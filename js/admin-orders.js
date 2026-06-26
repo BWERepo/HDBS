@@ -712,7 +712,7 @@ function moCalcShipping(){
 function printOrdersPdf(){
   var filt=applyOrdFilters();
   if(!filt.length){alert('No orders to print.');return;}
-  var cols=['Order ID','Customer','Date','Subtotal','Shipping','Tax','Trans Fee','Total','Paid By','Order Type','Status'];
+  var cols=['Order ID','Customer','Date','Subtotal','Shipping','Tax','Trans Fee','Total','Paid By','Status'];
   var rows=filt.map(function(o){
     return '<tr>'+
       '<td>'+o.id+'</td>'+
@@ -724,7 +724,6 @@ function printOrdersPdf(){
       '<td>$'+(o.fee||0).toFixed(2)+'</td>'+
       '<td><strong>$'+o.total.toFixed(2)+'</strong></td>'+
       '<td>'+(o.pay||'')+'</td>'+
-      '<td>'+(o.order_type||'')+'</td>'+
       '<td>'+(o.status||'')+'</td>'+
     '</tr>';
   }).join('');
@@ -758,7 +757,7 @@ function printOrdersPdf(){
     '<td>$'+totals.tax.toFixed(2)+'</td>'+
     '<td>$'+totals.fee.toFixed(2)+'</td>'+
     '<td>$'+totals.total.toFixed(2)+'</td>'+
-    '<td colspan="3"></td></tr>'+
+    '<td colspan="2"></td></tr>'+
     '</tbody></table></body></html>';
   var w=window.open('','_blank');
   w.document.write(html);
@@ -770,7 +769,7 @@ function printOrdersPdf(){
 function exportOrdersCsv(){
   var filt=applyOrdFilters();
   if(!filt.length){alert('No orders to export.');return;}
-  var cols=['Order ID','Customer','Email','Phone','Date','Time','Subtotal','Shipping','Tax','Trans Fee','Total','Paid By','Check #','Payment Config','Order Type','Status','Tax Swept Date','Address'];
+  var cols=['Order ID','Customer','Email','Phone','Date','Time','Subtotal','Shipping','Tax','Trans Fee','Total','Paid By','Check #','Payment Config','Status','Tax Swept Date','Address'];
   var rows=[cols.join(',')];
   filt.forEach(function(o){
     var row=[
@@ -788,7 +787,6 @@ function exportOrdersCsv(){
       '"'+(o.pay||'').replace(/"/g,'""')+'"',
       '"'+(o.check_number||'').replace(/"/g,'""')+'"',
       '"'+(o.payment_config||'').replace(/"/g,'""')+'"',
-      '"'+(o.order_type||'').replace(/"/g,'""')+'"',
       '"'+(o.status||'').replace(/"/g,'""')+'"',
       '"'+(o.swept_date||'').replace(/"/g,'""')+'"',
       '"'+(o.addr||'').replace(/"/g,'""')+'"'
@@ -983,7 +981,7 @@ function ordFiltSearch(listId,q){var list=document.getElementById(listId);if(!li
 function ordFilt2(e,col){e.stopPropagation();document.querySelectorAll('.ord-fp').forEach(function(p){p.remove();});var th=e.target.closest('th');th.style.position='relative';var pop=document.createElement('div');pop.className='ord-fp';pop.style.cssText='position:absolute;top:100%;left:0;background:#fff;border:1.5px solid #e8e0b8;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);z-index:300;min-width:220px;padding:0;overflow:hidden';if(col==='date'){pop.innerHTML='<div style="padding:.5rem .7rem;background:#f9f4e4;border-bottom:1px solid #e8e0b8;font-size:.72rem;font-weight:700;color:#a07810;text-transform:uppercase">Date Range</div><div style="padding:.6rem .7rem"><div style="font-size:.72rem;color:#6b6040;margin-bottom:.2rem">From</div><input type="date" id="ord-fp-dfrom" style="width:100%;margin-bottom:.5rem;padding:.3rem .5rem;border:1px solid #e8e0b8;border-radius:5px;font-size:.78rem;box-sizing:border-box" value="'+ORD_F.dateFrom+'"><div style="font-size:.72rem;color:#6b6040;margin-bottom:.2rem">To</div><input type="date" id="ord-fp-dto" style="width:100%;padding:.3rem .5rem;border:1px solid #e8e0b8;border-radius:5px;font-size:.78rem;box-sizing:border-box" value="'+ORD_F.dateTo+'"></div><div style="padding:.5rem .7rem;border-top:1px solid #f0e8d0;display:flex;justify-content:space-between;align-items:center"><button style="font-size:.72rem;color:#a07810;background:none;border:none;cursor:pointer" onclick="ORD_F.dateFrom=\'\';ORD_F.dateTo=\'\';renderOrdersTable(document.getElementById(\'acnt\'));this.closest(\'.ord-fp\').remove()">Clear</button><button style="font-size:.72rem;color:#6b6040;background:none;border:none;cursor:pointer" onclick="this.closest(\'.ord-fp\').remove()">Close</button><button style="font-size:.78rem;background:#d4a017;color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;cursor:pointer;font-weight:600" onclick="var p=this.closest(\'.ord-fp\');ORD_F.dateFrom=p.querySelector(\'#ord-fp-dfrom\').value;ORD_F.dateTo=p.querySelector(\'#ord-fp-dto\').value;p.remove();renderOrdersTable(document.getElementById(\'acnt\'))">Apply</button></div>';}else{var allVals=[];var seen={};for(var i=0;i<ORDERS.length;i++){var v=String(ORDERS[i][col]||'(blank)');if(!seen[v]){seen[v]=true;allVals.push(v);}}allVals.sort();var selVals=ORD_F[col]?ORD_F[col].split('\x00'):null;var listId='ord-flist-'+col;var checkboxes=allVals.map(function(v){var chk=(selVals===null||selVals.indexOf(v)>=0)?'checked':'';return'<label style="display:flex;align-items:center;gap:.4rem;padding:.25rem .4rem;cursor:pointer;border-radius:4px;font-size:.8rem;color:#2d2220" onmouseover="this.style.background=\'#fffdf0\'" onmouseout="this.style.background=\'\'"><input type="checkbox" value="'+v.replace(/"/g,'&quot;')+'" '+chk+'><span>'+v+'</span></label>';}).join('');pop.innerHTML='<div style="padding:.5rem .7rem;background:#f9f4e4;border-bottom:1px solid #e8e0b8;font-size:.72rem;font-weight:700;color:#a07810;text-transform:uppercase">Filter: '+col+'</div><div style="padding:.4rem .7rem;border-bottom:1px solid #f0e8d0"><input type="text" style="width:100%;padding:.3rem .5rem;border:1px solid #e8e0b8;border-radius:5px;font-size:.8rem;box-sizing:border-box" placeholder="Search..." oninput="ordFiltSearch(\''+listId+'\',this.value)"></div><div style="padding:.3rem .4rem;border-bottom:1px solid #f0e8d0;display:flex;gap:.5rem"><button style="font-size:.72rem;color:#a07810;background:none;border:none;cursor:pointer;padding:0" onclick="ordFiltAll(\''+listId+'\',true)">Select All</button><span style="color:#e8e0b8">|</span><button style="font-size:.72rem;color:#a07810;background:none;border:none;cursor:pointer;padding:0" onclick="ordFiltAll(\''+listId+'\',false)">Clear All</button></div><div id="'+listId+'" style="max-height:180px;overflow-y:auto;padding:.2rem .3rem">'+checkboxes+'</div><div style="padding:.5rem .7rem;border-top:1px solid #f0e8d0;display:flex;justify-content:space-between;align-items:center"><button style="font-size:.72rem;color:#6b6040;background:none;border:none;cursor:pointer;padding:0" onclick="this.closest(\'.ord-fp\').remove()">Close</button><button style="font-size:.78rem;background:#d4a017;color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;cursor:pointer;font-weight:600" onclick="ordFiltApply(\''+col+'\',this)">Apply</button></div>';}th.appendChild(pop);setTimeout(function(){var inp=pop.querySelector('input');if(inp)inp.focus();},50);setTimeout(function(){document.addEventListener('click',function h(ev){if(!pop.contains(ev.target)){pop.remove();document.removeEventListener('click',h);}});},50);}
 function applyOrdFilters(){var result=ORDERS.filter(function(o){function chkF(fval,oval){if(!fval)return true;if(fval==='__NONE__')return false;return fval.split('\x00').indexOf(String(oval||'(blank)'))>=0;}if(ORD_F.id&&!chkF(ORD_F.id,o.id))return false;if(ORD_F.cust&&!chkF(ORD_F.cust,o.cust))return false;if(ORD_F.pay&&!chkF(ORD_F.pay,o.pay))return false;if(ORD_F.status&&!chkF(ORD_F.status,o.status))return false;if(ORD_F.swept_date&&!chkF(ORD_F.swept_date,o.swept_date||'\u2014'))return false;if(ORD_F.total&&(o.total||0).toFixed(2).indexOf(ORD_F.total)<0)return false;if(ORD_F.tax&&String((o.tax||0).toFixed(2)).indexOf(ORD_F.tax)<0)return false;if(ORD_F.dateFrom||ORD_F.dateTo){var norm=ordNormDate(o);if(ORD_F.dateFrom&&norm<ORD_F.dateFrom)return false;if(ORD_F.dateTo&&norm>ORD_F.dateTo)return false;}return true;});var sc=ORD_SORT.col,sd=ORD_SORT.dir;if(sc)result.sort(function(a,b){var av=a[sc]||'',bv=b[sc]||'';if(typeof av==='number'&&typeof bv==='number')return sd*(av-bv);if(sc==='date')return sd*ordNormDate(a).localeCompare(ordNormDate(b));return sd*String(av).localeCompare(String(bv));});return result;}
 function buildOrdThead(){
-  var cols=['Order ID','Customer','Date','Time','Subtotal','Shipping','Tax','Trans Fee','Total','Paid By','Payment Config','Order Type','Status','Tax Swept Date','','Actions'];
+  var cols=['Order ID','Customer','Date','Time','Subtotal','Shipping','Tax','Trans Fee','Total','Paid By','Payment Config','Status','Tax Swept Date','','Actions'];
   return '<thead><tr>'+cols.map(function(l){return'<th>'+l+'</th>';}).join('')+'</tr></thead>';
 }
 function renderOrdersTable(el){
@@ -1004,7 +1002,6 @@ function renderOrdersTable(el){
 
       '<td>'+(o.pay==='Test'?'<span class="badge bt">Test</span>':o.pay)+(o.check_number?'<br><span style="font-size:.7rem;color:#6b6040">Chk #'+o.check_number+'</span>':'')+'</td>'+
       '<td style="font-size:.78rem;color:#6b6040">'+(o.payment_config||'Online')+'</td>'+
-      '<td style="font-size:.78rem;color:#6b6040">'+(o.order_type||'Online')+'</td>'+
       '<td><span class="badge '+(o.status==='Delivered'||o.status==='Paid'?'bg':o.status==='Shipped'?'bb':o.status==='Cancelled'||o.status==='Refunded'?'br':o.status==='Awaiting Payment'?'bw':'ba')+'">'+o.status+'</span></td>'+
       '<td style="text-align:center;font-size:.78rem;color:'+(o.swept_date?'#2e7d32':'#6b6040')+'">'+
         (o.swept_date?o.swept_date:'\u2014')+

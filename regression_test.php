@@ -67,7 +67,7 @@ try{t('products exist',(int)$pdo->query("SELECT COUNT(*) FROM products")->fetchC
 try{$orderCount=(int)$pdo->query("SELECT COUNT(*) FROM orders")->fetchColumn();t('orders table accessible',$orderCount>=0,'count: '.$orderCount);}catch(Exception $e){t('orders table accessible',false,$e->getMessage());}
 try{t('settings exist',(int)$pdo->query("SELECT COUNT(*) FROM settings")->fetchColumn()>0);}catch(Exception $e){t('settings exist',false,$e->getMessage());}
 try{$rtt=$pdo->query("SELECT value FROM settings WHERE key_name='rt_token' LIMIT 1")->fetchColumn();t('rt_token set',$rtt!==false&&strlen($rtt)>=16);}catch(Exception $e){t('rt_token set',false,$e->getMessage());}
-try{$sq=$pdo->query("SELECT value FROM settings WHERE key_name='square_mode' LIMIT 1")->fetchColumn();t('square_mode set',$sq!==false);}catch(Exception $e){t('square_mode set',false,$e->getMessage());}
+try{$pc=$pdo->query("SELECT value FROM settings WHERE key_name='payment_configuration' LIMIT 1")->fetchColumn();t('payment_configuration valid',$pc===false||in_array($pc,['Online','InPerson','Test']),$pc===false?'(unset — defaults to Online)':$pc);}catch(Exception $e){t('payment_configuration valid',false,$e->getMessage());}
 try{$sh=json_decode($pdo->query("SELECT value FROM settings WHERE key_name='shipping_config' LIMIT 1")->fetchColumn(),true);t('shipping_config',$sh!==null&&isset($sh['zone_rates']));}catch(Exception $e){t('shipping_config',false,$e->getMessage());}
 try{$bz=json_decode($pdo->query("SELECT value FROM settings WHERE key_name='biz_profile' LIMIT 1")->fetchColumn(),true);t('biz_profile',$bz!==null&&isset($bz['legal_name']));}catch(Exception $e){t('biz_profile',false,$e->getMessage());}
 try{$n=(int)$pdo->query("SELECT COUNT(*) FROM products WHERE sku IS NOT NULL AND sku!=''")->fetchColumn();t('products have SKUs',$n>0,$n.' with SKU');}catch(Exception $e){t('products have SKUs',false,$e->getMessage());}
@@ -691,6 +691,60 @@ try{
     t('loadNavOrder adds missing secs',strpos($amjs,'existing.indexOf(sec)<0')!==false);
 }catch(Exception $e){t('nav submenu checks',false,$e->getMessage());}
 
+// ── PAYMENT CONFIGURATION (Online / InPerson / Test) ──
+try{
+    $ordcolsPC=$pdo->query("SHOW COLUMNS FROM orders")->fetchAll(PDO::FETCH_COLUMN);
+    t('orders.payment_configuration column exists',in_array('payment_configuration',$ordcolsPC));
+    t('orders.check_number column exists',in_array('check_number',$ordcolsPC));
+}catch(Exception $e){t('payment config columns',false,$e->getMessage());}
+try{$ordphp=file_get_contents($root.'/api/orders.php');
+    t('orders.php migrates payment_configuration',strpos($ordphp,'ADD COLUMN payment_configuration')!==false);
+    t('orders.php migrates check_number',strpos($ordphp,'ADD COLUMN check_number')!==false);
+    t('orders.php INSERT has payment_config param',strpos($ordphp,':payment_config')!==false);
+    t('orders.php GET returns payment_config',strpos($ordphp,"'payment_config' =>")!==false);
+    t('orders.php PUT handles payment_config',strpos($ordphp,'payment_configuration = ?')!==false);
+    t('orders.php PUT handles check_number',strpos($ordphp,'check_number = ?')!==false);
+}catch(Exception $e){t('orders.php payment config',false,$e->getMessage());}
+try{$cfgPC=file_get_contents($root.'/js/config.js');
+    t('PAY_CONFIG global declared',strpos($cfgPC,'var PAY_CONFIG')!==false);
+    t('goPanel collapses shop/developer folders',strpos($cfgPC,'nf.shop=false')!==false&&strpos($cfgPC,'nf.developer=false')!==false);
+}catch(Exception $e){t('config.js payment config',false,$e->getMessage());}
+try{$uiPC=file_get_contents($root.'/js/ui.js');
+    t('ui.js loads payment_configuration setting',strpos($uiPC,"key:'payment_configuration'")!==false&&strpos($uiPC,'PAY_CONFIG=')!==false);
+}catch(Exception $e){t('ui.js payment config',false,$e->getMessage());}
+try{$aojs=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
+    t('setPayConfig function exists',strpos($aojs,'function setPayConfig(')!==false);
+    t('Payment Configuration settings card',strpos($aojs,'payconf-sel')!==false&&strpos($aojs,'Payment Configuration')!==false);
+    t('moToggleCheckNum function exists',strpos($aojs,'function moToggleCheckNum(')!==false);
+    t('manual order check number field',strpos($aojs,'mo-checknum')!==false);
+    t('saveManualOrder stamps InPerson config',strpos($aojs,"payment_config:'InPerson'")!==false);
+    t('saveManualOrder sends check_number',strpos($aojs,'check_number:checkNum')!==false);
+    t('edit order has check number field',strpos($aojs,'eo-checknum')!==false);
+    t('edit order has payment config select',strpos($aojs,'eo-payconfig')!==false);
+    t('orders table has Payment Config column',strpos($aojs,"'Payment Config'")!==false);
+    t('orders table shows payment_config cell',strpos($aojs,'(o.payment_config||')!==false);
+    t('orders table Order Type column removed',strpos($aojs,"(o.order_type||'Online')")===false);
+}catch(Exception $e){t('admin-orders payment config',false,$e->getMessage());}
+try{$sjsPC=file_get_contents($root.'/js/store.js');
+    t('placeOrder reads PAY_CONFIG',strpos($sjsPC,'var mode=PAY_CONFIG')!==false);
+    t('placeOrder stamps payment_config',strpos($sjsPC,'payment_config:mode')!==false);
+    t('placeOrder Test branch',strpos($sjsPC,"mode==='Test'")!==false);
+    t('placeOrder InPerson cash/check branch',strpos($sjsPC,"mode==='InPerson'&&!isCard")!==false);
+    t('placeOrder includes check_number',strpos($sjsPC,'check_number:checkNum')!==false);
+    t('showInPersonConfirm function exists',strpos($sjsPC,'function showInPersonConfirm(')!==false);
+    t('updateInPersonUI function exists',strpos($sjsPC,'function updateInPersonUI(')!==false);
+    t('updateShippingDisplay honors optional shipping',strpos($sjsPC,'co-ship-req')!==false);
+}catch(Exception $e){t('store.js payment config',false,$e->getMessage());}
+try{$htmlPC=file_get_contents($root.'/index.html');
+    t('checkout InPerson section present',strpos($htmlPC,'id="co-inperson"')!==false);
+    t('checkout payment method select',strpos($htmlPC,'id="co-paymethod"')!==false);
+    t('checkout check number field',strpos($htmlPC,'id="co-checknum"')!==false);
+    t('checkout optional shipping checkbox',strpos($htmlPC,'id="co-ship-req"')!==false);
+    t('shop.css cache-busted',strpos($htmlPC,'shop.css?v=')!==false);
+    $sbkPos=strpos($htmlPC,'class="sbk"');$navPos=strpos($htmlPC,'id="admin-nav"');
+    t('Back to Store sits above admin nav',$sbkPos!==false&&$navPos!==false&&$sbkPos<$navPos);
+}catch(Exception $e){t('index.html payment config',false,$e->getMessage());}
+
 // ── DEPLOY HISTORY ──
 try{
     t('api/deploy_log.php exists',file_exists($root.'/api/deploy_log.php'));
@@ -708,6 +762,11 @@ try{
     t('rDeployLog fetches deploy_log',strpos($amjs,"'deploy_log.php'")!==false);
     t('rDeployLog groups by 5-min window',strpos($amjs,'GAP=5*60*1000')!==false);
     t('rDeployLog shows deploy sessions',strpos($amjs,'deploy session')!==false);
+    // Version column (recorded per deploy)
+    t('deploy_log captures site version',strpos($dlphp,"'version' => \$version")!==false&&strpos($dlphp,'major_version')!==false&&strpos($dlphp,'minor_version')!==false);
+    t('rDeployLog carries version into session',strpos($amjs,'version:dep.version')!==false);
+    t('rDeployLog has Version column header',strpos($amjs,'<th>Version</th>')!==false);
+    t('rDeployLog renders version cell',strpos($amjs,'(dep.version||')!==false);
 }catch(Exception $e){t('deploy history checks',false,$e->getMessage());}
 
 // ── CHANGE HISTORY ──
@@ -740,6 +799,17 @@ try{
     }else{
         t('github_log returns commits',true,'skipped — no github_token set yet');
     }
+    // Per-commit Version column (mapped from deploy log)
+    t('_renderGitLog function exists',strpos($amjs,'function _renderGitLog(')!==false);
+    t('rGitLog fetches deploy_log for versions',strpos($amjs,"apiFetch('deploy_log.php','GET')")!==false);
+    t('_renderGitLog maps commit to version',strpos($amjs,'function verForCommit(')!==false);
+    t('Change History header shows current version',strpos($amjs,'gitlog-ver')!==false);
+    // Version column header appears in both deploy + change history renderers
+    t('Version column header present',substr_count($amjs,'<th>Version</th>')>=2);
+    // Staging cache-busting of admin JS in index.html
+    $htmlV=file_get_contents($root.'/index.html');
+    t('admin-orders.js cache-busted',strpos($htmlV,'admin-orders.js?v=')!==false);
+    t('admin-misc.js cache-busted',strpos($htmlV,'admin-misc.js?v=')!==false);
 }catch(Exception $e){t('change history checks',false,$e->getMessage());}
 
 // ── REGRESSION TEST SECURITY ──

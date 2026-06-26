@@ -20,7 +20,15 @@ if ($method === 'POST') {
         $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         file_put_contents($logFile, implode("\n", array_slice($lines, -200)) . "\n");
     }
-    $entry = json_encode(['ts' => date('c'), 'count' => $count, 'mode' => $mode, 'files' => array_values($files)]);
+    // Capture the current site version so each deploy records the version it produced
+    $version = '';
+    try {
+        $vs = db()->prepare("SELECT value FROM settings WHERE key_name=? LIMIT 1");
+        $vs->execute(['major_version']); $maj = $vs->fetchColumn();
+        $vs->execute(['minor_version']); $min = $vs->fetchColumn();
+        if ($maj !== false || $min !== false) $version = ($maj !== false ? $maj : '0') . '.' . ($min !== false ? $min : '0');
+    } catch (Exception $e) {}
+    $entry = json_encode(['ts' => date('c'), 'count' => $count, 'mode' => $mode, 'version' => $version, 'files' => array_values($files)]);
     file_put_contents($logFile, $entry . "\n", FILE_APPEND | LOCK_EX);
     ok(['message' => 'Logged']);
 }
