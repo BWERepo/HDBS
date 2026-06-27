@@ -81,8 +81,9 @@ foreach ($items as $item) {
     </tr>";
 }
 
-$first_name = explode(' ', $customer_name)[0];
-$subject    = "Your Order from Handmade Designs By Suzi — #{$order_id}";
+$first_name  = explode(' ', $customer_name)[0];
+$subject     = "Your Order from Handmade Designs By Suzi — #{$order_id}";
+$check_td    = $check_number ? "<td style='text-align:center'><div style='font-size:11px;color:#a07810;font-weight:bold;text-transform:uppercase'>Check #</div><div style='font-size:13px;font-weight:600;color:#2d2220'>{$check_number}</div></td>" : "";
 
 $html = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head>
 <body style='margin:0;padding:20px;background:#fffdf0;font-family:Arial,sans-serif'>
@@ -117,7 +118,7 @@ $html = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head>
           <div style='font-size:14px;font-weight:600;color:#2d2220'>{$date}</div></td>
       <td style='text-align:center'><div style='font-size:11px;color:#a07810;font-weight:bold;text-transform:uppercase'>Paid By</div>
           <div style='font-size:13px;font-weight:600;color:#2d2220'>{$payment_method}</div></td>
-      {$check_number ? "<td style='text-align:center'><div style='font-size:11px;color:#a07810;font-weight:bold;text-transform:uppercase'>Check #</div><div style='font-size:13px;font-weight:600;color:#2d2220'>{$check_number}</div></td>" : ""}
+      {$check_td}
       <td style='text-align:right'><div style='font-size:11px;color:#a07810;font-weight:bold;text-transform:uppercase'>Total</div>
           <div style='font-size:20px;font-weight:bold;color:#a07810'>\${$total}</div></td>
     </tr></table>
