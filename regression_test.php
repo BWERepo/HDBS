@@ -1116,6 +1116,16 @@ try{
     t('injectProductSchemas uses p.desc (not p.description)',strpos($cfgLD,'p.desc||')!==false&&strpos($cfgLD,'p.description')===false);
     t('injectProductSchemas removes stale schemas',strpos($cfgLD,'product-schema')!==false&&strpos($cfgLD,'remove()')!==false);
     t('injectProductSchemas filters sell==1 and stock>0',strpos($cfgLD,'p.sell==1')!==false&&strpos($cfgLD,'p.stock>0')!==false);
+    t('injectProductSchemas reads p.imgs array (not p.img1/2/3)',strpos($cfgLD,'p.imgs||[]')!==false&&strpos($cfgLD,'p.img1')===false);
+    t('product schema includes image field',strpos($cfgLD,'"image":imgs')!==false);
+    t('product schema includes offers with price',strpos($cfgLD,'"offers":')!==false&&strpos($cfgLD,'"price":parseFloat(p.price)')!==false);
+    t('product schema includes brand',strpos($cfgLD,'"brand":')!==false&&strpos($cfgLD,'"@type":"Brand","name":"Handmade Designs By Suzi"')!==false);
+    // hasOfferCatalog removed — bare Product entries with no offers triggered Google critical errors
+    t('hasOfferCatalog removed from index.html',strpos($ihtml,'hasOfferCatalog')===false);
+    t('no bare category Product entries',strpos($ihtml,'"name": "Corvette Tote Bags"')===false&&strpos($ihtml,'"name": "Handmade Purses"')===false);
+    t('single LocalBusiness block (no duplicate)',substr_count($ihtml,'"@type": "LocalBusiness"')+substr_count($ihtml,'"@type":"LocalBusiness"')===1);
+    t('LocalBusiness has logo',strpos($ihtml,'"logo":')!==false&&strpos($ihtml,'HDBSLogo.jpeg')!==false);
+    t('LocalBusiness priceRange is specific range',strpos($ihtml,'"priceRange": "$35–$200"')!==false);
     $uiLD=file_get_contents($root.'/js/ui.js');
     t('injectProductSchemas called after API load',strpos($uiLD,'injectProductSchemas()')!==false);
     t('checkProductParam function exists',strpos($uiLD,'function checkProductParam(')!==false);

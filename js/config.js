@@ -138,9 +138,10 @@ function showOnly(id,flex){
 function injectProductSchemas(){
   document.querySelectorAll('script[data-type="product-schema"]').forEach(function(s){s.remove();});
   (PRODS||[]).filter(function(p){return p.sell==1&&p.stock>0;}).forEach(function(p){
-    var imgs=[p.img1,p.img2,p.img3].filter(Boolean);
+    var imgs=(p.imgs||[]).filter(Boolean);
     var schema={"@context":"https://schema.org","@type":"Product","name":p.name,"description":p.desc||'',
       "image":imgs,"sku":p.sku||'',
+      "brand":{"@type":"Brand","name":"Handmade Designs By Suzi"},
       "offers":{"@type":"Offer","url":"https://handmadedesignsbysuzi.com","priceCurrency":"USD",
         "price":parseFloat(p.price).toFixed(2),
         "availability":p.stock>0?"https://schema.org/InStock":"https://schema.org/OutOfStock",
