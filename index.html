@@ -43,7 +43,10 @@
   gtag('config', 'G-0ELY03XGRE');
 </script>
 
-<link rel="stylesheet" href="css/shop.css?v=3">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/shop.css?v=8">
 <link rel="stylesheet" href="css/table.css">
 <link rel="stylesheet" href="css/toolbar.css">
 
@@ -151,15 +154,55 @@
     <div class="hero-bg" id="hero-bg"></div>
     <div class="hero-overlay"></div>
     <div class="hero-content">
-      <h1>Handmade Designs By Suzi</h1>
-      <p>Beautiful tote bags & purses, lovingly handcrafted one stitch at a time.</p>
-      <button class="hcta" onclick="document.getElementById('ps').scrollIntoView({behavior:'smooth'})">Shop the Collection</button>
+      <div class="hero-overline">Handmade in Knoxville, Tennessee</div>
+      <h1>Handcrafted. One of a kind.<br>Never repeated.</h1>
+      <p>Upcycled tote bags, purses, and quilts — sewn one stitch at a time by Suzi.</p>
+      <div class="hero-btns">
+        <button class="hbtn hbtn-primary" onclick="document.getElementById('ps').scrollIntoView({behavior:'smooth'})">Shop the collection</button>
+        <button class="hbtn hbtn-secondary" onclick="goCustom()">Request a custom bag</button>
+      </div>
     </div>
   </div>
   <div style="background:#2d2220;padding:.5rem 1.5rem;text-align:center"><p style="color:#d4a017;font-size:.95rem;font-weight:600;letter-spacing:.04em;margin:0">✨ Every bag is one of a kind — handcrafted, never repeated. Once it's gone, it's gone. Get yours before someone else does.</p></div>
+  <!-- FEATURED COLLECTIONS -->
+  <div class="featured" id="featured">
+    <div class="sh"><h2>Shop by collection</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">Find your one of a kind</p></div>
+    <div class="fc-grid" id="featured-cards"></div>
+  </div>
+
+  <!-- COMING SOON -->
+  <div id="coming-soon" style="display:none">
+    <div class="cs-eyebrow">First look</div>
+    <div class="sh"><h2>Coming Soon</h2><div class="shd"></div><p style="color:rgba(248,246,242,.72);font-size:.9rem;margin-top:.4rem">Something beautiful is being crafted — be the first to know.</p></div>
+    <div class="grid" id="cs-grid"></div>
+  </div>
+
   <div class="sh" id="ps"><h2>Our Collection</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">Each bag handcrafted with premium materials</p></div>
   <div id="cat-filter" style="padding:.7rem 1.5rem .2rem;display:flex;gap:.5rem;flex-wrap:wrap;max-width:1000px;margin:0 auto"></div>
   <div class="grid" id="pgrid"></div>
+
+  <!-- ABOUT TEASER -->
+  <div class="about-teaser">
+    <div class="at-photo"><img src="aboutsuzi.jpeg" alt="Suzi in her studio"></div>
+    <div class="at-text">
+      <div class="at-overline">About Suzi</div>
+      <h2>Every bag carries a story</h2>
+      <p>I believe handmade pieces carry stories that mass-produced products never can. Each bag begins as a one-of-a-kind idea and an upcycled find, then becomes something you'll carry for years — sewn here in Knoxville, never repeated.</p>
+      <button class="at-link" onclick="goAbout()">Read her story →</button>
+    </div>
+  </div>
+
+  <!-- PROCESS -->
+  <div class="process">
+    <div class="sh"><h2>How a custom piece comes to life</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">Every custom bag is a collaboration</p></div>
+    <div class="proc-steps">
+      <div class="proc-step"><div class="proc-num">1</div><div class="proc-label">Share your idea</div></div>
+      <div class="proc-step"><div class="proc-num">2</div><div class="proc-label">I sketch and design</div></div>
+      <div class="proc-step"><div class="proc-num">3</div><div class="proc-label">Handmade with care</div></div>
+      <div class="proc-step"><div class="proc-num">4</div><div class="proc-label">Delivered to you</div></div>
+    </div>
+    <div style="text-align:center;margin-top:1.4rem"><button class="hbtn hbtn-primary" onclick="goCustom()">Request a custom bag</button></div>
+  </div>
 
   <!-- NEWSLETTER -->
   <div class="newsletter">
@@ -766,12 +809,12 @@
 <script src="js/api.js?v=5"></script>
 <script src="js/config.js?v=10"></script>
 <script src="js/data.js?v=5"></script>
-<script src="js/store.js?v=10"></script>
+<script src="js/store.js?v=12"></script>
 <script src="js/auth.js?v=5"></script>
 <script src="js/ui.js?v=7"></script>
 <script src="js/admin-nav.js?v=5"></script>
 <script src="js/admin-general.js?v=5"></script>
-<script src="js/admin-products.js?v=7"></script>
+<script src="js/admin-products.js?v=8"></script>
 <script src="js/admin-orders.js?v=7"></script>
 <script src="js/admin-misc.js?v=10"></script>
 <script src="js/table.js"></script>

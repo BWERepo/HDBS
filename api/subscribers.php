@@ -44,13 +44,20 @@ if ($method === 'POST') {
     $d  = body();
     $em = trim($d['email'] ?? '');
     if (!$em || !filter_var($em, FILTER_VALIDATE_EMAIL)) fail('Invalid email address');
+    $source = trim($d['source'] ?? ''); // e.g. "Coming Soon: <product>" — records why they signed up
+
+    // Ensure optional source column exists
+    if (empty($pdo->query("SHOW COLUMNS FROM subscribers LIKE 'source'")->fetchAll())) $pdo->exec("ALTER TABLE subscribers ADD COLUMN source VARCHAR(160) NULL");
 
     // Check duplicate
     $check = $pdo->prepare("SELECT id FROM subscribers WHERE email = ?");
     $check->execute([$em]);
-    if ($check->fetch()) fail('Already subscribed');
+    if ($check->fetch()) {
+        if ($source !== '') $pdo->prepare("UPDATE subscribers SET source = ? WHERE email = ? AND (source IS NULL OR source = '')")->execute([$source, $em]);
+        fail('Already subscribed');
+    }
 
-    $pdo->prepare("INSERT INTO subscribers (email) VALUES (?)")->execute([$em]);
+    $pdo->prepare("INSERT INTO subscribers (email, source) VALUES (?, ?)")->execute([$em, $source !== '' ? $source : null]);
     ok(['message' => 'Subscribed successfully']);
 }
 

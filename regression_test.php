@@ -95,7 +95,7 @@ try{
     $elHasConvertTz2=strpos(file_get_contents($root.'/send_confirm.php'),'CONVERT_TZ')!==false;
     t('send_confirm uses EDT',   $elHasConvertTz2);
 }catch(Exception $e){t('email_log checks',false,$e->getMessage());}
-try{$shopcss0=file_get_contents($root.'/css/shop.css');t('shop.css has /hero.jpg',strpos($shopcss0,'url("/hero.jpg")')!==false);t('product card image (.cimg img) uses contain',strpos($shopcss0,'.cimg img{width:100%;height:100%;object-fit:contain')!==false);}catch(Exception $e){t('shop.css check',false,$e->getMessage());}
+try{$shopcss0=file_get_contents($root.'/css/shop.css');t('shop.css has /hero.jpg',strpos($shopcss0,'url("/hero.jpg')!==false);t('product card image (.cimg img) uses contain',strpos($shopcss0,'.cimg img{width:100%;height:100%;object-fit:contain')!==false);}catch(Exception $e){t('shop.css check',false,$e->getMessage());}
 
 // ── 2b. NEW SESSION CHECKS ──
 // orders.square_payment_id column
@@ -194,6 +194,39 @@ try{
     t('manual order per-item shipping helpers',strpos($aoj,'function moCalcShippingAmt(')!==false&&strpos($aoj,'function moFixedShip(')!==false&&strpos($aoj,'function moHasWeightItems(')!==false);
     t('manual order uses moCalcShippingAmt',substr_count($aoj,'moCalcShippingAmt(')>=2);
 }catch(Exception $e){t('per-item shipping checks',false,$e->getMessage());}
+
+// ── HOMEPAGE REDESIGN + COMING SOON ──
+try{
+    $cpphp=file_get_contents($root.'/api/products.php');
+    t('products.php GET returns coming_soon',strpos($cpphp,"'coming_soon'")!==false);
+    t('products.php migrates coming_soon column',strpos($cpphp,"'coming_soon' => \"TINYINT")!==false);
+    t('products.php INSERT binds coming_soon',strpos($cpphp,':coming_soon')!==false);
+    $ccsv=file_get_contents($root.'/api/products_csv.php');
+    t('products_csv includes coming_soon',strpos($ccsv,"'ship_fixed','coming_soon'")!==false&&strpos($ccsv,':coming_soon')!==false);
+    $csub=file_get_contents($root.'/api/subscribers.php');
+    t('subscribers.php captures source (Notify me)',strpos($csub,'ADD COLUMN source')!==false&&strpos($csub,"\$d['source']")!==false);
+    $capj=file_get_contents($root.'/js/admin-products.js');
+    t('product form has Coming Soon checkbox',strpos($capj,'id="pf-coming"')!==false);
+    t('saveP sends coming_soon',strpos($capj,"coming_soon:document.getElementById('pf-coming')")!==false);
+    t('product table shows SOON badge',strpos($capj,'>SOON</span>')!==false&&strpos($capj,'p.coming_soon')!==false);
+    $csj=file_get_contents($root.'/js/store.js');
+    t('store.js renderComingSoon + notifyMe',strpos($csj,'function renderComingSoon(')!==false&&strpos($csj,'function notifyMe(')!==false);
+    t('store.js excludes coming_soon from buy grid',strpos($csj,'p.sell!==0&&!p.coming_soon')!==false);
+    t('notifyMe writes tagged subscriber',strpos($csj,"source:'Coming Soon: '")!==false);
+    $chtml=file_get_contents($root.'/index.html');
+    t('index.html has Coming Soon section',strpos($chtml,'id="coming-soon"')!==false&&strpos($chtml,'id="cs-grid"')!==false);
+    t('Coming Soon has First look eyebrow',strpos($chtml,'First look')!==false);
+    t('index.html loads Playfair + Inter',strpos($chtml,'Playfair+Display')!==false&&strpos($chtml,'family=Inter')!==false);
+    t('hero redesigned (overline + buttons)',strpos($chtml,'hero-overline')!==false&&strpos($chtml,'hbtn-primary')!==false&&strpos($chtml,'Request a custom bag')!==false);
+    t('homepage has featured collections',strpos($chtml,'id="featured-cards"')!==false);
+    t('homepage has about + process',strpos($chtml,'class="about-teaser"')!==false&&strpos($chtml,'class="proc-steps"')!==false);
+    t('store.js renderFeatured + goCat',strpos($csj,'function renderFeatured(')!==false&&strpos($csj,'function goCat(')!==false);
+    $css2=file_get_contents($root.'/css/shop.css');
+    t('shop.css defines neutral palette vars',strpos($css2,'--ivory:#F8F6F2')!==false&&strpos($css2,'--gold:#B88A44')!==false&&strpos($css2,'--charcoal:#2B2B2B')!==false);
+    t('shop.css defines font vars',strpos($css2,"--font-head:'Playfair Display'")!==false);
+    t('shop.css Coming Soon band',strpos($css2,'#coming-soon{background:var(--charcoal)')!==false);
+    t('shop.css hero + featured + process styles',strpos($css2,'.hbtn-primary')!==false&&strpos($css2,'.fc-card')!==false&&strpos($css2,'.proc-num')!==false);
+}catch(Exception $e){t('homepage redesign + coming soon checks',false,$e->getMessage());}
 
 // admin-products.js new features
 try{

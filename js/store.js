@@ -22,8 +22,8 @@ function setActiveCat(cat){
 }
 function renderStore(){
   var g=document.getElementById('pgrid'),h='';
-  // Only show products listed for sale (sell !== 0)
-  var forSale=PRODS.filter(function(p){return p.sell!==0;});
+  // Only show products listed for sale (sell !== 0) and not flagged Coming Soon
+  var forSale=PRODS.filter(function(p){return p.sell!==0&&!p.coming_soon;});
   var filtered=ACTIVE_CAT==='All'?forSale:forSale.filter(function(p){return parseCats(p.cat).indexOf(ACTIVE_CAT)>=0;});
   renderCatFilter();
   for(var i=0;i<filtered.length;i++){
@@ -67,7 +67,61 @@ function renderStore(){
     '</div>';
   }
   g.innerHTML=h||'<p style="grid-column:1/-1;text-align:center;padding:3rem;color:#6b6040">'+(ACTIVE_CAT==='All'?'No products yet.':'No products in this category.')+'</p>';
+  renderComingSoon();
+  renderFeatured();
 }
+// ── COMING SOON — tease products not yet for sale ──
+function renderComingSoon(){
+  var sec=document.getElementById('coming-soon'),grid=document.getElementById('cs-grid');
+  if(!sec||!grid)return;
+  var cs=PRODS.filter(function(p){return p.coming_soon;});
+  if(!cs.length){sec.style.display='none';return;}
+  sec.style.display='block';
+  var h='';
+  for(var i=0;i<cs.length;i++){
+    var p=cs[i],img=firstImg(p);
+    h+='<div class="cs-card">'+
+      '<div class="cs-img">'+(img?'<img src="'+img+'" alt="'+p.name+'">':'<div class="cs-noimg">👜</div>')+'<span class="cs-badge">Coming Soon</span></div>'+
+      '<div class="cs-body"><h3>'+p.name+'</h3><p>'+(p.desc||'')+'</p>'+
+        '<button class="cs-notify" onclick="notifyMe(\''+p.id+'\')">Notify me when available</button>'+
+      '</div></div>';
+  }
+  grid.innerHTML=h;
+}
+function notifyMe(id){
+  var p=findProd(id);if(!p)return;
+  var def=(typeof CUR_USER!=='undefined'&&CUR_USER&&CUR_USER.email)?CUR_USER.email:'';
+  var em=prompt('Enter your email and we’ll let you know the moment “'+p.name+'” is available:',def);
+  if(em===null)return;
+  em=em.trim();
+  if(!em||em.indexOf('@')<0){alert('Please enter a valid email address.');return;}
+  apiFetch('subscribers.php','POST',{email:em,source:'Coming Soon: '+p.name}).then(function(d){
+    if(d.success||(''+(d.error||'')).toLowerCase().indexOf('already')>=0){
+      alert('You’re on the list! We’ll email you when “'+p.name+'” is ready.');
+    } else { alert(d.error||'Could not save your request. Please try again.'); }
+  }).catch(function(){alert('Network error. Please try again.');});
+}
+// ── FEATURED COLLECTIONS — three top categories with a representative photo ──
+function renderFeatured(){
+  var wrap=document.getElementById('featured-cards'),sec=document.getElementById('featured');
+  if(!wrap||!sec)return;
+  var counts={};
+  PRODS.forEach(function(p){if(p.sell!==0&&!p.coming_soon)parseCats(p.cat).forEach(function(c){if(c)counts[c]=(counts[c]||0)+1;});});
+  var cats=Object.keys(counts).sort(function(a,b){return counts[b]-counts[a];}).slice(0,3);
+  if(!cats.length){sec.style.display='none';return;}
+  sec.style.display='block';
+  var h='';
+  for(var i=0;i<cats.length;i++){
+    var cat=cats[i];
+    var rep=PRODS.filter(function(p){return p.sell!==0&&!p.coming_soon&&parseCats(p.cat).indexOf(cat)>=0&&firstImg(p);})[0];
+    var img=rep?firstImg(rep):'';
+    h+='<div class="fc-card" onclick="goCat(\''+String(cat).replace(/'/g,"\\'")+'\')">'+
+      '<div class="fc-img"'+(img?' style="background-image:url(\''+img+'\')"':'')+'>'+(img?'':'<span>👜</span>')+'</div>'+
+      '<div class="fc-body"><h3>'+cat+'</h3><span class="fc-link">Explore →</span></div></div>';
+  }
+  wrap.innerHTML=h;
+}
+function goCat(cat){if(typeof setActiveCat==='function')setActiveCat(cat);var ps=document.getElementById('ps');if(ps)ps.scrollIntoView({behavior:'smooth'});}
 
 // ── PRODUCT DETAIL with gallery ──
 var PD_CUR=0;
