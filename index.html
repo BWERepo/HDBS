@@ -46,7 +46,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/shop.css?v=8">
+<link rel="stylesheet" href="css/shop.css?v=12">
 <link rel="stylesheet" href="css/table.css">
 <link rel="stylesheet" href="css/toolbar.css">
 
@@ -100,11 +100,14 @@
       <button class="smitem" onclick="closeMenu();goStore()">
         <span class="smi-icon">🏠</span> Shop
       </button>
+      <button class="smitem" onclick="closeMenu();goGallery()">
+        <span class="smi-icon">🖼️</span> Gallery
+      </button>
       <button class="smitem" onclick="closeMenu();goAbout()">
         <span class="smi-icon">🌸</span> About Suzi
       </button>
       <button class="smitem" onclick="closeMenu();goCustom()">
-        <span class="smi-icon">🧵</span> Custom Orders
+        <span class="smi-icon">🧵</span> Custom Bags
       </button>
       <button class="smitem" onclick="closeMenu();goFAQ()">
         <span class="smi-icon">❓</span> FAQ
@@ -163,7 +166,7 @@
       </div>
     </div>
   </div>
-  <div style="background:#2d2220;padding:.5rem 1.5rem;text-align:center"><p style="color:#d4a017;font-size:.95rem;font-weight:600;letter-spacing:.04em;margin:0">✨ Every bag is one of a kind — handcrafted, never repeated. Once it's gone, it's gone. Get yours before someone else does.</p></div>
+  <div style="background:#2B2B2B;padding:.6rem 1.5rem;text-align:center"><p style="color:#e7cfa3;font-size:.92rem;font-weight:500;letter-spacing:.04em;margin:0">Every bag is one of a kind — handcrafted, never repeated. Once it's gone, it's gone.</p></div>
   <!-- FEATURED COLLECTIONS -->
   <div class="featured" id="featured">
     <div class="sh"><h2>Shop by collection</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">Find your one of a kind</p></div>
@@ -175,6 +178,12 @@
     <div class="cs-eyebrow">First look</div>
     <div class="sh"><h2>Coming Soon</h2><div class="shd"></div><p style="color:rgba(248,246,242,.72);font-size:.9rem;margin-top:.4rem">Something beautiful is being crafted — be the first to know.</p></div>
     <div class="grid" id="cs-grid"></div>
+  </div>
+
+  <!-- GALLERY -->
+  <div class="gallery-sec" id="gallery">
+    <div class="sh"><h2>From my studio</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">A look at the work</p></div>
+    <div class="masonry" id="gallery-grid"></div>
   </div>
 
   <div class="sh" id="ps"><h2>Our Collection</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">Each bag handcrafted with premium materials</p></div>
@@ -809,7 +818,7 @@
 <script src="js/api.js?v=5"></script>
 <script src="js/config.js?v=10"></script>
 <script src="js/data.js?v=5"></script>
-<script src="js/store.js?v=12"></script>
+<script src="js/store.js?v=14"></script>
 <script src="js/auth.js?v=5"></script>
 <script src="js/ui.js?v=7"></script>
 <script src="js/admin-nav.js?v=5"></script>

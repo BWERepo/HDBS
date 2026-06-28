@@ -228,6 +228,28 @@ try{
     t('shop.css hero + featured + process styles',strpos($css2,'.hbtn-primary')!==false&&strpos($css2,'.fc-card')!==false&&strpos($css2,'.proc-num')!==false);
 }catch(Exception $e){t('homepage redesign + coming soon checks',false,$e->getMessage());}
 
+// ── REDESIGN PHASE 4-5 (gallery, nav, palette cohesion) ──
+try{
+    $rhtml=file_get_contents($root.'/index.html');
+    t('homepage has masonry gallery',strpos($rhtml,'id="gallery-grid"')!==false&&strpos($rhtml,'class="masonry"')!==false);
+    t('nav has Gallery + Custom Bags',strpos($rhtml,'goGallery()')!==false&&strpos($rhtml,'Custom Bags')!==false);
+    $rsj=file_get_contents($root.'/js/store.js');
+    t('store.js renderGallery + goGallery',strpos($rsj,'function renderGallery(')!==false&&strpos($rsj,'function goGallery(')!==false);
+    t('cat filter uses muted gold',strpos($rsj,"active?'#B88A44'")!==false);
+    $rcss=file_get_contents($root.'/css/shop.css');
+    t('shop.css masonry styles',strpos($rcss,'.masonry{column-count')!==false);
+    t('nav recolored charcoal',strpos($rcss,'nav{background:#2B2B2B')!==false);
+    t('body background ivory',strpos($rcss,'body{font-family:var(--font-body);background:var(--ivory)')!==false);
+    t('product price muted gold',strpos($rcss,'.price{font-weight:700;color:#B88A44')!==false);
+    t('footer charcoal',strpos($rcss,'footer{background:#2B2B2B')!==false);
+    t('newsletter sage band',strpos($rcss,'.newsletter{background:var(--sage)')!==false);
+    t('reviews section neutral',strpos($rcss,'.reviews-section{background:var(--ivory)')!==false);
+    t('newsletter gold gradient removed',strpos($rcss,'.newsletter{background:linear-gradient')===false);
+    t('Featured Collections show complete image',strpos($rcss,'.fc-img{aspect-ratio:4/3;background:#fff;background-size:contain')!==false);
+    t('gallery heading is From my studio',strpos($rhtml,'From my studio')!==false);
+    t('gallery positioned below Coming Soon',strpos($rhtml,'id="coming-soon"')!==false&&strpos($rhtml,'id="gallery"')!==false&&strpos($rhtml,'id="coming-soon"')<strpos($rhtml,'id="gallery"'));
+}catch(Exception $e){t('redesign phase 4-5 checks',false,$e->getMessage());}
+
 // admin-products.js new features
 try{
     $apjs2=file_get_contents($root.'/js/admin-products.js');
