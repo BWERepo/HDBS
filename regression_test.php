@@ -932,6 +932,12 @@ try{
         t('secrets.php exists above public_html',false,'File not found at '.$secretsFile);
     }
     tProd('htaccess blocks .log/.txt files',strpos($htaccess,'\.(log|txt)$')!==false);
+    // Security headers (prod .htaccess only — staging keeps its own Basic Auth .htaccess)
+    tProd('htaccess sets X-Frame-Options',strpos($htaccess,'X-Frame-Options')!==false);
+    tProd('htaccess sets X-Content-Type-Options nosniff',strpos($htaccess,'X-Content-Type-Options')!==false&&strpos($htaccess,'nosniff')!==false);
+    tProd('htaccess sets Referrer-Policy',strpos($htaccess,'Referrer-Policy')!==false);
+    tProd('htaccess sets HSTS (Strict-Transport-Security)',strpos($htaccess,'Strict-Transport-Security')!==false);
+    tProd('CSP restricts frame-ancestors',strpos($htaccess,"frame-ancestors 'self'")!==false);
     // Live HTTP checks
     function httpCode($url){$ch=curl_init($url);curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>8,CURLOPT_NOBODY=>true,CURLOPT_FOLLOWLOCATION=>false]);curl_exec($ch);$c=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);curl_close($ch);return $c;}
     $base='https://handmadedesignsbysuzi.com';
@@ -946,6 +952,15 @@ try{
     t('CSP upgrade-insecure-requests header set',stripos($resp,'upgrade-insecure-requests')!==false);
     t('htaccess has no http:// asset loads',strpos(file_get_contents($root.'/.htaccess'),'http://')===false);
 }catch(Exception $e){t('htaccess security checks',false,$e->getMessage());}
+
+// ── INPUT VALIDATION & PASSWORD INTEGRITY ──
+try{
+    $prodphp=file_get_contents($root.'/api/products.php');
+    t('products.php validates id format (blocks path traversal)',strpos($prodphp,"preg_match('/^[A-Za-z0-9_-]+\$/'")!==false&&strpos($prodphp,'Invalid product id')!==false);
+    // Tripwire: admin password must be a valid bcrypt hash — catches corruption/lockout early
+    $apHash=$pdo->query("SELECT value FROM settings WHERE key_name='admin_password' LIMIT 1")->fetchColumn();
+    t('admin_password is a valid bcrypt hash',is_string($apHash)&&(strncmp($apHash,'$2y$',4)===0||strncmp($apHash,'$2b$',4)===0),'starts: '.substr((string)$apHash,0,4));
+}catch(Exception $e){t('input validation / password integrity checks',false,$e->getMessage());}
 
 // ── ORDER CONFIRM TOKEN GATE ──
 try{

@@ -38,6 +38,8 @@ if ($method === 'GET') { dbg('products','GET all products');
 if ($method === 'POST') { requireAdmin(); dbg('products','POST save product');
     $d = body();
     if (empty($d['id']) || empty($d['name'])) fail('Missing id or name');
+    // Product id is used to build image filenames on disk — restrict to a safe charset (no path traversal)
+    if (!preg_match('/^[A-Za-z0-9_-]+$/', $d['id'])) fail('Invalid product id', 400);
 
     $stmt = $pdo->prepare("
         INSERT INTO products (id, sku, name, description, price, stock, category, badge, weight, size, img1, img2, img3, sell)

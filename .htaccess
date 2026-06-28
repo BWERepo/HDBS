@@ -23,8 +23,13 @@ Options -Indexes
     Deny from all
 </FilesMatch>
 
-# Force HTTPS upgrade for any accidental HTTP asset loads
-Header always set Content-Security-Policy "upgrade-insecure-requests"
+# Security headers
+# Force HTTPS upgrade for accidental HTTP asset loads; restrict framing (clickjacking)
+Header always set Content-Security-Policy "upgrade-insecure-requests; frame-ancestors 'self'"
+Header always set X-Frame-Options "SAMEORIGIN"
+Header always set X-Content-Type-Options "nosniff"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
 
 # Disable LiteSpeed cache for JS, CSS, PHP
 <IfModule LiteSpeed>
