@@ -192,18 +192,19 @@ function saveEditOrder(oid){
   }).catch(function(){err.textContent='Save failed.';err.style.display='block';});
 }
 function showRefundForm(){
-  var opts=ORDERS.filter(function(o){return o.status!=='Refunded';}).slice().reverse().map(function(o){
-    return '<option value="'+o.id+'">'+o.id+' — '+o.cust+' ($'+o.total.toFixed(2)+')</option>';
+  var opts=ORDERS.filter(function(o){return((o.total||0)-(o.refunded_amount||0))>0.004;}).slice().reverse().map(function(o){
+    return '<option value="'+o.id+'">'+o.id+' — '+o.cust+' ($'+((o.total||0)-(o.refunded_amount||0)).toFixed(2)+' refundable)</option>';
   }).join('');
   if(!opts){alert('No orders available to refund.');return;}
   var panel=document.createElement('div');
   panel.id='refund-panel';
   panel.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.2);padding:1.8rem;z-index:500;width:420px;max-width:95vw';
   panel.innerHTML=
-    '<div style="font-weight:700;font-size:1rem;margin-bottom:1.1rem;color:#2d2220">↩ Record Refund</div>'+
+    '<div style="font-weight:700;font-size:1rem;margin-bottom:1.1rem;color:#2d2220">↩ Refund Order</div>'+
     '<div class="merr" id="ref-err" style="display:none;background:#fdecea;color:#c0392b;padding:.5rem .8rem;border-radius:6px;font-size:.82rem;margin-bottom:.7rem"></div>'+
     '<label class="fl">Select Order *</label>'+
     '<select class="afi" id="ref-order-id" onchange="updateRefundAmount()"><option value="">-- Select an order --</option>'+opts+'</select>'+
+    '<div id="ref-method-note" style="font-size:.78rem;color:#6b6040;margin-bottom:.6rem"></div>'+
     '<label class="fl">Refund Type *</label>'+
     '<div style="display:flex;gap:.6rem;margin-bottom:.8rem">'+
       '<label style="display:flex;align-items:center;gap:.35rem;font-size:.85rem;cursor:pointer"><input type="radio" name="ref-type" value="full" checked onchange="updateRefundAmount()"> Full Refund</label>'+
@@ -211,10 +212,10 @@ function showRefundForm(){
     '</div>'+
     '<label class="fl">Refund Amount *</label>'+
     '<input class="afi" id="ref-amount" type="number" step="0.01" min="0.01" placeholder="0.00">'+
-    '<label class="fl">Reason (optional)</label>'+
+    '<label class="fl">Reason *</label>'+
     '<input class="afi" id="ref-reason" placeholder="e.g. Customer returned item">'+
     '<div style="display:flex;gap:.6rem;margin-top:.5rem">'+
-      '<button class="bp" onclick="saveRefund()">↩ Record Refund</button>'+
+      '<button class="bp" id="ref-save-btn" onclick="saveRefund()">↩ Process Refund</button>'+
       '<button class="bs" onclick="document.getElementById(\'refund-panel\').remove();document.getElementById(\'refund-overlay\').remove()">Cancel</button>'+
     '</div>';
   var ov=document.createElement('div');
@@ -224,14 +225,18 @@ function showRefundForm(){
   document.body.appendChild(ov);
   document.body.appendChild(panel);
 }
+function refundRemaining(o){return Math.round(((o.total||0)-(o.refunded_amount||0))*100)/100;}
 function updateRefundAmount(){
   var sel=document.getElementById('ref-order-id');
   var inp=document.getElementById('ref-amount');
   var typeEl=document.querySelector('input[name="ref-type"]:checked');
+  var note=document.getElementById('ref-method-note');
   if(!sel||!inp||!typeEl)return;
   var order=ORDERS.find(function(o){return o.id===sel.value;});
+  var remaining=order?refundRemaining(order):0;
+  if(note)note.textContent=order?(((order.pay==='Credit Card'||order.pay==='Square')?'Card order — Square will refund the customer\'s card directly.':'Cash/Check order — this only records the refund; return the money to the customer yourself.')):'';
   if(order&&typeEl.value==='full'){
-    inp.value=order.total.toFixed(2);
+    inp.value=remaining.toFixed(2);
     inp.readOnly=true;
     inp.style.background='#f5f5f5';
   } else {
@@ -244,40 +249,35 @@ function saveRefund(){
   var oid=document.getElementById('ref-order-id').value;
   var amt=parseFloat(document.getElementById('ref-amount').value);
   var reason=document.getElementById('ref-reason').value.trim();
-  var typeEl=document.querySelector('input[name="ref-type"]:checked');
   var err=document.getElementById('ref-err');
   err.style.display='none';
   if(!oid){err.textContent='Please select an order.';err.style.display='block';return;}
   if(!amt||amt<=0){err.textContent='Please enter a valid refund amount.';err.style.display='block';return;}
+  if(!reason){err.textContent='A reason is required.';err.style.display='block';return;}
   var order=ORDERS.find(function(o){return o.id===oid;});
-  if(order&&amt>order.total){err.textContent='Refund cannot exceed order total ($'+order.total.toFixed(2)+').';err.style.display='block';return;}
-  var refType=typeEl?typeEl.value:'full';
-  var now=new Date();
-  var refDate=now.toLocaleDateString('en-US');
-  var refDateISO=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':00';
-  var refId=oid+'-REF';
-  apiFetch('orders.php','POST',{
-    id:refId,
-    cust:order?order.cust:'',
-    email:order?order.email||'':'',
-    phone:'',
-    addr:order?order.addr||'':'',
-    total:-amt,
-    tax:0,
-    pay:'Refund',
-    status:'Refunded',
-    date:refDateISO
-  }).then(function(d){
-    ORDERS.push({id:refId,cust:order?order.cust:'',total:-amt,tax:0,pay:'Refund',status:'Refunded',date:refDate,dispDate:refDate,time:now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}),items:[]});
+  var remaining=order?refundRemaining(order):0;
+  if(order&&amt>remaining+0.004){err.textContent='Refund cannot exceed remaining refundable balance ($'+remaining.toFixed(2)+').';err.style.display='block';return;}
+  var btn=document.getElementById('ref-save-btn');
+  if(btn){btn.disabled=true;btn.textContent='Processing…';}
+  apiFetch('refund.php','POST',{order_id:oid,amount:amt,reason:reason}).then(function(d){
+    if(!d||!d.success){
+      err.textContent=(d&&d.error)||'Failed to process refund.';err.style.display='block';
+      if(btn){btn.disabled=false;btn.textContent='↩ Process Refund';}
+      return;
+    }
+    if(order){order.refunded_amount=d.refunded_amount;order.status=d.status;}
     document.getElementById('refund-panel').remove();
     document.getElementById('refund-overlay').remove();
     var toast=document.createElement('div');
-    toast.textContent='✓ Refund recorded: $'+amt.toFixed(2)+' for '+oid;
+    toast.textContent='✓ Refund processed: $'+amt.toFixed(2)+' for '+oid+(d.square_refund_id?' (Square refund '+d.square_refund_id+')':'');
     toast.style.cssText='position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#2e7d32;color:#fff;padding:.65rem 1.4rem;border-radius:24px;font-size:.85rem;font-family:sans-serif;font-weight:600;z-index:9999';
     document.body.appendChild(toast);
-    setTimeout(function(){toast.remove();},3000);
+    setTimeout(function(){toast.remove();},3500);
     renderOrdersTable(document.getElementById('acnt'));
-  }).catch(function(){err.textContent='Failed to save refund.';err.style.display='block';});
+  }).catch(function(){
+    err.textContent='Network error — refund not processed.';err.style.display='block';
+    if(btn){btn.disabled=false;btn.textContent='↩ Process Refund';}
+  });
 }
 function printOrdersPdf(){
   var filt=applyOrdFilters();
@@ -552,7 +552,7 @@ function ordFiltSearch(listId,q){var list=document.getElementById(listId);if(!li
 function ordFilt2(e,col){e.stopPropagation();document.querySelectorAll('.ord-fp').forEach(function(p){p.remove();});var th=e.target.closest('th');th.style.position='relative';var pop=document.createElement('div');pop.className='ord-fp';pop.style.cssText='position:absolute;top:100%;left:0;background:#fff;border:1.5px solid #e8e0b8;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);z-index:300;min-width:220px;padding:0;overflow:hidden';if(col==='date'){pop.innerHTML='<div style="padding:.5rem .7rem;background:#f9f4e4;border-bottom:1px solid #e8e0b8;font-size:.72rem;font-weight:700;color:#a07810;text-transform:uppercase">Date Range</div><div style="padding:.6rem .7rem"><div style="font-size:.72rem;color:#6b6040;margin-bottom:.2rem">From</div><input type="date" id="ord-fp-dfrom" style="width:100%;margin-bottom:.5rem;padding:.3rem .5rem;border:1px solid #e8e0b8;border-radius:5px;font-size:.78rem;box-sizing:border-box" value="'+ORD_F.dateFrom+'"><div style="font-size:.72rem;color:#6b6040;margin-bottom:.2rem">To</div><input type="date" id="ord-fp-dto" style="width:100%;padding:.3rem .5rem;border:1px solid #e8e0b8;border-radius:5px;font-size:.78rem;box-sizing:border-box" value="'+ORD_F.dateTo+'"></div><div style="padding:.5rem .7rem;border-top:1px solid #f0e8d0;display:flex;justify-content:space-between;align-items:center"><button style="font-size:.72rem;color:#a07810;background:none;border:none;cursor:pointer" onclick="ORD_F.dateFrom=\'\';ORD_F.dateTo=\'\';renderOrdersTable(document.getElementById(\'acnt\'));this.closest(\'.ord-fp\').remove()">Clear</button><button style="font-size:.72rem;color:#6b6040;background:none;border:none;cursor:pointer" onclick="this.closest(\'.ord-fp\').remove()">Close</button><button style="font-size:.78rem;background:#d4a017;color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;cursor:pointer;font-weight:600" onclick="var p=this.closest(\'.ord-fp\');ORD_F.dateFrom=p.querySelector(\'#ord-fp-dfrom\').value;ORD_F.dateTo=p.querySelector(\'#ord-fp-dto\').value;p.remove();renderOrdersTable(document.getElementById(\'acnt\'))">Apply</button></div>';}else{var allVals=[];var seen={};for(var i=0;i<ORDERS.length;i++){var v=String(ORDERS[i][col]||'(blank)');if(!seen[v]){seen[v]=true;allVals.push(v);}}allVals.sort();var selVals=ORD_F[col]?ORD_F[col].split('\x00'):null;var listId='ord-flist-'+col;var checkboxes=allVals.map(function(v){var chk=(selVals===null||selVals.indexOf(v)>=0)?'checked':'';return'<label style="display:flex;align-items:center;gap:.4rem;padding:.25rem .4rem;cursor:pointer;border-radius:4px;font-size:.8rem;color:#2d2220" onmouseover="this.style.background=\'#fffdf0\'" onmouseout="this.style.background=\'\'"><input type="checkbox" value="'+v.replace(/"/g,'&quot;')+'" '+chk+'><span>'+v+'</span></label>';}).join('');pop.innerHTML='<div style="padding:.5rem .7rem;background:#f9f4e4;border-bottom:1px solid #e8e0b8;font-size:.72rem;font-weight:700;color:#a07810;text-transform:uppercase">Filter: '+col+'</div><div style="padding:.4rem .7rem;border-bottom:1px solid #f0e8d0"><input type="text" style="width:100%;padding:.3rem .5rem;border:1px solid #e8e0b8;border-radius:5px;font-size:.8rem;box-sizing:border-box" placeholder="Search..." oninput="ordFiltSearch(\''+listId+'\',this.value)"></div><div style="padding:.3rem .4rem;border-bottom:1px solid #f0e8d0;display:flex;gap:.5rem"><button style="font-size:.72rem;color:#a07810;background:none;border:none;cursor:pointer;padding:0" onclick="ordFiltAll(\''+listId+'\',true)">Select All</button><span style="color:#e8e0b8">|</span><button style="font-size:.72rem;color:#a07810;background:none;border:none;cursor:pointer;padding:0" onclick="ordFiltAll(\''+listId+'\',false)">Clear All</button></div><div id="'+listId+'" style="max-height:180px;overflow-y:auto;padding:.2rem .3rem">'+checkboxes+'</div><div style="padding:.5rem .7rem;border-top:1px solid #f0e8d0;display:flex;justify-content:space-between;align-items:center"><button style="font-size:.72rem;color:#6b6040;background:none;border:none;cursor:pointer;padding:0" onclick="this.closest(\'.ord-fp\').remove()">Close</button><button style="font-size:.78rem;background:#d4a017;color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;cursor:pointer;font-weight:600" onclick="ordFiltApply(\''+col+'\',this)">Apply</button></div>';}th.appendChild(pop);setTimeout(function(){var inp=pop.querySelector('input');if(inp)inp.focus();},50);setTimeout(function(){document.addEventListener('click',function h(ev){if(!pop.contains(ev.target)){pop.remove();document.removeEventListener('click',h);}});},50);}
 function applyOrdFilters(){var result=ORDERS.filter(function(o){function chkF(fval,oval){if(!fval)return true;if(fval==='__NONE__')return false;return fval.split('\x00').indexOf(String(oval||'(blank)'))>=0;}if(ORD_F.id&&!chkF(ORD_F.id,o.id))return false;if(ORD_F.cust&&!chkF(ORD_F.cust,o.cust))return false;if(ORD_F.pay&&!chkF(ORD_F.pay,o.pay))return false;if(ORD_F.status&&!chkF(ORD_F.status,o.status))return false;if(ORD_F.swept_date&&!chkF(ORD_F.swept_date,o.swept_date||'\u2014'))return false;if(ORD_F.total&&(o.total||0).toFixed(2).indexOf(ORD_F.total)<0)return false;if(ORD_F.tax&&String((o.tax||0).toFixed(2)).indexOf(ORD_F.tax)<0)return false;if(ORD_F.dateFrom||ORD_F.dateTo){var norm=ordNormDate(o);if(ORD_F.dateFrom&&norm<ORD_F.dateFrom)return false;if(ORD_F.dateTo&&norm>ORD_F.dateTo)return false;}return true;});var sc=ORD_SORT.col,sd=ORD_SORT.dir;if(sc)result.sort(function(a,b){var av=a[sc]||'',bv=b[sc]||'';if(typeof av==='number'&&typeof bv==='number')return sd*(av-bv);if(sc==='date')return sd*ordNormDate(a).localeCompare(ordNormDate(b));return sd*String(av).localeCompare(String(bv));});return result;}
 function buildOrdThead(){
-  var cols=['Order ID','Customer','Date','Time','Subtotal','Shipping','Tax','Trans Fee','Total','Paid By','Payment Config','Status','Tax Swept Date','','Actions'];
+  var cols=['Order ID','Customer','Date','Time','Subtotal','Shipping','Tax','Trans Fee','Total','Refunded','Paid By','Payment Config','Status','Tax Swept Date','','Actions'];
   return '<thead><tr>'+cols.map(function(l){return'<th>'+l+'</th>';}).join('')+'</tr></thead>';
 }
 function renderOrdersTable(el){
@@ -570,7 +570,7 @@ function renderOrdersTable(el){
       '<td style="font-size:.8rem;color:#6b6040">'+(o.tax>0?'$'+o.tax.toFixed(2):'\u2014')+'</td>'+
       '<td style="font-size:.78rem">$'+parseFloat(o.fee||0).toFixed(2)+'</td>'+
       '<td style="font-weight:700;color:#a07810">$'+o.total.toFixed(2)+'</td>'+
-
+      '<td style="font-size:.8rem;color:#c0392b">'+((o.refunded_amount||0)>0?'$'+o.refunded_amount.toFixed(2):'—')+'</td>'+
       '<td>'+(o.pay==='Test'?'<span class="badge bt">Test</span>':o.pay)+(o.check_number?'<br><span style="font-size:.7rem;color:#6b6040">Chk #'+o.check_number+'</span>':'')+'</td>'+
       '<td style="font-size:.78rem;color:#6b6040">'+(o.payment_config||'Online')+'</td>'+
       '<td><span class="badge '+(o.status==='Delivered'||o.status==='Paid'?'bg':o.status==='Shipped'?'bb':o.status==='Cancelled'||o.status==='Refunded'?'br':o.status==='Awaiting Payment'?'bw':'ba')+'">'+o.status+'</span></td>'+
@@ -598,6 +598,7 @@ function renderOrdersTable(el){
       '<td style="padding:8px 12px;color:#2e7d32">$'+filt.reduce(function(s,o){return s+(o.tax||0);},0).toFixed(2)+'</td>'+
       '<td style="padding:8px 12px;font-size:.8rem">$'+filt.reduce(function(s,o){return s+(o.fee||0);},0).toFixed(2)+'</td>'+
       '<td style="padding:8px 12px;color:#a07810">$'+filt.reduce(function(s,o){return s+o.total;},0).toFixed(2)+'</td>'+
+      '<td style="padding:8px 12px;color:#c0392b">$'+filt.reduce(function(s,o){return s+(o.refunded_amount||0);},0).toFixed(2)+'</td>'+
       '<td colspan="3"></td>'+
     '</tr></tfoot>'+
     '</table>';

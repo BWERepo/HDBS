@@ -14,6 +14,7 @@ $pdo    = db();
 foreach ([
     'payment_configuration' => "ALTER TABLE orders ADD COLUMN payment_configuration VARCHAR(20) DEFAULT 'Online'",
     'check_number'          => "ALTER TABLE orders ADD COLUMN check_number VARCHAR(40) DEFAULT NULL",
+    'refunded_amount'       => "ALTER TABLE orders ADD COLUMN refunded_amount DECIMAL(10,2) DEFAULT 0",
 ] as $col => $ddl) {
     if (empty($pdo->query("SHOW COLUMNS FROM orders LIKE '$col'")->fetchAll())) $pdo->exec($ddl);
 }
@@ -54,6 +55,7 @@ if ($method === 'GET') { requireAdmin(); dbg('orders','GET all orders');
             'check_number'   => $o['check_number'] ?? '',
             'fee'    => (float)($o['transaction_fee'] ?? 0),
             'status' => $o['status'],
+            'refunded_amount' => (float)($o['refunded_amount'] ?? 0),
             'tax'        => (float)($o['tax_amount'] ?? 0),
             'swept_date' => $o['tax_swept_date'] ?? null,
             'carrier'    => $o['shipping_carrier'] ?? 'USPS',

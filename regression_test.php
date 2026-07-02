@@ -2143,6 +2143,71 @@ try{
 
 }catch(Exception $e){t('embedded Square SDK checks',false,$e->getMessage());}
 
+// ── ORDER REFUNDS (Square API + cash/check ledger + customer email) ──
+try{
+    $rfFile=$root.'/api/refund.php';
+    t('refund.php exists',file_exists($rfFile));
+    $rfPhp=file_exists($rfFile)?file_get_contents($rfFile):'';
+
+    // Schema
+    t('refund.php creates refunds table',strpos($rfPhp,'CREATE TABLE IF NOT EXISTS refunds')!==false);
+    t('refund.php migrates orders.refunded_amount',strpos($rfPhp,'ADD COLUMN refunded_amount')!==false);
+    $ordcolsRF=$pdo->query("SHOW COLUMNS FROM orders")->fetchAll(PDO::FETCH_COLUMN);
+    t('orders.refunded_amount column exists',in_array('refunded_amount',$ordcolsRF));
+    $tblsRF=$pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+    t('refunds table exists',in_array('refunds',$tblsRF));
+
+    // Core logic
+    t('refund.php requires admin',strpos($rfPhp,'requireAdmin()')!==false);
+    t('refund.php requires a reason',strpos($rfPhp,"reason === ''")!==false&&strpos($rfPhp,'A reason is required')!==false);
+    t('refund.php validates amount > 0',strpos($rfPhp,'Refund amount must be greater than zero')!==false);
+    t('refund.php caps amount to remaining balance',strpos($rfPhp,'exceeds remaining refundable balance')!==false);
+    t('refund.php detects card orders',strpos($rfPhp,"['Credit Card', 'Square']")!==false);
+    t('refund.php requires square_payment_id for card refunds',strpos($rfPhp,'no linked Square payment')!==false);
+    t('refund.php calls Square refunds API',strpos($rfPhp,'/refunds')!==false&&strpos($rfPhp,'sq_curl')!==false);
+    t('refund.php uses idempotency key',strpos($rfPhp,'idempotency_key')!==false);
+    t('refund.php rejects failed Square refunds',strpos($rfPhp,'REJECTED')!==false&&strpos($rfPhp,'FAILED')!==false);
+    t('refund.php logs to refunds table',strpos($rfPhp,'INSERT INTO refunds')!==false);
+    t('refund.php marks order Refunded when fully refunded',strpos($rfPhp,"'Refunded' : \$order['status']")!==false);
+    t('refund.php sends customer email',strpos($rfPhp,'sendRefundEmail')!==false&&strpos($rfPhp,'sendEmail(')!==false);
+    t('refund.php logs to email_log',strpos($rfPhp,"'Refund Notification'")!==false);
+    t('refund.php email failure does not block refund',strpos($rfPhp,'email failure')!==false||strpos($rfPhp,"'email_sent'")!==false);
+
+    // Live endpoint checks (fake order IDs / bad payloads only — never touches a real order).
+    // uiGet/uiPost always hit production ($base), so on staging — before this feature is
+    // promoted via checkpoint — api/refund.php won't exist there yet. tProd() reports these
+    // as skipped (not failed) on staging, then verifies for real once it's live on prod.
+    $rNoAuthGet=uiGet($base.'/api/refund.php');
+    tProd('refund.php:GET without token is 401',$rNoAuthGet['code']===401,'HTTP '.$rNoAuthGet['code']);
+    $rNoAuthPost=uiPost($base.'/api/refund.php',['order_id'=>'FAKE-REFUND-000','amount'=>1,'reason'=>'test']);
+    tProd('refund.php:POST without token is 401',$rNoAuthPost['code']===401,'HTTP '.$rNoAuthPost['code']);
+    $rMissingOid=uiPostAdmin($base.'/api/refund.php',['amount'=>10,'reason'=>'test']);
+    tProd('refund.php:rejects missing order_id',$rMissingOid['json']&&empty($rMissingOid['json']['success']),'HTTP '.$rMissingOid['code']);
+    $rBadAmt=uiPostAdmin($base.'/api/refund.php',['order_id'=>'FAKE-REFUND-001','amount'=>0,'reason'=>'test']);
+    tProd('refund.php:rejects zero/negative amount',$rBadAmt['json']&&empty($rBadAmt['json']['success']),'HTTP '.$rBadAmt['code']);
+    $rNoReason=uiPostAdmin($base.'/api/refund.php',['order_id'=>'FAKE-REFUND-002','amount'=>10,'reason'=>'']);
+    tProd('refund.php:rejects empty reason',$rNoReason['json']&&empty($rNoReason['json']['success']),'HTTP '.$rNoReason['code']);
+    $rUnknownOid=uiPostAdmin($base.'/api/refund.php',['order_id'=>'FAKE-REFUND-999','amount'=>10,'reason'=>'test']);
+    tProd('refund.php:rejects unknown order',$rUnknownOid['json']&&empty($rUnknownOid['json']['success']),'HTTP '.$rUnknownOid['code'].' err='.($rUnknownOid['json']['error']??''));
+
+    // orders.php exposes refunded_amount
+    $ordPhpRF=file_get_contents($root.'/api/orders.php');
+    t('orders.php GET returns refunded_amount',strpos($ordPhpRF,"'refunded_amount' =>")!==false);
+
+    // Admin UI wiring
+    $apjsRF=isset($apjs)?$apjs:file_get_contents($root.'/js/admin-products.js');
+    $aojsRF=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
+    t('showRefundFormFor function exists',strpos($apjsRF,'function showRefundFormFor(')!==false);
+    t('saveRefundFor function exists',strpos($apjsRF,'function saveRefundFor(')!==false);
+    t('updateRefundAmountFor function exists',strpos($apjsRF,'function updateRefundAmountFor(')!==false);
+    t('refundRemaining helper exists',strpos($aojsRF,'function refundRemaining(')!==false);
+    t('btn:Refund Order (order detail) wired',strpos($apjsRF,'showRefundFormFor(')!==false);
+    t('order detail shows Refunded running total',strpos($apjsRF,'Refunded: $')!==false);
+    t('orders list has Refunded column',strpos($aojsRF,"'Refunded'")!==false);
+    t('refund form requires a reason (UI)',strpos($apjsRF,'A reason is required')!==false&&strpos($aojsRF,'A reason is required')!==false);
+    t('refund form calls refund.php',strpos($apjsRF,"apiFetch('refund.php'")!==false);
+}catch(Exception $e){t('order refunds checks',false,$e->getMessage());}
+
 // ── Round 5 hardening: isAdminRequest + atomic stock decrement ──
 try {
     $ordPhp2 = file_get_contents($root . '/api/orders.php');

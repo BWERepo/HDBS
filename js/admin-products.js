@@ -544,9 +544,10 @@ function viewOrder(oid){
           '<button class="bp" style="font-size:.82rem" onclick="editOrderDetail(\''+oid+'\')">✏️ Edit Order</button>'+
           '<button class="bs" style="font-size:.82rem" onclick="sendConfirmEmail(\''+oid+'\')">&#x1F4E7; Send Confirmation</button>'+
           '<button class="bs" style="font-size:.82rem" onclick="sendShippingEmail(\''+oid+'\')">&#x1F69A; Send Shipping</button>'+
-          '<button class="bs" style="font-size:.82rem" onclick="showRefundFormFor(\''+oid+'\',\''+order.cust+'\','+order.total+')">↩ Record Refund</button>'+
+          (refundRemaining(order)>0.004?'<button class="bs" style="font-size:.82rem" onclick="showRefundFormFor(\''+oid+'\')">↩ '+((order.refunded_amount||0)>0?'Refund More':'Refund Order')+'</button>':'')+
                     '<button class="bd" style="font-size:.82rem;margin-left:auto" onclick="deleteOrder(\''+oid+'\')">&#x1F5D1; Delete Order</button>'+
         '</div>'+
+        ((order.refunded_amount||0)>0?'<div style="margin-top:.6rem;font-size:.83rem;color:#c0392b">Refunded: $'+order.refunded_amount.toFixed(2)+' of $'+order.total.toFixed(2)+'</div>':'')+
         '<div id="vo-msg-'+oid+'" style="margin-top:.7rem;font-size:.83rem"></div>'+
       '</div>'+
       '</div>';
@@ -592,28 +593,33 @@ function deleteOrder(oid){
     }
   }).catch(function(){alert('Network error.');});
 }
-function showRefundFormFor(oid,cust,total){
-  // Pre-fill refund form for a specific order
+function showRefundFormFor(oid){
+  var order=ORDERS.find(function(o){return o.id===oid;});
+  if(!order){alert('Order not found.');return;}
+  var remaining=refundRemaining(order);
+  if(remaining<=0.004){alert('This order has already been fully refunded.');return;}
+  var methodNote=(order.pay==='Credit Card'||order.pay==='Square')?'Card order — Square will refund the customer\'s card directly.':'Cash/Check order — this only records the refund; return the money to the customer yourself.';
   var panel=document.createElement('div');
   panel.id='refund-panel';
   panel.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.2);padding:1.8rem;z-index:500;width:420px;max-width:95vw';
   panel.innerHTML=
-    '<div style="font-weight:700;font-size:1rem;margin-bottom:1.1rem;color:#2d2220">↩ Record Refund — '+oid+'</div>'+
+    '<div style="font-weight:700;font-size:1rem;margin-bottom:1.1rem;color:#2d2220">↩ Refund Order — '+oid+'</div>'+
     '<div class="merr" id="ref-err" style="display:none;background:#fdecea;color:#c0392b;padding:.5rem .8rem;border-radius:6px;font-size:.82rem;margin-bottom:.7rem"></div>'+
-    '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:7px;padding:.6rem .9rem;font-size:.83rem;margin-bottom:.8rem">'+
-      '<strong>'+cust+'</strong> — Order total: <strong>$'+parseFloat(total).toFixed(2)+'</strong>'+
+    '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:7px;padding:.6rem .9rem;font-size:.83rem;margin-bottom:.4rem">'+
+      '<strong>'+order.cust+'</strong> — Refundable: <strong>$'+remaining.toFixed(2)+'</strong>'+
     '</div>'+
+    '<div style="font-size:.78rem;color:#6b6040;margin-bottom:.6rem">'+methodNote+'</div>'+
     '<label class="fl">Refund Type *</label>'+
     '<div style="display:flex;gap:.6rem;margin-bottom:.8rem">'+
-      '<label style="display:flex;align-items:center;gap:.35rem;font-size:.85rem;cursor:pointer"><input type="radio" name="ref-type" value="full" checked onchange="updateRefundAmountFor('+total+')"> Full Refund</label>'+
+      '<label style="display:flex;align-items:center;gap:.35rem;font-size:.85rem;cursor:pointer"><input type="radio" name="ref-type" value="full" checked onchange="updateRefundAmountFor('+remaining+')"> Full Refund</label>'+
       '<label style="display:flex;align-items:center;gap:.35rem;font-size:.85rem;cursor:pointer"><input type="radio" name="ref-type" value="partial" onchange="updateRefundAmountFor(null)"> Partial Refund</label>'+
     '</div>'+
     '<label class="fl">Refund Amount *</label>'+
-    '<input class="afi" id="ref-amount" type="number" step="0.01" min="0.01" value="'+parseFloat(total).toFixed(2)+'">'+
-    '<label class="fl">Reason (optional)</label>'+
+    '<input class="afi" id="ref-amount" type="number" step="0.01" min="0.01" value="'+remaining.toFixed(2)+'">'+
+    '<label class="fl">Reason *</label>'+
     '<input class="afi" id="ref-reason" placeholder="e.g. Customer returned item">'+
     '<div style="display:flex;gap:.6rem;margin-top:.5rem">'+
-      '<button class="bp" onclick="saveRefundFor(\''+oid+'\',\''+cust+'\','+total+')">↩ Record Refund</button>'+
+      '<button class="bp" id="ref-save-btn" onclick="saveRefundFor(\''+oid+'\')">↩ Process Refund</button>'+
       '<button class="bs" onclick="document.getElementById(\'refund-panel\').remove();document.getElementById(\'refund-overlay\').remove()">Cancel</button>'+
     '</div>';
   var ov=document.createElement('div');
@@ -622,40 +628,44 @@ function showRefundFormFor(oid,cust,total){
   ov.onclick=function(){panel.remove();ov.remove();};
   document.body.appendChild(ov);
   document.body.appendChild(panel);
-  // Set full refund amount immediately
-  setTimeout(function(){updateRefundAmountFor(total);},50);
 }
-function updateRefundAmountFor(total){
+function updateRefundAmountFor(remaining){
   var inp=document.getElementById('ref-amount');
   var typeEl=document.querySelector('input[name="ref-type"]:checked');
   if(!inp||!typeEl)return;
-  if(typeEl.value==='full'&&total){
-    inp.value=parseFloat(total).toFixed(2);
+  if(typeEl.value==='full'&&remaining!=null){
+    inp.value=parseFloat(remaining).toFixed(2);
     inp.readOnly=true;inp.style.background='#f5f5f5';
   } else {
     inp.readOnly=false;inp.style.background='';inp.value='';
   }
 }
-function saveRefundFor(oid,cust,total){
+function saveRefundFor(oid){
+  var order=ORDERS.find(function(o){return o.id===oid;});
   var amt=parseFloat(document.getElementById('ref-amount').value);
   var reason=document.getElementById('ref-reason').value.trim();
   var err=document.getElementById('ref-err');
   err.style.display='none';
   if(!amt||amt<=0){err.textContent='Please enter a valid refund amount.';err.style.display='block';return;}
-  if(amt>parseFloat(total)){err.textContent='Refund cannot exceed order total ($'+parseFloat(total).toFixed(2)+').';err.style.display='block';return;}
-  var now=new Date();
-  var refId=oid+'-REF';
-  var refDateISO=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':00';
-  apiFetch('orders.php','POST',{
-    id:refId,cust:cust,email:'',phone:'',addr:'',
-    total:-amt,tax:0,pay:'Refund',status:'Refunded',date:refDateISO
-  }).then(function(d){
-    ORDERS.push({id:refId,cust:cust,total:-amt,tax:0,pay:'Refund',status:'Refunded',
-      date:now.toLocaleDateString('en-US'),dispDate:now.toLocaleDateString('en-US'),
-      time:now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}),items:[]});
+  if(!reason){err.textContent='A reason is required.';err.style.display='block';return;}
+  var remaining=order?refundRemaining(order):amt;
+  if(amt>remaining+0.004){err.textContent='Refund cannot exceed remaining refundable balance ($'+remaining.toFixed(2)+').';err.style.display='block';return;}
+  var btn=document.getElementById('ref-save-btn');
+  if(btn){btn.disabled=true;btn.textContent='Processing\u2026';}
+  apiFetch('refund.php','POST',{order_id:oid,amount:amt,reason:reason}).then(function(d){
+    if(!d||!d.success){
+      err.textContent=(d&&d.error)||'Failed to process refund.';err.style.display='block';
+      if(btn){btn.disabled=false;btn.textContent='\u21a9 Process Refund';}
+      return;
+    }
+    if(order){order.refunded_amount=d.refunded_amount;order.status=d.status;}
     document.getElementById('refund-panel').remove();
     document.getElementById('refund-overlay').remove();
     var msgEl=document.getElementById('vo-msg-'+oid);
-    if(msgEl){msgEl.style.color='#2e7d32';msgEl.textContent='\u2713 Refund '+refId+' recorded ($'+amt.toFixed(2)+')';}
-  }).catch(function(){err.textContent='Failed to save refund.';err.style.display='block';});
+    if(msgEl){msgEl.style.color='#2e7d32';msgEl.textContent='\u2713 Refund processed: $'+amt.toFixed(2)+(d.square_refund_id?' (Square refund '+d.square_refund_id+')':'')+(d.email_sent?' \u2014 email sent to customer':' \u2014 could not email customer');}
+    setTimeout(function(){viewOrder(oid);},1200);
+  }).catch(function(){
+    err.textContent='Network error \u2014 refund not processed.';err.style.display='block';
+    if(btn){btn.disabled=false;btn.textContent='\u21a9 Process Refund';}
+  });
 }
