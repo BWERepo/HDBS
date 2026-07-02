@@ -28,7 +28,7 @@ function _dbgScreen(sec){
     faqs:'FAQs',reviews:'Reviews',cats:'Categories',shipping:'Shipping',
     sqpay:'Square Payments',sweep:'Tax Sweep',
     regtest:'Regression Tests',bizprofile:'Profile',bizdocs:'Documents',
-    bizinv:'Business Inventory',bizreports:'Business Reports',
+    bizinv:'Business Inventory',bizreports:'Business Reports',bizequip:'Capital Equipment',
     emaillog:'Email Log',logs:'Error Logs',settings:'Settings',
     tncity:'TN City Sales Taxes'
   };

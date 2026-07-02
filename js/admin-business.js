@@ -249,6 +249,185 @@ function rBizInv(el){
   showPageToolbar({title:'Business Inventory',logoText:(window.BIZ_NAME||'Handmade Designs By Suzi')});
 }
 
+// -- Capital Equipment (date purchased, purchase price, description) --
+var CAPEQUIP=[];
+function rBizEquip(el){
+  el.innerHTML='<div style="padding:2rem;text-align:center;color:#6b6040">Loading…</div>';
+  apiFetch('capital_equipment.php').then(function(d){
+    CAPEQUIP=(d.success&&d.items)?d.items:[];
+    renderBizEquip(el);
+  }).catch(function(){
+    el.innerHTML='<div style="color:#c62828;padding:1rem">Failed to load capital equipment.</div>';
+  });
+}
+function renderBizEquip(el){
+  var total=CAPEQUIP.reduce(function(s,i){return s+i.purchase_price;},0);
+  var rows=CAPEQUIP.map(function(i){
+    return '<tr>'+
+      '<td>'+i.purchase_date+'</td>'+
+      '<td>'+i.description+'</td>'+
+      '<td style="font-weight:700;color:#a07810">$'+i.purchase_price.toFixed(2)+'</td>'+
+      '<td>'+(i.has_receipt
+        ? '<button class="bs" style="font-size:.72rem" onclick="viewEquipReceipt('+i.id+')" title="'+(i.receipt_orig_name||'')+'">📎 View</button> '+
+          '<button class="bd" style="font-size:.72rem" onclick="deleteEquipReceipt('+i.id+')">✕</button>'
+        : '<span style="color:#6b6040;font-size:.8rem">—</span>')+
+      '</td>'+
+      '<td><button class="be" style="font-size:.75rem" onclick="editBizEquip('+i.id+')">Edit</button> '+
+        '<button class="bd" style="font-size:.75rem" onclick="deleteBizEquip('+i.id+')">Delete</button></td>'+
+    '</tr>';
+  }).join('');
+  el.innerHTML=
+    '<div class="stats"><div class="stat"><div class="stl">Total Items</div><div class="stv">'+CAPEQUIP.length+'</div></div>'+
+    '<div class="stat"><div class="stl">Total Invested</div><div class="stv">$'+total.toFixed(2)+'</div></div></div>'+
+    '<div style="background:#fff;border:1px solid #e8e0b8;border-radius:10px;padding:1.2rem;margin:1.2rem 0;max-width:640px" id="ce-form">'+
+      '<div style="font-weight:700;margin-bottom:.9rem" id="ce-form-title">➕ Add Equipment</div>'+
+      '<input type="hidden" id="ce-id">'+
+      '<div class="g2">'+
+        '<div><label class="fl">Date Purchased</label><input class="afi" id="ce-date" type="date"></div>'+
+        '<div><label class="fl">Purchase Price ($)</label><input class="afi" id="ce-price" type="number" step="0.01" min="0.01" placeholder="0.00"></div>'+
+      '</div>'+
+      '<label class="fl">Description</label><textarea class="afi" id="ce-desc" rows="2" placeholder="e.g. Brother PE800 embroidery machine" style="resize:vertical"></textarea>'+
+      '<label class="fl">Receipt (optional)</label>'+
+      '<div id="ce-receipt-current" style="display:none;background:#fffdf0;border:1px solid #e8e0b8;border-radius:7px;padding:.5rem .8rem;margin-bottom:.5rem;font-size:.82rem;color:#2d2220"></div>'+
+      '<input type="file" id="ce-receipt-file" accept="application/pdf,image/jpeg,image/png" style="font-size:.83rem">'+
+      '<div style="font-size:.72rem;color:#6b6040;margin-top:.3rem">PDF, JPG, or PNG — max 5MB'+
+        '<span id="ce-receipt-replace-note" style="display:none"> (choosing a file replaces the current receipt)</span></div>'+
+      '<div class="aerr" id="ce-err" style="display:none;margin-top:.6rem"></div>'+
+      '<div class="aok" id="ce-ok" style="display:none">✓ Saved!</div>'+
+      '<div style="display:flex;gap:.6rem;margin-top:.7rem">'+
+        '<button class="bp" id="ce-save-btn" onclick="saveBizEquip()">💾 Add Item</button>'+
+        '<button class="bs" id="ce-cancel-btn" style="display:none" onclick="cancelBizEquipEdit()">Cancel</button>'+
+      '</div>'+
+    '</div>'+
+    '<table class="tablekit"><thead><tr><th>Date Purchased</th><th>Description</th><th>Purchase Price</th><th>Receipt</th><th>Actions</th></tr></thead>'+
+    '<tbody>'+(rows||'<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:#6b6040">No capital equipment recorded yet</td></tr>')+'</tbody>'+
+    '</table>';
+  if(typeof TableKit!=='undefined')TableKit.initAll();
+  showPageToolbar({title:'Capital Equipment',logoText:(window.BIZ_NAME||'Handmade Designs By Suzi')});
+}
+function saveBizEquip(){
+  var id=document.getElementById('ce-id').value;
+  var date=document.getElementById('ce-date').value;
+  var price=parseFloat(document.getElementById('ce-price').value);
+  var desc=document.getElementById('ce-desc').value.trim();
+  var receiptInput=document.getElementById('ce-receipt-file');
+  var receiptFile=(receiptInput&&receiptInput.files&&receiptInput.files[0])?receiptInput.files[0]:null;
+  var err=document.getElementById('ce-err');
+  err.style.display='none';
+  if(!date){err.textContent='Please enter the purchase date.';err.style.display='block';return;}
+  if(!price||price<=0){err.textContent='Please enter a valid purchase price.';err.style.display='block';return;}
+  if(!desc){err.textContent='Please enter a description.';err.style.display='block';return;}
+  if(receiptFile&&receiptFile.size>5*1024*1024){err.textContent='Receipt file must be under 5MB.';err.style.display='block';return;}
+  var body={description:desc,purchase_date:date,purchase_price:price};
+  if(id)body.id=parseInt(id,10);
+  var btn=document.getElementById('ce-save-btn');
+  if(btn)btn.disabled=true;
+  apiFetch('capital_equipment.php',id?'PUT':'POST',body).then(function(d){
+    if(!d.success){
+      err.textContent=d.error||'Save failed.';err.style.display='block';
+      if(btn)btn.disabled=false;
+      return;
+    }
+    var itemId=id?parseInt(id,10):d.id;
+    if(receiptFile&&itemId){
+      var reader=new FileReader();
+      reader.onload=function(e){
+        apiFetch('capital_equipment.php','POST',{action:'upload_receipt',id:itemId,filename:receiptFile.name,data:e.target.result})
+        .then(function(){rBizEquip(document.getElementById('acnt'));})
+        .catch(function(){rBizEquip(document.getElementById('acnt'));});
+      };
+      reader.readAsDataURL(receiptFile);
+    } else {
+      rBizEquip(document.getElementById('acnt'));
+    }
+  }).catch(function(){
+    err.textContent='Network error.';err.style.display='block';
+    if(btn)btn.disabled=false;
+  });
+}
+function editBizEquip(id){
+  var item=CAPEQUIP.find(function(i){return i.id===id;});
+  if(!item)return;
+  document.getElementById('ce-id').value=item.id;
+  document.getElementById('ce-date').value=item.purchase_date;
+  document.getElementById('ce-price').value=item.purchase_price.toFixed(2);
+  document.getElementById('ce-desc').value=item.description;
+  document.getElementById('ce-form-title').textContent='✏️ Edit Equipment';
+  document.getElementById('ce-save-btn').textContent='💾 Save Changes';
+  document.getElementById('ce-cancel-btn').style.display='inline-block';
+  var cur=document.getElementById('ce-receipt-current');
+  var note=document.getElementById('ce-receipt-replace-note');
+  if(item.has_receipt){
+    cur.style.display='block';
+    cur.innerHTML='📎 Current receipt: '+(item.receipt_orig_name||'file')+' — <a href="#" onclick="viewEquipReceipt('+item.id+');return false;" style="color:#a07810">View</a>';
+    if(note)note.style.display='inline';
+  } else {
+    cur.style.display='none';cur.innerHTML='';
+    if(note)note.style.display='none';
+  }
+  document.getElementById('ce-form').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function cancelBizEquipEdit(){
+  document.getElementById('ce-id').value='';
+  document.getElementById('ce-date').value='';
+  document.getElementById('ce-price').value='';
+  document.getElementById('ce-desc').value='';
+  var receiptInput=document.getElementById('ce-receipt-file');if(receiptInput)receiptInput.value='';
+  var cur=document.getElementById('ce-receipt-current');if(cur){cur.style.display='none';cur.innerHTML='';}
+  var note=document.getElementById('ce-receipt-replace-note');if(note)note.style.display='none';
+  document.getElementById('ce-form-title').textContent='➕ Add Equipment';
+  document.getElementById('ce-save-btn').textContent='💾 Add Item';
+  document.getElementById('ce-cancel-btn').style.display='none';
+}
+function deleteBizEquip(id){
+  if(!confirm('Delete this equipment record? This cannot be undone.'))return;
+  apiFetch('capital_equipment.php','DELETE',{id:id}).then(function(){
+    rBizEquip(document.getElementById('acnt'));
+  }).catch(function(){alert('Network error.');});
+}
+// Displays the receipt inline — an image opens in a lightbox, a PDF opens in a new tab
+// (via the browser's native viewer) instead of forcing a download.
+function viewEquipReceipt(id){
+  fetch(API+'/capital_equipment.php',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Token':window._adminToken||''},body:JSON.stringify({action:'download_receipt',id:id})})
+    .then(function(r){
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      var ctype=r.headers.get('Content-Type')||'';
+      return r.blob().then(function(blob){return {blob:blob,ctype:ctype};});
+    })
+    .then(function(res){
+      var url=URL.createObjectURL(res.blob);
+      if(res.ctype.indexOf('image/')===0){
+        showReceiptImageModal(url);
+      } else {
+        window.open(url,'_blank');
+        setTimeout(function(){URL.revokeObjectURL(url);},10000);
+      }
+    })
+    .catch(function(e){alert('Could not load receipt: '+e.message);});
+}
+function showReceiptImageModal(imgUrl){
+  var existing=document.getElementById('receipt-img-modal');if(existing)existing.remove();
+  var ov=document.createElement('div');
+  ov.id='receipt-img-modal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out';
+  var im=document.createElement('img');
+  im.src=imgUrl;
+  im.style.cssText='max-width:92vw;max-height:92vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.5)';
+  var cls=document.createElement('div');
+  cls.textContent='×';
+  cls.style.cssText='position:absolute;top:1.2rem;right:1.5rem;color:#fff;font-size:2rem;cursor:pointer;line-height:1;font-weight:300';
+  ov.appendChild(im);ov.appendChild(cls);
+  ov.onclick=function(){URL.revokeObjectURL(imgUrl);ov.remove();};
+  document.body.appendChild(ov);
+}
+function deleteEquipReceipt(id){
+  if(!confirm('Remove this receipt?'))return;
+  apiFetch('capital_equipment.php','POST',{action:'delete_receipt',id:id}).then(function(d){
+    if(!d.success){alert('Failed to remove receipt.');return;}
+    rBizEquip(document.getElementById('acnt'));
+  }).catch(function(){alert('Network error.');});
+}
+
 // -- Reports (business-level: revenue by month, status breakdown, top products) --
 function rBizReports(el){
   el.innerHTML='<div style="padding:2rem;text-align:center;color:#6b6040">Loading report data…</div>';

@@ -841,18 +841,18 @@ if (!empty($bz['logo'])) {
 <input type="file" id="slot-file-input" accept="image/*" style="display:none">
 <video id="cam-video" style="display:none" autoplay playsinline></video>
 
-<script src="js/api.js?v=8"></script>
+<script src="js/api.js?v=9"></script>
 <script src="js/config.js?v=11"></script>
 <script src="js/data.js?v=5"></script>
 <script src="js/store.js?v=15"></script>
 <script src="js/auth.js?v=5"></script>
 <script src="js/ui.js?v=7"></script>
-<script src="js/admin-nav.js?v=9"></script>
+<script src="js/admin-nav.js?v=10"></script>
 <script src="js/admin-general.js?v=5"></script>
 <script src="js/admin-products.js?v=12"></script>
 <script src="js/admin-orders.js?v=13"></script>
-<script src="js/admin-misc.js?v=16"></script>
-<script src="js/admin-business.js?v=1"></script>
+<script src="js/admin-misc.js?v=17"></script>
+<script src="js/admin-business.js?v=4"></script>
 <script src="js/table.js"></script>
 <script src="js/toolbar.js"></script>
 <script>document.addEventListener('DOMContentLoaded', function(){ TableKit.initAll(); });</script>

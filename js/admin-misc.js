@@ -397,7 +397,7 @@ var ADMIN_NAV_LABELS={
   sqpay:'💳 Square Payments',sweep:'🧾 Tax Sweep',
   regtest:'🧪 Regression Tests',emaillog:'📧 Email Log',
   logs:'📋 Error Logs',bizprofile:'👤 Profile',
-  bizdocs:'📄 Documents',bizinv:'📦 Inventory',bizreports:'📊 Reports',
+  bizdocs:'📄 Documents',bizinv:'📦 Inventory',bizreports:'📊 Reports',bizequip:'🏗️ Capital Equipment',
   settings:'⚙️ Settings',gitlog:'📜 Change History',
   deploylog:'🚀 Deploy History',
   dbbackup:'🗄️ DB Backup',
@@ -409,7 +409,7 @@ var ADMIN_NAV_DEFAULT=Object.keys(ADMIN_NAV_LABELS).map(function(s){return{sec:s
 var ADMIN_NAV_STRUCTURE_DEFAULT=[
   {type:'item',sec:'dash'},
   {type:'folder',sec:'shop',label:'🛍️ Shop',children:['prods','orders','custs','sales','subs','blast']},
-  {type:'folder',sec:'business',label:'🏢 Business',children:['bizprofile','bizdocs','bizinv','bizreports']},
+  {type:'folder',sec:'business',label:'🏢 Business',children:['bizprofile','bizdocs','bizinv','bizreports','bizequip']},
   {type:'folder',sec:'developer',label:'🔧 Developer',children:['regtest','gitlog','deploylog','dbbackup','emaillog','logs','settings']},
   {type:'item',sec:'faqs'},
   {type:'item',sec:'tncity'},
@@ -456,8 +456,13 @@ function loadNavOrder(callback){
       var devIdx=-1;
       for(var di=0;di<structure.length;di++)if(structure[di].type==='folder'&&structure[di].sec==='developer'){devIdx=di;break;}
       var insertAt=devIdx>=0?devIdx:structure.length;
-      structure.splice(insertAt,0,{type:'folder',sec:'business',label:'🏢 Business',children:['bizprofile','bizdocs','bizinv','bizreports']});
+      structure.splice(insertAt,0,{type:'folder',sec:'business',label:'🏢 Business',children:['bizprofile','bizdocs','bizinv','bizreports','bizequip']});
     }
+    // One-time migration: add Capital Equipment into the existing Business folder on saved
+    // nav_orders that predate it (a fresh install picks this up from the folder default above).
+    structure.forEach(function(n){
+      if(n.type==='folder'&&n.sec==='business'&&(n.children||[]).indexOf('bizequip')<0)n.children.push('bizequip');
+    });
     // Add any new secs not yet present anywhere in structure
     var existing=[];
     structure.forEach(function(n){

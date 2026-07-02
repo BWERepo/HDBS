@@ -375,13 +375,16 @@ try{
     $anjs=$anjsBiz;
     $abjs=file_get_contents($root.'/js/admin-business.js');
     t('Business folder in ADMIN_NAV_STRUCTURE_DEFAULT',strpos($amjs,"type:'folder',sec:'business'")!==false);
-    t('Business folder children are Profile/Documents/Inventory/Reports',strpos($amjs,"children:['bizprofile','bizdocs','bizinv','bizreports']")!==false);
+    t('Business folder children are Profile/Documents/Inventory/Reports/Capital Equipment',strpos($amjs,"children:['bizprofile','bizdocs','bizinv','bizreports','bizequip']")!==false);
     t('Nav migration consolidates legacy bizprofile into Business folder',strpos($amjs,'hasBusinessFolder')!==false);
+    t('Nav migration adds bizequip into existing Business folder',strpos($amjs,"indexOf('bizequip')<0")!==false);
     t('bizdocs/bizinv/bizreports routed in admin-nav.js',strpos($anjs,"rBizDocs(el)")!==false&&strpos($anjs,"rBizInv(el)")!==false&&strpos($anjs,"rBizReports(el)")!==false);
+    t('bizequip routed in admin-nav.js',strpos($anjs,"rBizEquip(el)")!==false);
     t('admin-business.js defines rBizProfile',strpos($abjs,'function rBizProfile(')!==false);
     t('admin-business.js defines rBizDocs',strpos($abjs,'function rBizDocs(')!==false);
     t('admin-business.js defines rBizInv',strpos($abjs,'function rBizInv(')!==false);
     t('admin-business.js defines rBizReports',strpos($abjs,'function rBizReports(')!==false);
+    t('admin-business.js defines rBizEquip',strpos($abjs,'function rBizEquip(')!==false);
     t('Profile form has business name field',strpos($abjs,'bp-name')!==false);
     t('Profile form has short name field',strpos($abjs,'bp-short-name')!==false);
     t('Profile form has address field',strpos($abjs,'bp-address')!==false);
@@ -2266,6 +2269,64 @@ try{
     t('refund form requires a reason (UI)',strpos($apjsRF,'A reason is required')!==false&&strpos($aojsRF,'A reason is required')!==false);
     t('refund form calls refund.php',strpos($apjsRF,"apiFetch('refund.php'")!==false);
 }catch(Exception $e){t('order refunds checks',false,$e->getMessage());}
+
+// ── Business: Capital Equipment (date purchased, purchase price, description, receipt) ──
+try{
+    $ceFile=$root.'/api/capital_equipment.php';
+    t('capital_equipment.php exists',file_exists($ceFile));
+    $cePhp=file_exists($ceFile)?file_get_contents($ceFile):'';
+    t('capital_equipment.php requires admin',strpos($cePhp,'requireAdmin()')!==false);
+    t('capital_equipment.php creates table',strpos($cePhp,'CREATE TABLE IF NOT EXISTS capital_equipment')!==false);
+    t('capital_equipment.php table has description/date/price columns',strpos($cePhp,'description TEXT NOT NULL')!==false&&strpos($cePhp,'purchase_date DATE NOT NULL')!==false&&strpos($cePhp,'purchase_price DECIMAL(10,2) NOT NULL')!==false);
+    t('capital_equipment.php GET returns items',strpos($cePhp,"ok(['items'")!==false);
+    t('capital_equipment.php POST validates required fields',strpos($cePhp,'purchase date, and a price greater than zero are required')!==false);
+    t('capital_equipment.php supports PUT (edit)',strpos($cePhp,"\$method === 'PUT'")!==false&&strpos($cePhp,'UPDATE capital_equipment SET')!==false);
+    t('capital_equipment.php supports DELETE',strpos($cePhp,"\$method === 'DELETE'")!==false&&strpos($cePhp,'DELETE FROM capital_equipment')!==false);
+    t('capital_equipment.php POST returns new item id',strpos($cePhp,"'id' => (int)\$pdo->lastInsertId()")!==false);
+
+    // Receipt storage: outside the webroot, validated by magic bytes (not client mime type)
+    t('capital_equipment.php stores receipts outside webroot',strpos($cePhp,"dirname(dirname(__DIR__)) . '/capital_equipment_receipts/'")!==false);
+    t('capital_equipment.php validates receipt by magic bytes',strpos($cePhp,"substr(\$bytes, 0, 4)")!==false&&strpos($cePhp,'PDF')!==false&&strpos($cePhp,'PNG')!==false);
+    t('capital_equipment.php caps receipt at 5MB',strpos($cePhp,'5 * 1024 * 1024')!==false);
+    t('capital_equipment.php supports upload_receipt action',strpos($cePhp,"\$action === 'upload_receipt'")!==false);
+    t('capital_equipment.php supports download_receipt action',strpos($cePhp,"\$action === 'download_receipt'")!==false);
+    t('capital_equipment.php supports delete_receipt action',strpos($cePhp,"\$action === 'delete_receipt'")!==false);
+    t('capital_equipment.php GET exposes has_receipt',strpos($cePhp,"'has_receipt'")!==false);
+    t('capital_equipment.php deletes receipt file when item is deleted',strpos($cePhp,'DELETE FROM capital_equipment WHERE id=?')!==false&&substr_count($cePhp,'@unlink($path)')>=1);
+
+    // Live endpoint: unauthenticated request is rejected (401), never reaches the DB
+    $rCeNoAuth=uiGet($base.'/api/capital_equipment.php');
+    tProd('capital_equipment.php:GET without token is 401',$rCeNoAuth['code']===401,'HTTP '.$rCeNoAuth['code']);
+
+    // Admin UI
+    $abjsCe=isset($abjs)?$abjs:file_get_contents($root.'/js/admin-business.js');
+    t('Capital Equipment form has date field',strpos($abjsCe,'ce-date')!==false);
+    t('Capital Equipment form has price field',strpos($abjsCe,'ce-price')!==false);
+    t('Capital Equipment form has description field',strpos($abjsCe,'ce-desc')!==false);
+    t('saveBizEquip validates date/price/description',strpos($abjsCe,'function saveBizEquip(')!==false&&strpos($abjsCe,'purchase date')!==false&&strpos($abjsCe,'purchase price')!==false);
+    t('editBizEquip function exists',strpos($abjsCe,'function editBizEquip(')!==false);
+    t('deleteBizEquip function exists',strpos($abjsCe,'function deleteBizEquip(')!==false);
+    t('Capital Equipment shows Total Invested stat',strpos($abjsCe,'Total Invested')!==false);
+    t('Capital Equipment calls capital_equipment.php',strpos($abjsCe,"apiFetch('capital_equipment.php'")!==false);
+    // Receipt is attached via the Add/Edit form (not a per-row upload input) — the item is
+    // saved first, then the receipt is attached to the returned/edited id in the same action.
+    t('Add/Edit form has receipt file field',strpos($abjsCe,'ce-receipt-file')!==false);
+    t('saveBizEquip uploads receipt after item is saved',strpos($abjsCe,"action:'upload_receipt',id:itemId")!==false);
+    t('editBizEquip shows current receipt in the form',strpos($abjsCe,'ce-receipt-current')!==false&&strpos($abjsCe,'Current receipt:')!==false);
+    t('No more per-row receipt upload input',strpos($abjsCe,'onchange="uploadEquipReceipt(')===false);
+    // View displays the receipt inline (image lightbox or new-tab PDF) instead of downloading
+    t('viewEquipReceipt function exists',strpos($abjsCe,'function viewEquipReceipt(')!==false);
+    // Scoped to just this function's body — 'a.download' legitimately appears elsewhere
+    // (bizDocDownload, a genuine file download for an unrelated feature).
+    $viewFnStart=strpos($abjsCe,'function viewEquipReceipt(');
+    $viewFnEnd=strpos($abjsCe,'function showReceiptImageModal(');
+    $viewFnBody=($viewFnStart!==false&&$viewFnEnd!==false&&$viewFnEnd>$viewFnStart)?substr($abjsCe,$viewFnStart,$viewFnEnd-$viewFnStart):'';
+    t('viewEquipReceipt does not force a download',$viewFnBody!==''&&strpos($viewFnBody,'a.download')===false);
+    t('showReceiptImageModal function exists',strpos($abjsCe,'function showReceiptImageModal(')!==false);
+    t('images open in a lightbox',strpos($abjsCe,"ctype.indexOf('image/')===0")!==false&&strpos($abjsCe,'showReceiptImageModal(url)')!==false);
+    t('PDFs open in a new tab',strpos($abjsCe,"window.open(url,'_blank')")!==false);
+    t('deleteEquipReceipt function exists',strpos($abjsCe,'function deleteEquipReceipt(')!==false);
+}catch(Exception $e){t('capital equipment checks',false,$e->getMessage());}
 
 // ── Round 5 hardening: isAdminRequest + atomic stock decrement ──
 try {
