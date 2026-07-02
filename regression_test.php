@@ -1183,6 +1183,32 @@ try{
     t('db_backup blocked with wrong token (403)',$code===403,'HTTP '.$code);
 }catch(Exception $e){t('db_backup checks',false,$e->getMessage());}
 
+// ── LOGOUT MENU ──
+try{
+    $amjs2=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
+    $anjs2=isset($anjs)?$anjs:file_get_contents($root.'/js/admin-nav.js');
+    t('logout in ADMIN_NAV_LABELS',strpos($amjs2,"logout:'🚪 Logout'")!==false);
+    t('logout in ADMIN_NAV_STRUCTURE_DEFAULT',strpos($amjs2,"type:'item',sec:'logout'")!==false);
+    t('logout in nav titles',strpos($anjs2,"logout:'Logout'")!==false);
+    t('logout clears token and reloads',strpos($anjs2,"localStorage.removeItem('suzi_admin_token')")!==false&&strpos($anjs2,'location.reload()')!==false);
+}catch(Exception $e){t('logout menu checks',false,$e->getMessage());}
+
+// ── SHIPPING EMAIL SHIPPER/TRACKING ──
+try{
+    $aojs=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
+    $ssphp2=isset($ssphp)?$ssphp:file_get_contents($root.'/send_shipping.php');
+    t('emailPreviewThenSend defined',strpos($aojs,'function emailPreviewThenSend')!==false);
+    t('showEmailPreviewModal detects shipping email',strpos($aojs,"endpoint.indexOf('send_shipping')!==-1")!==false);
+    t('shipping preview has shipper dropdown',strpos($aojs,"id=\"email-carrier\"")!==false);
+    t('shipping preview has tracking field',strpos($aojs,"id=\"email-tracking\"")!==false);
+    t('emailSendNow extracts shipper value',strpos($aojs,"payload.carrier=carrierEl.value")!==false);
+    t('emailSendNow extracts tracking value',strpos($aojs,"payload.tracking=trackingEl.value")!==false);
+    t('send_shipping accepts carrier param',strpos($ssphp2,"\$carrier_override = isset(\$data['carrier'])")!==false);
+    t('send_shipping accepts tracking param',strpos($ssphp2,"\$tracking_override = isset(\$data['tracking'])")!==false);
+    t('send_shipping updates order with shipper',strpos($ssphp2,"'shipping_carrier=?'")!==false);
+    t('send_shipping updates order with tracking',strpos($ssphp2,"'tracking_number=?'")!==false);
+}catch(Exception $e){t('shipping email shipper/tracking checks',false,$e->getMessage());}
+
 // ── SENSITIVE SETTINGS BLOCKED ──
 try{
     $adphp=isset($adphp)?$adphp:file_get_contents($root.'/api/admin.php');

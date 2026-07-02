@@ -60,6 +60,25 @@ function emailPreviewThenSend(endpoint,oid,label){
 function showEmailPreviewModal(endpoint,oid,label,d){
   var esc=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
   var existing=document.getElementById('email-preview-modal');if(existing)existing.remove();
+  var isShipping=endpoint.indexOf('send_shipping')!==-1;
+  var shippingFields='';
+  if(isShipping){
+    var order=ORDERS.find(function(o){return o.id===oid;});
+    var carrier=order&&order.carrier?order.carrier:'USPS';
+    var tracking=order&&order.tracking?order.tracking:'';
+    shippingFields=
+      '<div style="padding:.7rem 1.4rem;background:#fff9e6;border-bottom:1px solid #e8e0b8">'+
+        '<div class="g2" style="gap:.8rem">'+
+          '<div><label style="font-size:.75rem;font-weight:600;color:#6b6040;display:block;margin-bottom:.3rem">Shipper</label>'+
+            '<select class="afi" id="email-carrier" style="margin:0;font-size:.88rem">'+
+            ['USPS','UPS','FedEx','Other'].map(function(cr){return'<option'+(cr===carrier?' selected':'')+'>'+cr+'</option>';}).join('')+
+            '</select></div>'+
+          '<div><label style="font-size:.75rem;font-weight:600;color:#6b6040;display:block;margin-bottom:.3rem">Tracking Number</label>'+
+            '<input class="afi" id="email-tracking" value="'+esc(tracking)+'" placeholder="Tracking #" style="margin:0;font-family:monospace;font-size:.88rem">'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+  }
   var div=document.createElement('div');
   div.id='email-preview-modal';
   div.className='modal-ov on';
@@ -74,6 +93,7 @@ function showEmailPreviewModal(endpoint,oid,label,d){
         '<div><strong>To:</strong> '+esc(d.to)+'</div>'+
         '<div><strong>Subject:</strong> '+esc(d.subject)+'</div>'+
       '</div>'+
+      shippingFields+
       '<iframe id="email-preview-frame" style="flex:1;width:100%;min-height:360px;border:0;background:#fff"></iframe>'+
       '<div style="padding:.9rem 1.4rem;border-top:1px solid #e8e0b8;display:flex;justify-content:flex-end;gap:.6rem">'+
         '<button class="bs" onclick="document.getElementById(\'email-preview-modal\').remove()">Cancel</button>'+
@@ -84,12 +104,19 @@ function showEmailPreviewModal(endpoint,oid,label,d){
   var frame=document.getElementById('email-preview-frame');
   if(frame)frame.srcdoc=d.html;
   var sendBtn=document.getElementById('email-preview-send');
-  if(sendBtn)sendBtn.onclick=function(){emailSendNow(endpoint,oid,label,sendBtn);};
+  if(sendBtn)sendBtn.onclick=function(){emailSendNow(endpoint,oid,label,sendBtn,isShipping);};
 }
-function emailSendNow(endpoint,oid,label,btn){
+function emailSendNow(endpoint,oid,label,btn,isShipping){
   if(btn){btn.disabled=true;btn.textContent='Sending…';}
+  var payload={order_id:oid};
+  if(isShipping){
+    var carrierEl=document.getElementById('email-carrier');
+    var trackingEl=document.getElementById('email-tracking');
+    if(carrierEl)payload.carrier=carrierEl.value;
+    if(trackingEl)payload.tracking=trackingEl.value.trim();
+  }
   fetch(SITE_ORIGIN+endpoint,{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({order_id:oid})})
+    body:JSON.stringify(payload)})
   .then(function(r){return r.json();})
   .then(function(d){
     var modal=document.getElementById('email-preview-modal');if(modal)modal.remove();

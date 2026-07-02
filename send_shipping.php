@@ -22,7 +22,9 @@ try{
 
     $data     = json_decode(file_get_contents('php://input'), true);
     $order_id = isset($data['order_id']) ? trim($data['order_id']) : '';
-dbg('send_shipping', "START order_id=$order_id");
+    $carrier_override = isset($data['carrier']) ? trim($data['carrier']) : '';
+    $tracking_override = isset($data['tracking']) ? trim($data['tracking']) : '';
+dbg('send_shipping', "START order_id=$order_id carrier_override=$carrier_override tracking_override=$tracking_override");
     if(!$order_id){ ob_end_clean(); echo json_encode(['success'=>false,'error'=>'Missing order_id']); exit; }
 
     $pdo = db();
@@ -30,6 +32,26 @@ dbg('send_shipping', "START order_id=$order_id");
     $stmt->execute([$order_id]);
     $order = $stmt->fetch();
     if(!$order){ ob_end_clean(); echo json_encode(['success'=>false,'error'=>'Order not found']); exit; }
+
+    // Update order with carrier/tracking if provided in request
+    if($carrier_override || $tracking_override){
+        $updates = [];
+        $params = [];
+        if($carrier_override){
+            $updates[] = 'shipping_carrier=?';
+            $params[] = $carrier_override;
+        }
+        if($tracking_override){
+            $updates[] = 'tracking_number=?';
+            $params[] = $tracking_override;
+        }
+        if(!empty($updates)){
+            $params[] = $order_id;
+            $pdo->prepare('UPDATE orders SET '.implode(',', $updates).' WHERE id=?')->execute($params);
+            if($carrier_override) $order['shipping_carrier'] = $carrier_override;
+            if($tracking_override) $order['tracking_number'] = $tracking_override;
+        }
+    }
 
     // Fetch order items (exclude _ship)
     $istmt = $pdo->prepare("SELECT oi.product_name, oi.price, oi.quantity, oi.product_id, p.sku, p.img1 FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id WHERE oi.order_id=? AND oi.product_id!='_ship'");
