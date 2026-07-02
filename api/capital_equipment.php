@@ -60,7 +60,12 @@ if ($method === 'POST' && $action === 'upload_receipt') {
 
     $filename = 'receipt_' . $id . '_' . time() . '.' . $ext;
     file_put_contents($storeDir . $filename, $bytes);
-    $origName = trim($d['filename'] ?? 'receipt');
+    // Strip control characters and HTML/quote-significant characters — this value is later
+    // rendered in the admin UI and echoed in a Content-Disposition header, and untrusted since
+    // it comes straight from the uploaded file's client-reported name.
+    $origName = preg_replace('/[\x00-\x1F\x7F"\'<>]/', '', trim($d['filename'] ?? 'receipt'));
+    $origName = substr($origName, 0, 200);
+    if ($origName === '') $origName = 'receipt';
     $pdo->prepare("UPDATE capital_equipment SET receipt_filename=?, receipt_orig_name=? WHERE id=?")
         ->execute([$filename, $origName, $id]);
     ok(['message' => 'Receipt uploaded']);
@@ -78,8 +83,11 @@ if ($method === 'POST' && $action === 'download_receipt') {
     if (!is_file($path)) fail('File not found', 404);
     $ext  = strtolower(pathinfo($row['receipt_filename'], PATHINFO_EXTENSION));
     $mime = $ext === 'pdf' ? 'application/pdf' : ($ext === 'png' ? 'image/png' : 'image/jpeg');
+    // Defense in depth: strip quotes/control chars again even though upload already sanitizes,
+    // so this header can never be corrupted by a stored value from before this fix.
+    $dispositionName = str_replace(['"', "\r", "\n"], '', basename($row['receipt_orig_name'] ?: $row['receipt_filename']));
     header('Content-Type: ' . $mime);
-    header('Content-Disposition: attachment; filename="' . basename($row['receipt_orig_name'] ?: $row['receipt_filename']) . '"');
+    header('Content-Disposition: attachment; filename="' . $dispositionName . '"');
     header('Content-Length: ' . filesize($path));
     readfile($path);
     exit();

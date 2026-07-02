@@ -73,7 +73,10 @@ if ($isCard) {
     $sqMode  = getSetting($pdo, 'square_mode') ?: 'live';
     $baseUrl = ($sqMode === 'test') ? 'https://connect.squareupsandbox.com/v2' : 'https://connect.squareup.com/v2';
 
-    $idempotencyKey = substr(hash('sha256', $oid.'|'.$amount.'|'.uniqid('', true)), 0, 40);
+    // Deterministic within a 10-minute window: a genuine network/UI retry of the same
+    // refund reuses this key so Square dedupes it instead of double-refunding, while a
+    // separate legitimate refund of the same amount later still gets a fresh key.
+    $idempotencyKey = substr(hash('sha256', $oid.'|'.$amount.'|'.floor(time() / 600)), 0, 40);
     $sqBody = [
         'idempotency_key' => $idempotencyKey,
         'amount_money'    => ['amount' => (int)round($amount * 100), 'currency' => 'USD'],
@@ -136,7 +139,11 @@ function sendRefundEmail($pdo, $order, $amount, $reason, $payMethod, $squareRefu
         } catch (Exception $e) { /* keep fallback */ }
         $bizUrlDisplay = preg_replace('#^https?://#', '', rtrim($bizUrl, '/'));
 
-        $oid       = $order['id'];
+        // orders.php doesn't restrict the format of a customer-submitted order id at checkout,
+        // so strip CR/LF here (blocks SMTP header injection via the subject) and HTML-escape
+        // it below for the body — this is the only place that order id reaches an email.
+        $oid       = str_replace(["\r", "\n"], '', $order['id']);
+        $oidSafe   = htmlspecialchars($oid);
         $firstName = htmlspecialchars(explode(' ', trim($order['customer_name'] ?? ''))[0] ?? '');
         $isCard    = in_array($payMethod, ['Credit Card', 'Square'], true);
         $viaLine   = $isCard
@@ -159,7 +166,7 @@ function sendRefundEmail($pdo, $order, $amount, $reason, $payMethod, $squareRefu
     <p>We've processed a refund for your order.</p>
     <div style='background:#fffdf0;border-radius:8px;padding:16px;margin:20px 0;border:1px solid #e8e0b8'>
       <div style='font-size:.7rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:6px'>Order</div>
-      <div style='margin-bottom:14px'><strong>#{$oid}</strong></div>
+      <div style='margin-bottom:14px'><strong>#{$oidSafe}</strong></div>
       <div style='font-size:.7rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:6px'>Refund Amount</div>
       <div style='margin-bottom:14px;font-size:1.3rem;font-weight:700;color:#a07810'>\$".number_format($amount, 2)."</div>
       <div style='font-size:.7rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:6px'>Reason</div>

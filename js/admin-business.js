@@ -260,15 +260,16 @@ function rBizEquip(el){
     el.innerHTML='<div style="color:#c62828;padding:1rem">Failed to load capital equipment.</div>';
   });
 }
+function ceEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function renderBizEquip(el){
   var total=CAPEQUIP.reduce(function(s,i){return s+i.purchase_price;},0);
   var rows=CAPEQUIP.map(function(i){
     return '<tr>'+
       '<td>'+i.purchase_date+'</td>'+
-      '<td>'+i.description+'</td>'+
+      '<td>'+ceEsc(i.description)+'</td>'+
       '<td style="font-weight:700;color:#a07810">$'+i.purchase_price.toFixed(2)+'</td>'+
       '<td>'+(i.has_receipt
-        ? '<button class="bs" style="font-size:.72rem" onclick="viewEquipReceipt('+i.id+')" title="'+(i.receipt_orig_name||'')+'">📎 View</button> '+
+        ? '<button class="bs" style="font-size:.72rem" onclick="viewEquipReceipt('+i.id+')" title="'+ceEsc(i.receipt_orig_name)+'">📎 View</button> '+
           '<button class="bd" style="font-size:.72rem" onclick="deleteEquipReceipt('+i.id+')">✕</button>'
         : '<span style="color:#6b6040;font-size:.8rem">—</span>')+
       '</td>'+
@@ -359,7 +360,7 @@ function editBizEquip(id){
   var note=document.getElementById('ce-receipt-replace-note');
   if(item.has_receipt){
     cur.style.display='block';
-    cur.innerHTML='📎 Current receipt: '+(item.receipt_orig_name||'file')+' — <a href="#" onclick="viewEquipReceipt('+item.id+');return false;" style="color:#a07810">View</a>';
+    cur.innerHTML='📎 Current receipt: '+ceEsc(item.receipt_orig_name||'file')+' — <a href="#" onclick="viewEquipReceipt('+item.id+');return false;" style="color:#a07810">View</a>';
     if(note)note.style.display='inline';
   } else {
     cur.style.display='none';cur.innerHTML='';

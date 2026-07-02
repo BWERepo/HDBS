@@ -2268,6 +2268,17 @@ try{
     t('orders list has Refunded column',strpos($aojsRF,"'Refunded'")!==false);
     t('refund form requires a reason (UI)',strpos($apjsRF,'A reason is required')!==false&&strpos($aojsRF,'A reason is required')!==false);
     t('refund form calls refund.php',strpos($apjsRF,"apiFetch('refund.php'")!==false);
+
+    // Hardening (2026-07-02): idempotency key must be deterministic so a genuine retry of the
+    // same refund dedupes on Square's side instead of double-refunding real money.
+    t('refund.php idempotency key has no random component',strpos($rfPhp,'uniqid')===false);
+    t('refund.php idempotency key is time-bucketed and deterministic',strpos($rfPhp,'floor(time() / 600)')!==false);
+    // Hardening: order id (customer-controlled, unrestricted format at checkout) is sanitized
+    // before reaching the refund email — CR/LF stripped (blocks SMTP header injection via the
+    // subject line) and HTML-escaped separately for the body.
+    t('refund.php strips CR/LF from order id before use in email',strpos($rfPhp,'str_replace(["\r", "\n"], \'\', $order[\'id\'])')!==false);
+    t('refund.php HTML-escapes order id for the email body',strpos($rfPhp,'$oidSafe   = htmlspecialchars($oid)')!==false);
+    t('refund.php email body uses the escaped order id, not the raw one',strpos($rfPhp,'#{$oidSafe}')!==false);
 }catch(Exception $e){t('order refunds checks',false,$e->getMessage());}
 
 // ── Business: Capital Equipment (date purchased, purchase price, description, receipt) ──
@@ -2326,6 +2337,17 @@ try{
     t('images open in a lightbox',strpos($abjsCe,"ctype.indexOf('image/')===0")!==false&&strpos($abjsCe,'showReceiptImageModal(url)')!==false);
     t('PDFs open in a new tab',strpos($abjsCe,"window.open(url,'_blank')")!==false);
     t('deleteEquipReceipt function exists',strpos($abjsCe,'function deleteEquipReceipt(')!==false);
+
+    // Hardening (2026-07-02): receipt_orig_name is client-controlled (the uploaded file's
+    // reported name) and was reflected unescaped in an HTML title attribute and a response
+    // header — fixed with sanitization at upload time, a header-output guard, and JS escaping.
+    t('capital_equipment.php sanitizes filename at upload (strips control/quote/HTML chars)',strpos($cePhp,'[\x00-\x1F\x7F')!==false&&strpos($cePhp,'<>]')!==false);
+    t('capital_equipment.php caps sanitized filename length',strpos($cePhp,'substr($origName, 0, 200)')!==false);
+    t('capital_equipment.php Content-Disposition strips quotes/CRLF (defense in depth)',strpos($cePhp,'$dispositionName = str_replace([\'"\', "\r", "\n"]')!==false);
+    t('ceEsc escape helper exists in admin-business.js',strpos($abjsCe,'function ceEsc(')!==false);
+    t('description is escaped before rendering',strpos($abjsCe,'ceEsc(i.description)')!==false);
+    t('receipt_orig_name is escaped in the View button title',strpos($abjsCe,'ceEsc(i.receipt_orig_name)')!==false);
+    t('receipt_orig_name is escaped in the edit form current-receipt display',strpos($abjsCe,'ceEsc(item.receipt_orig_name')!==false);
 }catch(Exception $e){t('capital equipment checks',false,$e->getMessage());}
 
 // ── Round 5 hardening: isAdminRequest + atomic stock decrement ──

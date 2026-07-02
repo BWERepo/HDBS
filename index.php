@@ -852,7 +852,7 @@ if (!empty($bz['logo'])) {
 <script src="js/admin-products.js?v=12"></script>
 <script src="js/admin-orders.js?v=13"></script>
 <script src="js/admin-misc.js?v=17"></script>
-<script src="js/admin-business.js?v=4"></script>
+<script src="js/admin-business.js?v=5"></script>
 <script src="js/table.js"></script>
 <script src="js/toolbar.js"></script>
 <script>document.addEventListener('DOMContentLoaded', function(){ TableKit.initAll(); });</script>
