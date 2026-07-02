@@ -442,6 +442,16 @@ try{
     $ppphp=file_get_contents($root.'/api/process_payment.php');
     t('process_payment.php fetches biz name and email',strpos($ppphp,'$biz_name_pp')!==false&&strpos($ppphp,'$biz_email_pp')!==false);
     t('api/contact.php uses dynamic biz name in email header',strpos(file_get_contents($root.'/api/contact.php'),'$biz_name_ct')!==false);
+    // Regression: $pdo was used (rate limiting, bizName(), email_log) without ever being
+    // assigned, causing a fatal error on every submission (fixed 2026-07-02).
+    $ctPdo=file_get_contents($root.'/api/contact.php');
+    t('contact.php assigns $pdo before use',strpos($ctPdo,'$pdo = db();')!==false);
+    $ctPdoPos=strpos($ctPdo,'$pdo = db();');$ctUsePos=strpos($ctPdo,'use ($pdo)');
+    t('contact.php $pdo assigned before rate limit closure',$ctPdoPos!==false&&$ctUsePos!==false&&$ctPdoPos<$ctUsePos);
+    // Regression: Yahoo's SMTP relay rejects a MAIL FROM / Reply-To that doesn't match the
+    // authenticated mailbox — contact.php must send from its own address, not the visitor's.
+    // (the exact 5-arg call also confirms no Reply-To arg is passed to sendEmail())
+    t('contact.php sends from its own address, not the visitor\'s',strpos($ctPdo,'sendEmail($to, $fullsubj, $html_body, $to, $name)')!==false);
     // JS: window.BIZ_NAME / window.BIZ_EMAIL wired with hardcoded fallback (never a hard failure if unset)
     $storejs=file_get_contents($root.'/js/store.js');
     t('store.js product title uses window.BIZ_NAME',strpos($storejs,'window.BIZ_NAME')!==false);
@@ -548,6 +558,10 @@ try{
     t('contactpage in showOnly pages list',strpos($cfjs,'contactpage')!==false);
     t('submitContact function exists',strpos($cfjs,'function submitContact()')!==false);
     t('goContact scrolls to top',strpos($cfjs,'scrollTo(0,0)')!==false);
+    // Regression: goContact() referenced a stale 'contact-ok' element (removed in a prior
+    // redesign — real ids are ctc-ok/ctc-err) and threw on every Contact page visit until
+    // it was null-guarded (fixed 2026-07-02).
+    t('goContact null-guards contact-ok element',strpos($cfjs,"getElementById('contact-ok');if(contactOk)")!==false);
     t('hamburger on all pages',$hamCount>=7,'found '.$hamCount.' (expected 7+)');
 }catch(Exception $e){t('contact page checks',false,$e->getMessage());}
 // Business profile (moved to js/admin-business.js) and confirmation email
@@ -2017,9 +2031,13 @@ try{
     $r=uiGet($base.'/api/tn_city_tax.php?action=list');
     t('ui:TN city tax list returns 200',$r['code']===200,'HTTP '.$r['code']);
 
-    // Contact form — missing fields returns failure not 500
+    // Contact form — missing fields returns failure not 500.
+    // Note: a PHP fatal error still returns HTTP 200 with mangled HTML+JSON output, so
+    // code!==500 alone previously missed the $pdo-undefined bug below — also require valid JSON.
     $r=uiPost($base.'/api/contact.php',[]);
     t('ui:contact API handles empty body',$r['code']!==500,'HTTP '.$r['code']);
+    t('ui:contact API returns valid JSON (no PHP error leakage)',$r['json']!==null,'body: '.substr($r['body'],0,150));
+    t('ui:contact API empty body rejected cleanly',$r['json']&&empty($r['json']['success']));
 
     // regression_test.php itself gated (wrong token → forbidden)
     $r=uiGet($base.'/regression_test.php?token=wrongtoken');
@@ -2193,8 +2211,10 @@ try{
     t('refund.php migrates orders.refunded_amount',strpos($rfPhp,'ADD COLUMN refunded_amount')!==false);
     $ordcolsRF=$pdo->query("SHOW COLUMNS FROM orders")->fetchAll(PDO::FETCH_COLUMN);
     t('orders.refunded_amount column exists',in_array('refunded_amount',$ordcolsRF));
+    // Lazily created by refund.php on first real invocation — won't exist on staging until
+    // that endpoint has actually been hit there (the tProd live checks below only ever hit prod).
     $tblsRF=$pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
-    t('refunds table exists',in_array('refunds',$tblsRF));
+    tProd('refunds table exists',in_array('refunds',$tblsRF));
 
     // Core logic
     t('refund.php requires admin',strpos($rfPhp,'requireAdmin()')!==false);
