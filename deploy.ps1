@@ -65,8 +65,7 @@ function Log-Deploy($fileList, $mode) {
         $body = @{ files = $normalized; count = $normalized.Count; mode = $mode } | ConvertTo-Json -Compress
         $resp = Invoke-RestMethod -Uri "$apiBase/deploy_log.php" -Method Post -Body $body -ContentType "application/json"
         if ($resp.version) {
-            if ($resp.bumped) { Write-Host "  Version incremented to $($resp.version)" -ForegroundColor Cyan }
-            else { Write-Host "  Version $($resp.version) (same logical change)" -ForegroundColor DarkGray }
+            Write-Host "  Version at deploy: $($resp.version)" -ForegroundColor DarkGray
         }
     } catch {}
 }

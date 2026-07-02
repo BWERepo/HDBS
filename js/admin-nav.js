@@ -43,7 +43,7 @@ function showPageToolbar(opts){
 function aNavById(sec){
   var tb=document.getElementById('page-toolbar');if(tb)tb.style.display='none';
   var t=document.getElementById('aptitle');if(t)t.style.display='';
-  var titles={dash:'Dashboard',prods:'Product Management',orders:'Orders',custs:'Customers',inv:'Inventory',sales:'Sales Report',subs:'Newsletter Subscribers',blast:'Email Blast',faqs:'FAQs',reviews:'Reviews',cats:'Categories',shipping:'Shipping Charges',manord:'Manual Order',sqpay:'Square Payments',sweep:'Tax Sweep',regtest:'Regression Tests',bizprofile:'Business Profile',emaillog:'Email Log',logs:'Error Logs',settings:'Settings',tncity:'TN City Sales Taxes',gitlog:'Change History',deploylog:'Deploy History',promptlog:'Prompt History',dbbackup:'DB Backup'};
+  var titles={dash:'Dashboard',prods:'Product Management',orders:'Orders',custs:'Customers',inv:'Inventory',sales:'Sales Report',subs:'Newsletter Subscribers',blast:'Email Blast',faqs:'FAQs',reviews:'Reviews',cats:'Categories',shipping:'Shipping Charges',sqpay:'Square Payments',sweep:'Tax Sweep',regtest:'Regression Tests',bizprofile:'Business Profile',emaillog:'Email Log',logs:'Error Logs',settings:'Settings',tncity:'TN City Sales Taxes',gitlog:'Change History',deploylog:'Deploy History',promptlog:'Prompt History',dbbackup:'DB Backup'};
   document.getElementById('aptitle').textContent=titles[sec]||sec;
   var ab=document.getElementById('addbtn');
   if(sec==='prods'){ab.style.display='inline-block';ab.textContent='+ Add Product';ab.onclick=function(){showPF(null);};}
@@ -59,7 +59,7 @@ function aNavById(sec){
   if(localStorage.getItem('hdbs_pagelog')==='1')apiFetch('admin.php','POST',{action:'log_page_view',page:(titles[sec]||sec)});
   var el=document.getElementById('acnt');
   if(sec==='dash')rDash(el);else if(sec==='prods')rProds(el);else if(sec==='orders')rOrders(el);
-  else if(sec==='custs')rCusts(el);else if(sec==='inv')rInv(el);else if(sec==='sales')rSales(el);else if(sec==='subs')rSubs(el);else if(sec==='blast')rBlast(el);else if(sec==='tncity')rTnCity(el);else if(sec==='faqs')rAdminFAQs(el);else if(sec==='reviews')rAdminReviews(el);else if(sec==='cats')rCats(el);else if(sec==='shipping')rShipping(el);else if(sec==='emaillog')rEmailLog(el);else if(sec==='logs')rLogs(el);else if(sec==='settings')rSettings(el);else if(sec==='bizprofile')rBizProfile(el);else if(sec==='sweep')rSweep(el);else if(sec==='regtest')rRegTest(el);else if(sec==='sqpay')rSqPay(el);else if(sec==='gitlog')rGitLog(el);else if(sec==='deploylog')rDeployLog(el);else if(sec==='promptlog')rPromptLog(el);else if(sec==='dbbackup')rDbBackup(el);else if(sec==='manord')showManualOrderForm();
+  else if(sec==='custs')rCusts(el);else if(sec==='inv')rInv(el);else if(sec==='sales')rSales(el);else if(sec==='subs')rSubs(el);else if(sec==='blast')rBlast(el);else if(sec==='tncity')rTnCity(el);else if(sec==='faqs')rAdminFAQs(el);else if(sec==='reviews')rAdminReviews(el);else if(sec==='cats')rCats(el);else if(sec==='shipping')rShipping(el);else if(sec==='emaillog')rEmailLog(el);else if(sec==='logs')rLogs(el);else if(sec==='settings')rSettings(el);else if(sec==='bizprofile')rBizProfile(el);else if(sec==='sweep')rSweep(el);else if(sec==='regtest')rRegTest(el);else if(sec==='sqpay')rSqPay(el);else if(sec==='gitlog')rGitLog(el);else if(sec==='deploylog')rDeployLog(el);else if(sec==='promptlog')rPromptLog(el);else if(sec==='dbbackup')rDbBackup(el);
 }
 
 function rDash(el){

@@ -83,21 +83,18 @@ var BLAST_TARGET='subs';
 var ORDER_FILTER='';
 var ORDER_DATE_FROM='';
 var ORDER_DATE_TO='';
-var MO_ITEMS=[];
-var MO_PRODS_OPTS='';
 var ORD_SORT={col:'date',dir:-1};
 var ORD_F={id:'',cust:'',dateFrom:'',dateTo:'',total:'',tax:'',pay:'',status:'',swept_date:''};
 var RT_GROUPS={
   'DB Schema':['orders.tax_amount','orders.tax_swept_date','orders.payment_method','orders.customer_email','orders.total','orders.shipping_carrier','orders.tracking_number','orders.square_payment_id','products.sku','products.img1','products.price','products.name','products.stock','products.weight','orders table','products table','order_items table','settings table','tax_sweeps table','settings LONGTEXT','tax_swept removed'],
   'Data Integrity':['products exist','orders exist','settings exist','square_mode set','shipping_config','biz_profile','products have SKUs','no duplicate SKUs'],
   'Required Files':['api/config.php','api/admin.php','api/orders.php','api/products.php','api/tax_sweep.php','api/square_payments.php','mailer.php','checkout.php','send_confirm.php','send_shipping.php','index.html'],
-  'JS Functions':['JS:openCheckout','JS:placeOrder','JS:renderOrdersTable','JS:viewOrder','JS:showManualOrderForm','JS:sendConfirmEmail','JS:rSweep','JS:rSqPay','JS:applyShippingConfig','JS:rBizProfile','JS:buildAdminNav','JS:saveNavOrder','JS:rRegTest','JS:runRegTests','JS:cancelRegTests','JS:SQ_FEE_PCT','JS:TAX_RATES','JS:admin-nav','JS:updCarrier','JS:updTracking','JS:deleteOrder','JS:sendShippingEmail','JS:pfNextSku','JS:pfAutoSku','JS:fetchOrderTax']
+  'JS Functions':['JS:openCheckout','JS:placeOrder','JS:renderOrdersTable','JS:viewOrder','JS:sendConfirmEmail','JS:rSweep','JS:rSqPay','JS:applyShippingConfig','JS:rBizProfile','JS:buildAdminNav','JS:saveNavOrder','JS:rRegTest','JS:runRegTests','JS:cancelRegTests','JS:SQ_FEE_PCT','JS:TAX_RATES','JS:admin-nav','JS:updCarrier','JS:updTracking','JS:deleteOrder','JS:sendShippingEmail','JS:pfNextSku','JS:pfAutoSku','JS:fetchOrderTax']
 };
 var ADMIN_NAV_DEFAULT=[
   {sec:'dash',    label:'📊 Dashboard'},
   {sec:'prods',   label:'👜 Products'},
   {sec:'orders',  label:'📦 Orders'},
-  {sec:'manord',  label:'📋 Manual Order'},
   {sec:'custs',   label:'👥 Customers'},
   {sec:'sales',   label:'💰 Sales'},
   {sec:'subs',    label:'✉️ Subscribers'},

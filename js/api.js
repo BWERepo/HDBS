@@ -1,6 +1,7 @@
 // ── API BASE ──
-// Environment-aware origin: the staging subdomain talks to itself; production is unchanged.
-var SITE_ORIGIN=(location.hostname.indexOf('staging')!==-1)?location.origin:'https://handmadedesignsbysuzi.com';
+// Always talk to the API on the SAME origin as the page, so the site works on
+// www and non-www alike (a hardcoded host made www visitors fail CORS → no products).
+var SITE_ORIGIN=location.origin;
 var API=SITE_ORIGIN+'/api';
 
 // ── Debug ──

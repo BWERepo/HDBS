@@ -20,21 +20,7 @@ if ($method === 'POST') {
         $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         file_put_contents($logFile, implode("\n", array_slice($lines, -200)) . "\n");
     }
-    // Auto-increment the minor version once per logical change.
-    // Deploys within SESSION_GAP of each other count as one change (matches the
-    // Deploy History 5-minute session grouping), so a multi-file task bumps once.
-    $bumped = false;
-    try {
-        $pdo    = db();
-        $now    = time();
-        $lastTs = (int)(getSetting($pdo, 'last_deploy_ts') ?? 0);
-        if ($now - $lastTs > 300) { // 5 minutes — start of a new logical change
-            $minor = (int)(getSetting($pdo, 'minor_version') ?? 0) + 1;
-            setSetting($pdo, 'minor_version', (string)$minor);
-            $bumped = true;
-        }
-        setSetting($pdo, 'last_deploy_ts', (string)$now);
-    } catch (Exception $e) {}
+    // Version is now manually set at checkpoint time, not auto-incremented on deploy
     // Capture the current site version so each deploy records the version it produced
     $version = '';
     try {
@@ -45,7 +31,7 @@ if ($method === 'POST') {
     } catch (Exception $e) {}
     $entry = json_encode(['ts' => date('c'), 'count' => $count, 'mode' => $mode, 'version' => $version, 'files' => array_values($files)]);
     file_put_contents($logFile, $entry . "\n", FILE_APPEND | LOCK_EX);
-    ok(['message' => 'Logged', 'version' => $version, 'bumped' => $bumped]);
+    ok(['message' => 'Logged', 'version' => $version]);
 }
 
 if ($method === 'GET') {

@@ -1,4 +1,4 @@
-﻿This project uses standard prompts stored in "Z:\\Backup\\Websites\\Web Utilities\\StandardPrompts.md"
+﻿This project uses standard prompts stored in "Z:\Backup\Websites\Claude\StandardPrompts.md"
 
 # Project: Handmade Designs By Suzi
 
@@ -97,8 +97,8 @@
 ## Site Version
 - Stored as `major_version` and `minor_version` in settings table
 - Displayed in all 4 footers via `.site-version-line` div (opacity 0.5)
-- `minor_version` auto-increments once per logical change — deploys within 5 minutes of each other count as one change (matches Deploy History session grouping), so a multi-file task bumps the version once
-- Settings screen has Version card to manually set major/minor
+- **Manual only**: version is NOT auto-incremented. At checkpoint time, user specifies the new version number.
+- Settings screen has Version card to manually set major/minor (also used by checkpoint workflow)
 
 ## Admin Nav
 - Nested JSON stored in `nav_order` setting
@@ -116,13 +116,17 @@
 - Only run on an explicit "test" command (not after every change, not on checkpoint). On a test command: update the tests first, then run. See Workflow Triggers.
 
 ## Deploy
-- Single file: `.\deploy.ps1 path/to/file.php`
-- Full deploy: `.\deploy.ps1`
-- Each deploy logs to deploy history; the minor version auto-increments once per logical change (deploys within 5 min are grouped as one — see Site Version)
+- **Branch determines target**: on `dev` branch, deploy with `-staging` (→ https://staging.handmadedesignsbysuzi.com); on `main` branch, deploy without it (→ https://handmadedesignsbysuzi.com). Check `git branch --show-current` before every deploy.
+- Single file to staging: `.\deploy.ps1 -staging path/to/file.php`
+- Single file to prod: `.\deploy.ps1 path/to/file.php`
+- Full deploy: add `-staging` for staging, omit for prod
+- Staging keeps its own `.htaccess` (Basic Auth + noindex) — never deployed there, even in a full deploy
+- Each deploy logs to deploy history with the current version at that moment (not auto-incremented). Version is set manually at checkpoint time.
 - Use `Invoke-RestMethod` for JSON POSTs in deploy.ps1 (curl.exe has PS 5.1 quoting issues)
 - `watch.ps1` runs during active dev to auto-deploy on file save
-- Always explicitly report which files were deployed and when (per StandardPrompts rule)
-- **Deploy immediately after every local change** — do not batch or wait for a checkpoint (see Workflow Triggers)
+- Always explicitly report which files were deployed and when, and to which environment (per StandardPrompts rule)
+- **Deploy immediately after every local change** — do not batch or wait for a checkpoint (see Workflow Triggers). Use `-staging` while on `dev`.
+- **If you edit `regression_test.php`, deploy it immediately too** — even mid-task, not just on a "test" command.
 
 ## GitHub
 - Private repo: C177LVR/HandmadeDesignsBySuzi
@@ -139,6 +143,6 @@
 
 ## Workflow Triggers
 Three distinct triggers, each with one action:
-- **A change is made to local disk** → deploy that file immediately (`.\deploy.ps1 <path>`), confirm it's live, and show the site URL. Do NOT wait for a checkpoint.
-- **"test" command** → update `regression_test.php` to cover new functionality, then run it, then show the test URL (without token).
-- **"checkpoint" command** → show the target branch + staged changes and confirm, then: commit on the current branch → push to GitHub → promote to production (merge `dev`→`main`, push `main`, deploy the changed files to prod via `deploy.ps1`). Does NOT run the regression suite.
+- **A change is made to local disk** → deploy that file immediately (`.\deploy.ps1 -staging <path>` while on `dev`, `.\deploy.ps1 <path>` while on `main`), confirm it's live, and show the site URL for the environment actually deployed to. Do NOT wait for a checkpoint.
+- **"test" command** → update `regression_test.php` to cover new functionality, deploy it to staging, then the user runs it, then show the test URL (without token). Claude never runs the suite itself.
+- **"checkpoint" command** → show the target branch + staged changes and confirm, then: **ask for the new version**, commit on the current branch → push to GitHub → update version in settings table → promote to production (merge `dev`→`main`, push `main`, deploy the changed files to prod via `deploy.ps1` — no `-staging`). Does NOT run the regression suite.

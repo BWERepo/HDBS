@@ -193,9 +193,7 @@ try{
     t('product table has Shipping column',strpos($apj,'<th>Shipping</th>')!==false);
     t('product table shows fixed amount',strpos($apj,"'Fixed \$'+(parseFloat(p.ship_fixed)")!==false);
     $aoj=file_get_contents($root.'/js/admin-orders.js');
-    t('manual order per-item shipping helpers',strpos($aoj,'function moCalcShippingAmt(')!==false&&strpos($aoj,'function moFixedShip(')!==false&&strpos($aoj,'function moHasWeightItems(')!==false);
-    t('manual order uses moCalcShippingAmt',substr_count($aoj,'moCalcShippingAmt(')>=2);
-    t('shipping math shared via combineShipping',strpos($sj,'function combineShipping(')!==false&&strpos($sj,'return combineShipping(')!==false&&strpos($aoj,'return combineShipping(')!==false);
+    t('shipping math shared via combineShipping',strpos($sj,'function combineShipping(')!==false&&strpos($sj,'return combineShipping(')!==false);
 }catch(Exception $e){t('per-item shipping checks',false,$e->getMessage());}
 
 // ── HOMEPAGE REDESIGN + COMING SOON ──
@@ -274,18 +272,6 @@ try{
     $cfgjs2=file_get_contents($root.'/js/config.js');
     t('goAdminLogin focuses password field',strpos($cfgjs2,'goAdminLogin')!==false&&strpos($cfgjs2,"'lpw'")!==false&&strpos($cfgjs2,'f.focus()')!==false);
 }catch(Exception $e){t('goAdminLogin focus check',false,$e->getMessage());}
-// Manual order form
-try{$aojs=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
-    t('manual order email required',strpos($aojs,'Please enter a valid email address.')!==false);
-    t('manual order email label asterisk',strpos($aojs,'Email *')!==false);
-    t('order_type in saveManualOrder',strpos($aojs,'order_type:otype')!==false);
-    t('setManualPayType exists',strpos($aojs,'function setManualPayType(')!==false);
-    t('moLookupCityTax exists',strpos($aojs,'function moLookupCityTax(')!==false);
-    t('sendConfirmEmail validates email',strpos($aojs,'Cannot send: no valid email')!==false);
-    t('manual order save confirmation',strpos($aojs,'Order Saved')!==false);
-    t('Cash sets In Person order type',strpos($aojs,"Cash:'In Person'")!==false);
-    t('Paid By sets order type on change',strpos($aojs,"In Person")!==false&&strpos($aojs,'mo-type')!==false);
-}catch(Exception $e){t('manual order form checks',false,$e->getMessage());}
 // Customer table sort/filter
 try{$aojs=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
     t('custSort function exists',strpos($aojs,'function custSort(')!==false);
@@ -319,20 +305,6 @@ try{
     try{$pdo->query('SELECT 1 FROM tn_sales_tax LIMIT 1');$hasTnTax=true;}catch(Exception $e2){}
     t('tn_sales_tax table removed',!$hasTnTax,'Table still exists - run drop_tn_tax.php');
 }catch(Exception $e){t('tn_sales_tax removed',false,$e->getMessage());}
-// Manual order form
-try{
-    $aojs3=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
-    $aojs=$aojs3;
-    t('moFmtPhone exists',strpos($aojs,'function moFmtPhone(')!==false);
-    t('moSetPay exists',strpos($aojs,'function moSetPay(')!==false);
-    t('moHighlightTotal exists',strpos($aojs,'function moHighlightTotal(')!==false);
-    t('moToggleShipping exists',strpos($aojs,'function moToggleShipping(')!==false);
-    t('moSendConfirm exists',strpos($aojs,'function moSendConfirm(')!==false);
-    t('city field in manual form',strpos($aojs,'mo-city')!==false);
-    t('shipping required checkbox',strpos($aojs,'mo-ship-req')!==false);
-    t('dual totals display',strpos($aojs,'mo-total-cashcheck')!==false&&strpos($aojs,'mo-total-cc')!==false);
-    t('transaction fee in manual order save',strpos($aojs,'fee:parseFloat')!==false);
-}catch(Exception $e){t('manual order form checks',false,$e->getMessage());}
 // Orders API - transaction fee
 try{
     $ordcols2=$pdo->query("SHOW COLUMNS FROM orders")->fetchAll(PDO::FETCH_COLUMN);
@@ -651,7 +623,6 @@ try{$apibasejs=file_get_contents($root.'/js/api.js');
     t('api.js has _dbgScreen()',strpos($apibasejs,'_dbgScreen')!==false);
     t('api.js wraps apiFetch with debug',strpos($apibasejs,'_dbgLog')!==false&&strpos($apibasejs,'apiFetch')!==false);
     t('admin-nav.js calls _dbgScreen',strpos(file_get_contents($root.'/js/admin-nav.js'),'_dbgScreen')!==false);
-    t('admin-orders.js logs manual form open',strpos(file_get_contents($root.'/js/admin-orders.js'),"'Manual Order Form opened'")!==false);
     t('admin-products.js logs showPF open',strpos(file_get_contents($root.'/js/admin-products.js'),'_dbgLog')!==false);
 }catch(Exception $e){t('screen debug logging checks',false,$e->getMessage());}
 
@@ -855,10 +826,6 @@ try{$uiPC=file_get_contents($root.'/js/ui.js');
 try{$aojs=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
     t('setPayConfig function exists',strpos($aojs,'function setPayConfig(')!==false);
     t('Payment Configuration settings card',strpos($aojs,'payconf-sel')!==false&&strpos($aojs,'Payment Configuration')!==false);
-    t('moToggleCheckNum function exists',strpos($aojs,'function moToggleCheckNum(')!==false);
-    t('manual order check number field',strpos($aojs,'mo-checknum')!==false);
-    t('saveManualOrder stamps InPerson config',strpos($aojs,"payment_config:'InPerson'")!==false);
-    t('saveManualOrder sends check_number',strpos($aojs,'check_number:checkNum')!==false);
     t('edit order has check number field',strpos($aojs,'eo-checknum')!==false);
     t('edit order has payment config select',strpos($aojs,'eo-payconfig')!==false);
     t('orders table has Payment Config column',strpos($aojs,"'Payment Config'")!==false);
@@ -1295,9 +1262,6 @@ try{
     t('Change History entries scroll vertically',strpos($amjs,'max-height:55vh;overflow-y:auto')!==false);
     // deploy_log.php — minor version auto-increment, one per logical change
     $dlphp2=file_get_contents($root.'/api/deploy_log.php');
-    t('deploy_log increments minor version',strpos($dlphp2,'minor_version')!==false&&strpos($dlphp2,'setSetting(')!==false);
-    t('deploy_log uses 5-min session window',strpos($dlphp2,'last_deploy_ts')!==false&&strpos($dlphp2,'> 300')!==false);
-    t('deploy_log returns bumped flag',strpos($dlphp2,'$bumped')!==false&&strpos($dlphp2,"'bumped'")!==false);
 }catch(Exception $e){t('change history stats checks',false,$e->getMessage());}
 
 // ── WATCH SCRIPT ──
@@ -1329,7 +1293,7 @@ $fns=[
     // Storefront
     'openCheckout','placeOrder','addToCart',
     // Orders
-    'renderOrdersTable','viewOrder','showManualOrderForm','saveManualOrder',
+    'renderOrdersTable','viewOrder',
     'sendConfirmEmail','sendShippingEmail','deleteOrder','deleteAllOrders',
     'exportOrdersCsv','exportTaxCSV','clearOrdFilters','clearOrderFilters',
     'updCarrier','updTracking','fetchOrderTax',
@@ -1466,7 +1430,6 @@ try{
     t('btn:Send Shipping Email wired',strpos($aojs,'sendShippingEmail(')!==false);
     t('btn:Delete Order wired',strpos($aojs,'delOrder(')!==false||strpos($aojs,'deleteOrder(')!==false);
     t('btn:Export Orders CSV wired',strpos($aojs,'exportOrdersCsv()')!==false);
-    t('btn:Manual Order wired',strpos($aojs,'showManualOrderForm()')!==false);
     t('btn:Refund wired',strpos($aojs,'showRefundForm()')!==false);
 
     // FAQ buttons
@@ -1600,8 +1563,8 @@ try{
     t('config.php env-aware secrets path',strpos($cfgEnv,'secrets.staging.php')!==false&&strpos($cfgEnv,'secrets.php')!==false);
     t('config.php keeps prod+staging origins',strpos($cfgEnv,"'https://handmadedesignsbysuzi.com'")!==false&&strpos($cfgEnv,"'https://staging.handmadedesignsbysuzi.com'")!==false);
     $apiEnv=file_get_contents($root.'/js/api.js');
-    t('api.js defines env-aware SITE_ORIGIN',strpos($apiEnv,'SITE_ORIGIN')!==false&&strpos($apiEnv,'location.hostname')!==false&&strpos($apiEnv,"'staging'")!==false);
-    t('SITE_ORIGIN falls back to prod URL',strpos($apiEnv,"'https://handmadedesignsbysuzi.com'")!==false);
+    t('api.js SITE_ORIGIN uses same-origin as page',strpos($apiEnv,'var SITE_ORIGIN=location.origin')!==false);
+    t('api.js no hardcoded hostname branching for SITE_ORIGIN',strpos($apiEnv,'location.hostname')===false);
     t('api.js API base uses SITE_ORIGIN',strpos($apiEnv,"var API=SITE_ORIGIN+'/api'")!==false);
     t('api.js no hardcoded prod API base',strpos($apiEnv,"var API='https://handmadedesignsbysuzi.com/api'")===false);
     t('config.js API base uses SITE_ORIGIN',strpos(file_get_contents($root.'/js/config.js'),"var API=SITE_ORIGIN+'/api'")!==false);
