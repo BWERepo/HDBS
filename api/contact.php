@@ -68,7 +68,7 @@ $html_body = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head>
     </table>
     <div style='background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:16px;font-size:14px;color:#2d2220;line-height:1.7;white-space:pre-wrap'>{$message}</div>
     <div style='margin-top:20px;padding:12px 16px;background:#fff8e1;border:1px solid #e8d070;border-radius:8px;font-size:13px;color:#7a5f00'>
-      Hit <strong>Reply</strong> to respond directly to {$name} at {$email}
+      Click the email address above to respond directly to {$name}
     </div>
   </div>
   <div style='background:#2d2220;padding:14px 28px;text-align:center'>
@@ -77,7 +77,10 @@ $html_body = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head>
 </div>
 </body></html>";
 
-$result = sendEmail($to, $fullsubj, $html_body, trim($d['email'] ?? ''), $name);
+// From (and any Reply-To) must be the SMTP-authenticated mailbox — Yahoo's relay rejects
+// both a mismatched envelope-from and a mismatched Reply-To. The visitor's email is only
+// shown in the message body (with a mailto: link) for the shop owner to reply to manually.
+$result = sendEmail($to, $fullsubj, $html_body, $to, $name);
 
 // Log to email_log (every outbound email is recorded)
 try {
