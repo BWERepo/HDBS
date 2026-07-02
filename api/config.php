@@ -224,9 +224,9 @@ function bizName($pdo) {
     } catch (Exception $e) { /* keep fallback */ }
     return $name;
 }
-// Ensure per-item shipping + coming-soon columns exist on the products table (lazy migration)
+// Ensure per-item shipping + coming-soon + COGM + launch date columns exist on the products table (lazy migration)
 function ensureProductColumns($pdo) {
-    foreach (['ship_mode' => "VARCHAR(10) NOT NULL DEFAULT 'weight'", 'ship_fixed' => "DECIMAL(10,2) NOT NULL DEFAULT 0", 'coming_soon' => "TINYINT NOT NULL DEFAULT 0"] as $col => $def) {
+    foreach (['ship_mode' => "VARCHAR(10) NOT NULL DEFAULT 'weight'", 'ship_fixed' => "DECIMAL(10,2) NOT NULL DEFAULT 0", 'coming_soon' => "TINYINT NOT NULL DEFAULT 0", 'cogm' => "DECIMAL(10,2) NOT NULL DEFAULT 0", 'launch_date' => "DATE NOT NULL DEFAULT '2026-07-01'"] as $col => $def) {
         if (empty($pdo->query("SHOW COLUMNS FROM products LIKE '$col'")->fetchAll())) $pdo->exec("ALTER TABLE products ADD COLUMN `$col` $def");
     }
 }

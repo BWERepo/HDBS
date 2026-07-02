@@ -74,7 +74,7 @@ function applyProdFilters(){
 }
 
 function buildProdThead(){
-  return '<thead><tr><th>Product</th><th>Cat</th><th>SKU</th><th>Sell</th><th>Price</th><th>Size</th><th>Weight</th><th>Shipping</th><th>Stock</th><th>Description</th><th>Actions</th></tr></thead>';
+  return '<thead><tr><th>Product</th><th>Cat</th><th>SKU</th><th>Sell</th><th>Price</th><th>COGM</th><th>Launch Date</th><th>Size</th><th>Weight</th><th>Shipping</th><th>Stock</th><th>Description</th><th>Actions</th></tr></thead>';
 }
 
 function rProds(el){
@@ -87,6 +87,8 @@ function rProds(el){
       '<td style="font-family:monospace;font-size:.78rem;color:#a07810">'+(p.sku||'—')+'</td>'+
       '<td style="text-align:center"><input type="checkbox" '+(p.sell!==0?'checked':'')+' onchange="toggleSell(\''+p.id+'\',this.checked)"></td>'+
       '<td style="font-weight:700">$'+p.price.toFixed(2)+'</td>'+
+      '<td style="font-weight:600;color:#6b6040">$'+(p.cogm?p.cogm.toFixed(2):'0.00')+'</td>'+
+      '<td style="font-size:.78rem;color:#6b6040">'+((p&&p.launch_date)?p.launch_date:'2026-07-01')+'</td>'+
       '<td style="font-size:.78rem;color:#6b6040">'+(p.size||'—')+'</td>'+
       '<td style="font-size:.78rem;color:#6b6040;text-align:center">'+(p.weight?p.weight+' lbs':'—')+'</td>'+
       '<td style="font-size:.78rem;color:#6b6040;text-align:center">'+(p.ship_mode==='fixed'?'Fixed $'+(parseFloat(p.ship_fixed)||0).toFixed(2):'By weight')+'</td>'+
@@ -138,7 +140,7 @@ function showImportCsv(){
   ov.innerHTML=
     '<div style="background:#fff;border-radius:12px;padding:1.5rem;width:440px;max-width:100%;box-shadow:0 8px 40px rgba(0,0,0,.3)">'+
       '<div style="font-size:1rem;font-weight:700;color:#2d2220;margin-bottom:1rem">⬆️ Import Products CSV</div>'+
-      '<div style="font-size:.8rem;color:#6b6040;margin-bottom:.8rem">CSV must have columns: <code>id, sku, name, description, price, stock, category, badge, weight, size, img1, img2, img3</code></div>'+
+      '<div style="font-size:.8rem;color:#6b6040;margin-bottom:.8rem">CSV must have columns: <code>id, sku, name, description, price, cogm, launch_date, stock, category, badge, weight, size, img1, img2, img3</code></div>'+
       '<div style="margin-bottom:.8rem">'+
         '<label style="font-size:.8rem;font-weight:600;color:#2d2220;display:block;margin-bottom:.3rem">CSV File</label>'+
         '<input type="file" id="import-csv-file" accept=".csv" style="width:100%;font-size:.83rem">'+
@@ -261,6 +263,8 @@ function showPF(id){
     '<div><label class="fl">Stock *</label><input class="afi" id="pf-s" type="number" value="'+(p?p.stock:'1')+'"></div>'+
     '<div><label class="fl">Badge</label><input class="afi" id="pf-b" value="'+(p?p.badge:'')+'" placeholder="e.g. New"></div>'+
     '<div><label class="fl">Weight (lbs)</label><input class="afi" id="pf-w" type="number" step="0.1" min="0" value="'+(p&&p.weight?p.weight:'')+'" placeholder="e.g. 1.5"></div>'+
+    '<div><label class="fl">COGM - Cost of Manufacturer ($)</label><input class="afi" id="pf-cogm" type="number" step="0.01" min="0" value="'+(p&&p.cogm?p.cogm:(p?(p.price*0.5).toFixed(2):''))+'" placeholder="Defaults to 50% of price" onblur="if(this.value===\'\'){var priceEl=document.getElementById(\'pf-p\');this.value=priceEl?(priceEl.value*0.5).toFixed(2):\'\'}"></div>'+
+    '<div><label class="fl">Launch Date</label><input class="afi" id="pf-launch" type="date" value="'+(p&&p.launch_date?p.launch_date:'2026-07-01')+'"></div>'+
     '<div><label class="fl">Shipping</label><select class="afi" id="pf-shipmode" onchange="pfToggleShipFixed()">'+
       '<option value="weight"'+(!p||p.ship_mode!=='fixed'?' selected':'')+'>By weight (zone + weight)</option>'+
       '<option value="fixed"'+(p&&p.ship_mode==='fixed'?' selected':'')+'>Fixed amount per item</option>'+
@@ -399,11 +403,13 @@ function saveP(){
   var skuVal=pfSku?pfSku.value.trim():'';
   var shipMode=document.getElementById('pf-shipmode')&&document.getElementById('pf-shipmode').value==='fixed'?'fixed':'weight';
   var shipFixed=document.getElementById('pf-shipfixed')?(parseFloat(document.getElementById('pf-shipfixed').value)||0):0;
+  var cogmEl=document.getElementById('pf-cogm');var cogm=cogmEl?(parseFloat(cogmEl.value)||pr*0.5):pr*0.5;
+  var launchEl=document.getElementById('pf-launch');var launch=launchEl?launchEl.value:'2026-07-01';
   var obj={id:EDITID||('p'+Date.now()),name:n,price:pr,stock:st,cat:JSON.stringify(pfGetCats()),
     desc:document.getElementById('pf-d').value.trim(),badge:document.getElementById('pf-b').value.trim(),
     sku:skuVal,weight:wt,size:sz,sell:document.getElementById('pf-sell').checked?1:0,
     coming_soon:document.getElementById('pf-coming')&&document.getElementById('pf-coming').checked?1:0,
-    ship_mode:shipMode,ship_fixed:shipFixed,imgs:[EDIT_PHOTOS[0],EDIT_PHOTOS[1],EDIT_PHOTOS[2]]};
+    ship_mode:shipMode,ship_fixed:shipFixed,cogm:cogm,launch_date:launch,imgs:[EDIT_PHOTOS[0],EDIT_PHOTOS[1],EDIT_PHOTOS[2]]};
   // Disable save buttons while saving
   document.querySelectorAll('#pfc button.bp').forEach(function(b){b.disabled=true;b.textContent='Saving…';});
   apiFetch('products.php','POST',obj).then(function(d){

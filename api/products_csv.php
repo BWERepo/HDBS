@@ -9,11 +9,11 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 // ── EXPORT (GET) ──
 if ($method === 'GET') {
-    $rows = $pdo->query("SELECT id, sku, name, description, price, stock, category, badge, weight, size, sell, img1, img2, img3, ship_mode, ship_fixed, coming_soon FROM products ORDER BY category, name")->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $pdo->query("SELECT id, sku, name, description, price, cogm, launch_date, stock, category, badge, weight, size, sell, img1, img2, img3, ship_mode, ship_fixed, coming_soon FROM products ORDER BY category, name")->fetchAll(PDO::FETCH_ASSOC);
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="products_' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
-    fputcsv($out, ['id','sku','name','description','price','stock','category','badge','weight','size','sell','img1','img2','img3','ship_mode','ship_fixed','coming_soon']);
+    fputcsv($out, ['id','sku','name','description','price','cogm','launch_date','stock','category','badge','weight','size','sell','img1','img2','img3','ship_mode','ship_fixed','coming_soon']);
     foreach ($rows as $r) fputcsv($out, $r);
     fclose($out);
     exit;
@@ -60,22 +60,26 @@ if ($method === 'POST') {
         }
 
         $stmt = $pdo->prepare("
-            INSERT INTO products (id, sku, name, description, price, stock, category, badge, weight, size, sell, img1, img2, img3, ship_mode, ship_fixed, coming_soon)
-            VALUES (:id, :sku, :name, :desc, :price, :stock, :cat, :badge, :weight, :size, :sell, :img1, :img2, :img3, :ship_mode, :ship_fixed, :coming_soon)
+            INSERT INTO products (id, sku, name, description, price, cogm, launch_date, stock, category, badge, weight, size, sell, img1, img2, img3, ship_mode, ship_fixed, coming_soon)
+            VALUES (:id, :sku, :name, :desc, :price, :cogm, :launch_date, :stock, :cat, :badge, :weight, :size, :sell, :img1, :img2, :img3, :ship_mode, :ship_fixed, :coming_soon)
             ON DUPLICATE KEY UPDATE
-                sku=:sku, name=:name, description=:desc, price=:price, stock=:stock,
+                sku=:sku, name=:name, description=:desc, price=:price, cogm=:cogm, launch_date=:launch_date, stock=:stock,
                 category=:cat, badge=:badge, weight=:weight, size=:size, sell=:sell,
                 img1=:img1, img2=:img2, img3=:img3, ship_mode=:ship_mode, ship_fixed=:ship_fixed, coming_soon=:coming_soon
         ");
 
         $count = 0;
         foreach ($rows as $r) {
+            $price = (float)($r['price'] ?? 0);
+            $default_cogm = $price * 0.5;
             $stmt->execute([
                 ':id'     => trim($r['id']),
                 ':sku'    => trim($r['sku'] ?? ''),
                 ':name'   => trim($r['name']),
                 ':desc'   => trim($r['description'] ?? ''),
-                ':price'  => (float)($r['price'] ?? 0),
+                ':price'  => $price,
+                ':cogm'   => !empty($r['cogm']) ? (float)$r['cogm'] : $default_cogm,
+                ':launch_date' => !empty($r['launch_date']) ? trim($r['launch_date']) : '2026-07-01',
                 ':stock'  => (int)($r['stock'] ?? 0),
                 ':cat'    => trim($r['category'] ?? ''),
                 ':badge'  => trim($r['badge'] ?? ''),

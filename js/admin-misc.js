@@ -400,7 +400,8 @@ var ADMIN_NAV_LABELS={
   bizdocs:'📄 Documents',bizinv:'📦 Inventory',bizreports:'📊 Reports',
   settings:'⚙️ Settings',gitlog:'📜 Change History',
   deploylog:'🚀 Deploy History',
-  dbbackup:'🗄️ DB Backup'
+  dbbackup:'🗄️ DB Backup',
+  logout:'🚪 Logout'
 };
 // Keep ADMIN_NAV_DEFAULT as flat list for backwards-compat references in RT_GROUPS etc.
 var ADMIN_NAV_DEFAULT=Object.keys(ADMIN_NAV_LABELS).map(function(s){return{sec:s,label:ADMIN_NAV_LABELS[s]};});
@@ -416,7 +417,8 @@ var ADMIN_NAV_STRUCTURE_DEFAULT=[
   {type:'item',sec:'cats'},
   {type:'item',sec:'shipping'},
   {type:'item',sec:'sqpay'},
-  {type:'item',sec:'sweep'}
+  {type:'item',sec:'sweep'},
+  {type:'item',sec:'logout'}
 ];
 function _navFolderState(){try{return JSON.parse(localStorage.getItem('hdbs_nav_folders')||'{}');}catch(e){return{};}}
 function toggleNavFolder(sec){

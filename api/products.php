@@ -32,6 +32,8 @@ if ($method === 'GET') { dbg('products','GET all products');
             'ship_mode'  => $r['ship_mode'] ?? 'weight',
             'ship_fixed' => (float)($r['ship_fixed'] ?? 0),
             'coming_soon' => (int)($r['coming_soon'] ?? 0),
+            'cogm'   => (float)($r['cogm'] ?? 0),
+            'launch_date' => $r['launch_date'] ?? '2026-07-01',
         ];
     }, $rows);
     ok(['products' => $products]);
@@ -47,12 +49,12 @@ if ($method === 'POST') { requireAdmin(); dbg('products','POST save product');
     ensureProductColumns($pdo);
 
     $stmt = $pdo->prepare("
-        INSERT INTO products (id, sku, name, description, price, stock, category, badge, weight, size, img1, img2, img3, sell, ship_mode, ship_fixed, coming_soon)
-        VALUES (:id, :sku, :name, :desc, :price, :stock, :cat, :badge, :weight, :size, :img1, :img2, :img3, :sell, :ship_mode, :ship_fixed, :coming_soon)
+        INSERT INTO products (id, sku, name, description, price, stock, category, badge, weight, size, img1, img2, img3, sell, ship_mode, ship_fixed, coming_soon, cogm, launch_date)
+        VALUES (:id, :sku, :name, :desc, :price, :stock, :cat, :badge, :weight, :size, :img1, :img2, :img3, :sell, :ship_mode, :ship_fixed, :coming_soon, :cogm, :launch_date)
         ON DUPLICATE KEY UPDATE
             sku=:sku, name=:name, description=:desc, price=:price, stock=:stock,
             category=:cat, badge=:badge, weight=:weight, size=:size, img1=:img1, img2=:img2, img3=:img3, sell=:sell,
-            ship_mode=:ship_mode, ship_fixed=:ship_fixed, coming_soon=:coming_soon
+            ship_mode=:ship_mode, ship_fixed=:ship_fixed, coming_soon=:coming_soon, cogm=:cogm, launch_date=:launch_date
     ");
     $imgs = $d['imgs'] ?? ['', '', ''];
     $prod_id = $d['id'];
@@ -84,12 +86,14 @@ if ($method === 'POST') { requireAdmin(); dbg('products','POST save product');
         } else { $saved_imgs[] = ''; }
     }
 
+    $price = (float)($d['price'] ?? 0);
+    $default_cogm = $price * 0.5;
     $stmt->execute([
         ':id'     => $prod_id,
         ':sku'    => $d['sku'] ?? '',
         ':name'   => $d['name'],
         ':desc'   => $d['desc'] ?? '',
-        ':price'  => (float)($d['price'] ?? 0),
+        ':price'  => $price,
         ':stock'  => (int)($d['stock'] ?? 0),
         ':cat'    => $d['cat'] ?? '',
         ':badge'  => $d['badge'] ?? '',
@@ -102,6 +106,8 @@ if ($method === 'POST') { requireAdmin(); dbg('products','POST save product');
         ':ship_mode'  => (($d['ship_mode'] ?? 'weight') === 'fixed') ? 'fixed' : 'weight',
         ':ship_fixed' => (float)($d['ship_fixed'] ?? 0),
         ':coming_soon' => !empty($d['coming_soon']) ? 1 : 0,
+        ':cogm' => isset($d['cogm']) ? (float)$d['cogm'] : $default_cogm,
+        ':launch_date' => $d['launch_date'] ?? '2026-07-01',
     ]);
     ok(['message' => 'Product saved']);
 }

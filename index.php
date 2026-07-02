@@ -847,11 +847,11 @@ if (!empty($bz['logo'])) {
 <script src="js/store.js?v=15"></script>
 <script src="js/auth.js?v=5"></script>
 <script src="js/ui.js?v=7"></script>
-<script src="js/admin-nav.js?v=8"></script>
+<script src="js/admin-nav.js?v=9"></script>
 <script src="js/admin-general.js?v=5"></script>
-<script src="js/admin-products.js?v=11"></script>
-<script src="js/admin-orders.js?v=12"></script>
-<script src="js/admin-misc.js?v=15"></script>
+<script src="js/admin-products.js?v=12"></script>
+<script src="js/admin-orders.js?v=13"></script>
+<script src="js/admin-misc.js?v=16"></script>
 <script src="js/admin-business.js?v=1"></script>
 <script src="js/table.js"></script>
 <script src="js/toolbar.js"></script>
