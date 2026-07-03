@@ -165,6 +165,12 @@ dbg('send_shipping', "START order_id=$order_id carrier_override=$carrier_overrid
     {$track_btn}
     {$items_html}
     <p style='color:#6b6040;font-size:.88rem'>Please allow 24–48 hours for tracking information to update.</p>
+    <div style='background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:16px;margin:20px 0;text-align:center'>
+      <p style='margin:0 0 10px;color:#2d2220'>&#x2B50; Once your order arrives, we'd love to hear what you think!</p>
+      <a href='https://handmadedesignsbysuzi.com/#reviews-section' style='background:#a07810;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:.9rem;display:inline-block'>
+        Write a Review
+      </a>
+    </div>
     <p style='margin-top:20px;color:#6b6040'>Thank you so much for your order!</p>
     <p><em style='color:#a07810'>— Susan &#127864;</em></p>
   </div>

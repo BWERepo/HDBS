@@ -356,6 +356,11 @@ try{
 try{
     $ssphp=file_get_contents($root.'/send_shipping.php');
     t('send_shipping has biz_profile footer',strpos($ssphp,'biz_url_display2')!==false);
+    // Review request (2026-07-03): shipping email asks customer to review + links to the
+    // storefront's review section (part of the main store page, no separate review route)
+    t('send_shipping includes a review request',strpos($ssphp,"we'd love to hear what you think")!==false);
+    t('send_shipping links to the reviews section',strpos($ssphp,"https://handmadedesignsbysuzi.com/#reviews-section")!==false);
+    t('send_shipping review link has a Write a Review button',strpos($ssphp,'Write a Review')!==false);
 }catch(Exception $e){t('send_shipping checks',false,$e->getMessage());}
 // Products screen
 try{
