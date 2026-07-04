@@ -24,17 +24,18 @@ try {
 if(!defined('SQUARE_TOKEN') || !SQUARE_TOKEN) sq_fail('SQUARE_TOKEN not defined in secrets.php');
 if(!function_exists('curl_init')) sq_fail('cURL not available.');
 
-$modeRow = $pdo->query("SELECT value FROM settings WHERE key_name='square_mode' LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-$mode    = ($modeRow && $modeRow['value']==='test') ? 'test' : 'live';
-$token   = SQUARE_TOKEN;
-$baseUrl = ($mode==='test') ? 'https://connect.squareupsandbox.com/v2' : 'https://connect.squareup.com/v2';
+$modeRow    = $pdo->query("SELECT value FROM settings WHERE key_name='square_mode' LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+$mode       = ($modeRow && $modeRow['value']==='test') ? 'test' : 'live';
+$token      = SQUARE_TOKEN;
+$baseUrl    = ($mode==='test') ? 'https://connect.squareupsandbox.com/v2' : 'https://connect.squareup.com/v2';
+$locationId = ($mode==='test' && defined('SQUARE_SANDBOX_LOCATION_ID')) ? SQUARE_SANDBOX_LOCATION_ID : 'LJP687TQBTWTA';
 
 // Action: backfill transaction fees from Square for orders missing them
 $_postBody = json_decode(file_get_contents('php://input'), true) ?: [];
 $_postAction = isset($_postBody['action']) ? $_postBody['action'] : (isset($_POST['action']) ? $_POST['action'] : '');
 dbg('square_payments', "REQUEST mode=$mode action=$_postAction begin=".($_GET['begin']??'').' end='.($_GET['end']??'').' cursor='.($_GET['cursor']??''));
 if ($_postAction === 'backfill_fees') { dbg('square_payments','backfill_fees started orders_count='.count($orders??[]));
-    $locationId = defined('SQUARE_LOCATION_ID') ? SQUARE_LOCATION_ID : '';
+    // $locationId is already set mode-aware above (sandbox location in test mode, live otherwise)
     $diag = [];
     $diag[] = 'mode='.$mode.' locationId='.($locationId?'set':'MISSING').' baseUrl='.$baseUrl;
     // Get all Credit Card/Square orders with fee = 0
@@ -86,7 +87,7 @@ $begin  = isset($_GET['begin'])  ? $_GET['begin']  : '';
 $end    = isset($_GET['end'])    ? $_GET['end']    : '';
 $cursor = isset($_GET['cursor']) ? $_GET['cursor'] : '';
 
-$params = array('location_id'=>'LJP687TQBTWTA','sort_order'=>'DESC','limit'=>50);
+$params = array('location_id'=>$locationId,'sort_order'=>'DESC','limit'=>50);
 if($begin)  $params['begin_time'] = $begin.'T00:00:00Z';
 if($end)    $params['end_time']   = $end.'T23:59:59Z';
 if($cursor) $params['cursor']     = $cursor;

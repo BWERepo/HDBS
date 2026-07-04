@@ -2283,6 +2283,67 @@ try{
 
 }catch(Exception $e){t('embedded Square SDK checks',false,$e->getMessage());}
 
+// ── DIGITAL WALLETS (Apple Pay / Google Pay) + SANDBOX/LIVE MODE ──
+try{
+    $stjs   = file_get_contents($root.'/js/store.js');
+    $cfgjs  = file_get_contents($root.'/js/config.js');
+    $uijs   = file_get_contents($root.'/js/ui.js');
+    $aojs   = file_get_contents($root.'/js/admin-orders.js');
+    $idx    = file_get_contents($root.'/index.php');
+    $ppPhp  = file_get_contents($root.'/api/process_payment.php');
+    $sqpPhp = file_get_contents($root.'/api/square_payments.php');
+    $admPhp = file_get_contents($root.'/api/admin.php');
+
+    // store.js — wallet payment methods
+    t('store.js:initApplePay function',strpos($stjs,'function initApplePay')!==false);
+    t('store.js:initGooglePay function',strpos($stjs,'function initGooglePay')!==false);
+    t('store.js:chargeWithMethod shared charge fn',strpos($stjs,'function chargeWithMethod')!==false);
+    t('store.js:resetWalletButtons function',strpos($stjs,'function resetWalletButtons')!==false);
+    t('store.js:builds Square paymentRequest',strpos($stjs,'payments.paymentRequest(')!==false);
+    t('store.js:calls payments.applePay',strpos($stjs,'payments.applePay(')!==false);
+    t('store.js:calls payments.googlePay',strpos($stjs,'payments.googlePay(')!==false);
+    t('store.js:guards ApplePaySession.canMakePayments',strpos($stjs,'ApplePaySession.canMakePayments()')!==false);
+    t('store.js:submitPayment delegates to chargeWithMethod',strpos($stjs,'chargeWithMethod(window._sqCard)')!==false);
+    t('store.js:backToCheckoutForm resets wallets',strpos($stjs,'resetWalletButtons()')!==false);
+    // Mode-aware app id + location (sandbox vs live) — no leftover placeholder
+    t('store.js:sandbox app id wired',strpos($stjs,'sandbox-sq0idb-hp0qHCyM-fNmVakmBP5VQA')!==false);
+    t('store.js:no sandbox placeholder left',strpos($stjs,'YOUR_SANDBOX_APP_ID')===false);
+    t('store.js:location branches on SQUARE_MODE',strpos($stjs,"SQUARE_MODE==='test'?'LVD15H6H5R4NW':'LJP687TQBTWTA'")!==false);
+
+    // index.php — wallet buttons + divider
+    t('index.php:apple-pay-button present',strpos($idx,'id="apple-pay-button"')!==false);
+    t('index.php:google-pay-button present',strpos($idx,'id="google-pay-button"')!==false);
+    t('index.php:wallet-divider present',strpos($idx,'id="wallet-divider"')!==false);
+
+    // config.js — SQUARE_MODE auto-detects staging by hostname
+    t('config.js:SQUARE_MODE hostname auto-detect',strpos($cfgjs,"location.hostname.indexOf('staging.')")!==false);
+
+    // ui.js + admin — square_mode persisted through DB
+    t('ui.js:loads square_mode from DB',strpos($uijs,"key:'square_mode'")!==false);
+    t('admin-orders.js:Square Payment Mode card',strpos($aojs,'Square Payment Mode')!==false&&strpos($aojs,'id="sqmode-sel"')!==false);
+    t('admin-orders.js:setSquareMode saves setting',strpos($aojs,'function setSquareMode')!==false&&strpos($aojs,"key:'square_mode'")!==false);
+    t('admin.php:square_mode is a public get_setting key',strpos($admPhp,"'square_mode','square_app_id'")!==false);
+
+    // process_payment.php — sandbox URL typo fixed + sandbox location branching
+    t('process_payment:correct sandbox host',strpos($ppPhp,'connect.squareupsandbox.com')!==false);
+    t('process_payment:no squaresandbox typo',strpos($ppPhp,'connect.squaresandbox.com')===false);
+    t('process_payment:sandbox location branching',strpos($ppPhp,'SQUARE_SANDBOX_LOCATION_ID')!==false);
+
+    // square_payments.php — reporting query uses mode-aware location (was hardcoded live)
+    t('square_payments:mode-aware location var',strpos($sqpPhp,'SQUARE_SANDBOX_LOCATION_ID')!==false);
+    t('square_payments:list query uses $locationId',strpos($sqpPhp,"'location_id'=>\$locationId")!==false);
+    t('square_payments:no undefined SQUARE_LOCATION_ID in backfill',strpos($sqpPhp,'defined(\'SQUARE_LOCATION_ID\')')===false);
+
+    // Homepage + checkout payment-trust copy
+    t('index.php:homepage We Accept section',strpos($idx,'We Accept')!==false);
+    t('index.php:lists card brands (American Express)',strpos($idx,'American Express')!==false&&strpos($idx,'Discover')!==false);
+    t('index.php:payment security note',strpos($idx,'processed securely by Square')!==false);
+
+    // Apple Pay domain association file (deployed to staging webroot)
+    t('.well-known Apple Pay domain file exists',file_exists($root.'/.well-known/apple-developer-merchantid-domain-association'));
+
+}catch(Exception $e){t('digital wallet + sandbox mode checks',false,$e->getMessage());}
+
 // ── ORDER REFUNDS (Square API + cash/check ledger + customer email) ──
 try{
     $rfFile=$root.'/api/refund.php';

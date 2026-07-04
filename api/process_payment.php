@@ -62,10 +62,12 @@ if (!empty($d['test_mode'])) {
 // Load Square credentials — token from secrets.php, mode/location from DB
 $token    = defined('SQUARE_TOKEN') ? SQUARE_TOKEN : '';
 $sqMode   = getSetting($pdo, 'square_mode') ?: 'live';
-$location = getSetting($pdo, 'square_location_id') ?: 'LJP687TQBTWTA';
+$location = ($sqMode === 'test' && defined('SQUARE_SANDBOX_LOCATION_ID'))
+    ? SQUARE_SANDBOX_LOCATION_ID
+    : (getSetting($pdo, 'square_location_id') ?: 'LJP687TQBTWTA');
 if (!$token) fail('Payment not configured');
 
-$sqBase = ($sqMode === 'test') ? 'https://connect.squaresandbox.com' : 'https://connect.squareup.com';
+$sqBase = ($sqMode === 'test') ? 'https://connect.squareupsandbox.com' : 'https://connect.squareup.com';
 
 // Atomic lock: claim the order before hitting Square — prevents double-charge on concurrent requests
 $guard = $pdo->prepare("UPDATE orders SET status='Processing' WHERE id=? AND status='Awaiting Payment'");

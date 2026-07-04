@@ -106,6 +106,10 @@ function tryLoad(){
   apiFetch('admin.php','POST',{action:'get_setting',key:'payment_configuration'}).then(function(md){
     if(md.success&&md.value)PAY_CONFIG=md.value;
   }).catch(function(){});
+  // Load Square Payment Mode from DB - overrides the hostname-based default (live | test)
+  apiFetch('admin.php','POST',{action:'get_setting',key:'square_mode'}).then(function(md){
+    if(md.success&&md.value)SQUARE_MODE=md.value;
+  }).catch(function(){});
   // Load confirm token for order_confirm.php auth
   apiFetch('admin.php','POST',{action:'get_setting',key:'confirm_token'}).then(function(d){
     if(d.success&&d.value)window._confirmToken=d.value;

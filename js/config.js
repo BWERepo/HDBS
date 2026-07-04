@@ -1,6 +1,6 @@
 // ── GLOBALS ──
 var SEC=null;
-var SQUARE_MODE='live';
+var SQUARE_MODE=(typeof location!=='undefined'&&location.hostname.indexOf('staging.')===0)?'test':'live';
 var PAY_CONFIG='Online'; // global store payment mode: Online | InPerson | Test
 var SQ_FEE_PCT=2.6;
 var SQ_FEE_CENTS=0.10;

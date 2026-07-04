@@ -4,6 +4,19 @@
 // Staging subdomain uses its own DB + origin; production is unchanged. Each environment
 // loads its own secrets file from above the webroot (prod: secrets.php, staging: secrets.staging.php).
 $__staging = (stripos($_SERVER['HTTP_HOST'] ?? '', 'staging') !== false);
+// Error visibility: production never displays errors to visitors (a fatal — e.g. a missing
+// secrets.php — would otherwise leak full server paths + stack traces). Set this BEFORE the
+// require below so even a secrets-load failure is covered. Errors are still written to the log.
+// Staging keeps errors visible for debugging.
+error_reporting(E_ALL);
+if ($__staging) {
+    ini_set('display_errors', '1');
+    ini_set('display_startup_errors', '1');
+} else {
+    ini_set('display_errors', '0');
+    ini_set('display_startup_errors', '0');
+    ini_set('log_errors', '1');
+}
 require_once ($__staging
     ? dirname(dirname(dirname(__DIR__))) . '/secrets.staging.php'
     : dirname(dirname(__DIR__)) . '/secrets.php');

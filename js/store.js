@@ -582,12 +582,64 @@ function showPaymentStep(subtotal,shipping,tax,total){
   var cc=document.getElementById('card-container');if(cc)cc.innerHTML='';
   _hide('card-error');
   _hide('co-processing');_show('co-payment');
-  // Load Square SDK then initialize card
+  resetWalletButtons();
+  // Load Square SDK then initialize card + wallet payment methods
   loadSquareSdk(function(){
-    var appId=SQUARE_MODE==='test'?'sandbox-sq0idb-YOUR_SANDBOX_APP_ID':'sq0idp-08N-GQIys4jnwilvp0STsQ';
-    var locId='LJP687TQBTWTA';
-    initSquareCard(appId,locId);
+    var appId=SQUARE_MODE==='test'?'sandbox-sq0idb-hp0qHCyM-fNmVakmBP5VQA':'sq0idp-08N-GQIys4jnwilvp0STsQ';
+    var locId=SQUARE_MODE==='test'?'LVD15H6H5R4NW':'LJP687TQBTWTA';
+    var payments=window.Square.payments(appId,locId);
+    window._sqPayments=payments;
+    initSquareCard(payments);
+    initApplePay(payments,total);
+    initGooglePay(payments,total);
   });
+}
+
+function resetWalletButtons(){
+  var ap=document.getElementById('apple-pay-button');if(ap){ap.style.display='none';ap.onclick=null;}
+  var gp=document.getElementById('google-pay-button');if(gp){gp.style.display='none';gp.innerHTML='';gp.onclick=null;}
+  var div=document.getElementById('wallet-divider');if(div)div.style.display='none';
+  window._sqApplePay=null;window._sqGooglePay=null;
+}
+
+function showWalletDivider(){
+  var div=document.getElementById('wallet-divider');if(div)div.style.display='block';
+}
+
+function buildWalletPaymentRequest(payments,total){
+  return payments.paymentRequest({
+    countryCode:'US',
+    currencyCode:'USD',
+    total:{amount:total.toFixed(2),label:'Total'}
+  });
+}
+
+function initApplePay(payments,total){
+  if(!window.ApplePaySession||!ApplePaySession.canMakePayments())return;
+  var pr=buildWalletPaymentRequest(payments,total);
+  payments.applePay(pr).then(function(applePay){
+    window._sqApplePay=applePay;
+    var btn=document.getElementById('apple-pay-button');
+    if(btn){
+      btn.style.display='block';
+      btn.onclick=function(){chargeWithMethod(applePay);};
+      showWalletDivider();
+    }
+  }).catch(function(){/* Apple Pay unavailable — leave button hidden */});
+}
+
+function initGooglePay(payments,total){
+  var pr=buildWalletPaymentRequest(payments,total);
+  payments.googlePay(pr).then(function(googlePay){
+    var btn=document.getElementById('google-pay-button');
+    if(!btn)return;
+    return googlePay.attach('#google-pay-button').then(function(){
+      window._sqGooglePay=googlePay;
+      btn.style.display='block';
+      btn.onclick=function(){chargeWithMethod(googlePay);};
+      showWalletDivider();
+    });
+  }).catch(function(){/* Google Pay unavailable — leave button hidden */});
 }
 
 function loadSquareSdk(cb){
@@ -602,9 +654,7 @@ function loadSquareSdk(cb){
   document.head.appendChild(s);
 }
 
-function initSquareCard(appId,locId){
-  var payments=window.Square.payments(appId,locId);
-  window._sqPayments=payments;
+function initSquareCard(payments){
   payments.card().then(function(card){
     window._sqCard=card;
     return card.attach('#card-container');
@@ -619,12 +669,17 @@ function submitPayment(){
   if(!window._sqCard)return;
   var btn=document.getElementById('pay-btn');
   btn.disabled=true;btn.textContent='Processing…';
+  chargeWithMethod(window._sqCard);
+}
+
+function chargeWithMethod(paymentInstance){
+  var btn=document.getElementById('pay-btn');
   _hide('card-error');_hide('co-payment');_show('co-processing');
-  window._sqCard.tokenize().then(function(result){
+  paymentInstance.tokenize().then(function(result){
     if(result.status==='OK'){
       return apiFetch('process_payment.php','POST',{source_id:result.token,order_id:window._pendingOrderId});
     } else {
-      var msg=(result.errors&&result.errors[0])?result.errors[0].message:'Please check your card details and try again.';
+      var msg=(result.errors&&result.errors[0])?result.errors[0].message:'Please check your payment details and try again.';
       throw{cardError:true,message:msg};
     }
   }).then(function(d){
@@ -657,6 +712,7 @@ function showCardError(msg){
 function backToCheckoutForm(){
   // Destroy card widget
   if(window._sqCard){try{window._sqCard.destroy();}catch(e){}window._sqCard=null;}
+  resetWalletButtons();
   // Cancel the pending order so stock is restored
   var oid=window._pendingOrderId;
   if(oid){

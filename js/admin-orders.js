@@ -1733,11 +1733,10 @@ function setSquareMode(mode){
   SQUARE_MODE=mode;
   // Save to DB so all browsers see the same mode
   apiFetch('admin.php','POST',{action:'save_setting',key:'square_mode',value:mode}).catch(function(){});
-  // Show banner in admin header if in test mode
   // Toggle test-mode class on apanel for CSS red stripe
   var panel=document.getElementById('apanel');
   if(panel){if(mode==='test')panel.classList.add('test-mode');else panel.classList.remove('test-mode');}
-  rSettings(document.getElementById('acnt'));
+  var ok=document.getElementById('sqmode-ok');if(ok){ok.style.display='block';setTimeout(function(){ok.style.display='none';},1500);}
 }
 function rSettings(el){
   if(!SEC){apiFetch('admin.php','POST',{action:'get_sec_question'}).then(function(d){if(d&&d.success)SEC={q:d.question};rSettings(el);}).catch(function(){rSettingsInner(el);});return;}
@@ -1752,6 +1751,14 @@ function rSettingsInner(el){
       ['Online','InPerson','Test'].map(function(m){return'<option'+(PAY_CONFIG===m?' selected':'')+'>'+m+'</option>';}).join('')+
     '</select>'+
     '<div class="aok" id="payconf-ok" style="display:none">Saved!</div>'+
+  '</div>'+
+  '<div style="background:#fff;border-radius:10px;border:1px solid #e8e0b8;padding:1.2rem;margin-bottom:1.2rem">'+
+    '<div style="font-weight:700;margin-bottom:.4rem">🧪 Square Payment Mode</div>'+
+    '<div style="font-size:.8rem;color:#6b6040;margin-bottom:.9rem;line-height:1.6"><strong>Live</strong>: real Square account, real charges. <strong>Test</strong>: Square sandbox — card/Apple Pay/Google Pay tokenize and process against Square\'s sandbox, no real money moves. Saved to the database so it applies for every visitor on this site.</div>'+
+    '<select class="afi" id="sqmode-sel" onchange="setSquareMode(this.value)">'+
+      ['live','test'].map(function(m){return'<option value="'+m+'"'+(SQUARE_MODE===m?' selected':'')+'>'+(m==='live'?'Live':'Test (Sandbox)')+'</option>';}).join('')+
+    '</select>'+
+    '<div class="aok" id="sqmode-ok" style="display:none">Saved!</div>'+
   '</div>'+
   '<div style="background:#fff;border-radius:10px;border:1px solid #e8e0b8;padding:1.2rem;margin-bottom:1.2rem">'+
     '<div style="font-weight:700;margin-bottom:.9rem">Change Admin Password</div>'+
@@ -1820,6 +1827,15 @@ function rSettingsInner(el){
   // Load saved Payment Configuration from DB so the dropdown reflects the persisted value (not the page-load default)
   apiFetch('admin.php','POST',{action:'get_setting',key:'payment_configuration'}).then(function(d){
     if(d&&d.success&&d.value){PAY_CONFIG=d.value;var sel=document.getElementById('payconf-sel');if(sel)sel.value=d.value;}
+  }).catch(function(){});
+  // Load saved Square Payment Mode from DB so the dropdown reflects the persisted value (not the page-load default)
+  apiFetch('admin.php','POST',{action:'get_setting',key:'square_mode'}).then(function(d){
+    if(d&&d.success&&d.value){
+      SQUARE_MODE=d.value;
+      var sel=document.getElementById('sqmode-sel');if(sel)sel.value=d.value;
+      var panel=document.getElementById('apanel');
+      if(panel){if(d.value==='test')panel.classList.add('test-mode');else panel.classList.remove('test-mode');}
+    }
   }).catch(function(){});
 }
 
