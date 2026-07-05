@@ -3044,6 +3044,19 @@ try{
 
     t('index.php studio-page',strpos($chtml,'id="studio-page"')!==false);
     t('index.php studio scripts',strpos($chtml,'js/studio.js')!==false&&strpos($chtml,'js/admin-studio.js')!==false);
+
+    // Design Studio Projects: top-level nav fix + status pipeline + notes + email-customer
+    $amjs3=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
+    $amjs=$amjs3;
+    t('ADMIN_NAV_LABELS has studio',strpos($amjs,"studio:'🎨 Design Studio'")!==false);
+    $sncols=$pdo->query("SHOW COLUMNS FROM studio_project_notes")->fetchAll(PDO::FETCH_COLUMN);
+    t('studio_project_notes table',count($sncols)>0);
+    t('inquiry_status allows new pipeline',strpos($spphp,"'in_progress'")!==false&&strpos($spphp,'PROJECT_STATUSES')!==false);
+    t('send_studio_project.php exists',file_exists($root.'/send_studio_project.php'));
+    t('send_studio_project.php requires admin',strpos(file_get_contents($root.'/send_studio_project.php'),'requireAdmin()')!==false);
+    t('JS:sendProjectEmail',strpos($asjs,'function sendProjectEmail(')!==false);
+    t('JS:dsAddNote',strpos($asjs,'function dsAddNote(')!==false);
+    t('note timestamps shown in business timezone',strpos($spphp,'function dsFormatNoteTime')!==false&&strpos($spphp,"America/New_York")!==false);
 }catch(Exception $e){t('design studio checks',false,$e->getMessage());}
 
 }catch(Exception $e){t('Exception',false,$e->getMessage().' line '.$e->getLine());}

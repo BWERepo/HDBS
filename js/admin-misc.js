@@ -11,7 +11,7 @@ var RT_GROUPS={
   'Regression Test Security':['regression_test.php has token gate','regression_test.php returns 403 on bad token','admin-misc fetches rt_token','runRegTests appends token','bare URL returns 403'],
   'TableKit Integration':['css/table.css exists','js/table.js exists','index.html loads table.css','index.html loads table.js','TableKit.initAll() in index.html','buildCustThead plain th','buildOrdThead plain th','buildElThead plain th','buildProdThead plain th','sqPay thead plain th','orders table has tablekit class','customers table has tablekit class','products table has tablekit class','email log table has tablekit class','sqPay table has tablekit class','tk-drop-btn hidden in shop.css','tk-th-label arrow in shop.css'],
   'Page View Logging':['pagelog() in applog.php','page_log_enabled() in applog.php','log_page_view action in admin.php','pages.log in read_log allowlist','setPageLogMode function exists','hdbs_pagelog in admin-misc.js','log_page_changes setting key used','goAbout logs visit','goFAQ logs visit','goCustom logs visit','goContact logs visit','goAuth logs visit','openCart logs visit','openCheckout logs visit','rLogs fetches pages.log','dblclick wired for pages log','Clear Pages button exists','pages.log in email dropdown','admin-nav logs page view'],
-  'Design Studio':['api/studio.php','js/studio.js','js/admin-studio.js','studio_items table','studio_inquiries table','studio services seeded','studio faqs seeded','studio GET public','studio POST auth','studio inquire validates','studio rate limit','JS:goStudio','JS:renderStudio','JS:submitStudioInquiry','JS:STUDIO_PICKS','JS:rStudio','JS:dsSaveItem','index.php studio-page','index.php studio scripts']
+  'Design Studio':['api/studio.php','js/studio.js','js/admin-studio.js','studio_items table','studio_inquiries table','studio services seeded','studio faqs seeded','studio GET public','studio POST auth','studio inquire validates','studio rate limit','JS:goStudio','JS:renderStudio','JS:submitStudioInquiry','JS:STUDIO_PICKS','JS:rStudio','JS:dsSaveItem','index.php studio-page','index.php studio scripts','ADMIN_NAV_LABELS has studio','studio_project_notes table','inquiry_status allows new pipeline','send_studio_project.php exists','JS:sendProjectEmail','JS:dsAddNote','note timestamps shown in business timezone']
 };
 function rtBuildSkeleton(){
   var html='';
@@ -394,7 +394,7 @@ var ADMIN_NAV_LABELS={
   custs:'👥 Customers',sales:'💰 Sales',
   subs:'✉️ Subscribers',blast:'📣 Email Blast',faqs:'❓ FAQs',
   tncity:'🏙️ TN City Sales Taxes',reviews:'⭐ Reviews',
-  cats:'🏷️ Categories',shipping:'🚚 Shipping Charges',
+  cats:'🏷️ Categories',shipping:'🚚 Shipping Charges',studio:'🎨 Design Studio',
   sqpay:'💳 Square Payments',paypalpay:'🅿️ PayPal Payments',sweep:'🧾 Tax Sweep',
   regtest:'🧪 Regression Tests',emaillog:'📧 Email Log',
   logs:'📋 Error Logs',bizprofile:'👤 Profile',
@@ -418,6 +418,7 @@ var ADMIN_NAV_STRUCTURE_DEFAULT=[
   {type:'item',sec:'cats'},
   {type:'item',sec:'shipping'},
   {type:'item',sec:'sweep'},
+  {type:'item',sec:'studio'},
   {type:'item',sec:'logout'}
 ];
 function _navFolderState(){try{return JSON.parse(localStorage.getItem('hdbs_nav_folders')||'{}');}catch(e){return{};}}

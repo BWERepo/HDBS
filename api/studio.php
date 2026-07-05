@@ -34,11 +34,33 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS studio_inquiries (
     description TEXT,
     contact_pref VARCHAR(20) NOT NULL DEFAULT '',
     inspiration TEXT,
-    status VARCHAR(10) NOT NULL DEFAULT 'new',
+    status VARCHAR(20) NOT NULL DEFAULT 'inquiry',
     ip VARCHAR(45) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+$pdo->exec("CREATE TABLE IF NOT EXISTS studio_project_notes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    project_id INT NOT NULL,
+    note_text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+// Widen status from the old 3-value scheme (new/replied/closed, VARCHAR(10)) — 'in_progress'
+// is 11 chars and would otherwise get truncated on installs that predate this pipeline.
+$statusCol = $pdo->query("SHOW COLUMNS FROM studio_inquiries LIKE 'status'")->fetch();
+if ($statusCol && stripos($statusCol['Type'], 'varchar(10)') !== false) {
+    $pdo->exec("ALTER TABLE studio_inquiries MODIFY status VARCHAR(20) NOT NULL DEFAULT 'inquiry'");
+}
 
 $STUDIO_SECTIONS = ['service','gallery','project','testimonial','faq'];
+$PROJECT_STATUSES = ['inquiry','started','in_progress','completed'];
+
+// Notes are stored as server (UTC) time; format for display in the business's own timezone,
+// matching the convention already used for order timestamps (api/orders.php).
+function dsFormatNoteTime($utcDatetime) {
+    if (!$utcDatetime) return '';
+    $dt = new DateTime($utcDatetime, new DateTimeZone('UTC'));
+    $dt->setTimezone(new DateTimeZone('America/New_York'));
+    return $dt->format('M j, Y g:i A');
+}
 
 // One-time seed: starter service cards + FAQs (placeholder copy for Suzi to review in the
 // admin — galleries/projects/testimonials are never seeded; they stay hidden until real
@@ -109,9 +131,14 @@ if ($method === 'GET') {
     if (($_GET['action'] ?? '') === 'inquiries') {
         requireAdmin();
         $rows = $pdo->query("SELECT * FROM studio_inquiries ORDER BY created_at DESC, id DESC")->fetchAll();
-        ok(['inquiries' => array_map(function($r) {
+        $notesByProject = [];
+        foreach ($pdo->query("SELECT * FROM studio_project_notes ORDER BY created_at DESC, id DESC")->fetchAll() as $n) {
+            $notesByProject[(int)$n['project_id']][] = ['id' => (int)$n['id'], 'note_text' => $n['note_text'], 'created_at' => dsFormatNoteTime($n['created_at'])];
+        }
+        ok(['inquiries' => array_map(function($r) use ($notesByProject) {
             $r['id'] = (int)$r['id'];
             $r['inspiration'] = $r['inspiration'] ? (json_decode($r['inspiration'], true) ?: null) : null;
+            $r['notes'] = $notesByProject[$r['id']] ?? [];
             return $r;
         }, $rows)]);
     }
@@ -176,9 +203,10 @@ if ($method === 'POST') {
         $inspo    = $d['inspiration'] ?? null; // {picks:[{id,title,image}], links:'...'}
         $inspoJson = $inspo ? json_encode($inspo) : null;
 
-        $pdo->prepare("INSERT INTO studio_inquiries (name,email,phone,project_type,budget,timeline,description,contact_pref,inspiration,ip)
-            VALUES (?,?,?,?,?,?,?,?,?,?)")
+        $pdo->prepare("INSERT INTO studio_inquiries (name,email,phone,project_type,budget,timeline,description,contact_pref,inspiration,status,ip)
+            VALUES (?,?,?,?,?,?,?,?,?,'inquiry',?)")
             ->execute([$name,$email,$phone,$type,$budget,$timeline,$desc,$pref,$inspoJson,($_SERVER['REMOTE_ADDR'] ?? '')]);
+        $newProjectId = (int)$pdo->lastInsertId();
 
         // Email notification to Suzi (same template style + Yahoo relay rules as contact.php)
         require_once dirname(__DIR__) . '/mailer.php';
@@ -230,7 +258,7 @@ if ($method === 'POST') {
         $result = sendEmail($to, $fullsubj, $html_body, $to, $name);
         try {
             $pdo->prepare("INSERT INTO email_log (sent_at,email_type,sent_to,order_id,subject,status,email_body) VALUES (CONVERT_TZ(NOW(),'+00:00','-04:00'),?,?,?,?,?,?)")
-                ->execute(['Studio Inquiry', $to, '', $fullsubj, $result===true?'sent':'failed', $html_body]);
+                ->execute(['Studio Inquiry', $to, 'DS-'.$newProjectId, $fullsubj, $result===true?'sent':'failed', $html_body]);
         } catch (Exception $e) {}
         // The inquiry is stored either way — don't fail the visitor if only the email relay hiccuped
         ok(['message' => 'Inquiry received']);
@@ -295,9 +323,28 @@ if ($method === 'POST') {
     if ($action === 'inquiry_status') {
         $id = (int)($d['id'] ?? 0);
         $status = $d['status'] ?? '';
-        if (!$id || !in_array($status, ['new','replied','closed'], true)) fail('Missing id or invalid status');
+        if (!$id || !in_array($status, $PROJECT_STATUSES, true)) fail('Missing id or invalid status');
         $pdo->prepare("UPDATE studio_inquiries SET status=? WHERE id=?")->execute([$status,$id]);
         ok(['message' => 'Status updated']);
+    }
+
+    if ($action === 'add_note') {
+        $projectId = (int)($d['project_id'] ?? 0);
+        $noteText  = trim($d['note_text'] ?? '');
+        if (!$projectId || !$noteText) fail('Missing project_id or note_text');
+        $pdo->prepare("INSERT INTO studio_project_notes (project_id,note_text) VALUES (?,?)")->execute([$projectId,$noteText]);
+        $id = (int)$pdo->lastInsertId();
+        $row = $pdo->prepare("SELECT * FROM studio_project_notes WHERE id=?");
+        $row->execute([$id]);
+        $note = $row->fetch();
+        ok(['message' => 'Note added', 'note' => ['id' => (int)$note['id'], 'note_text' => $note['note_text'], 'created_at' => dsFormatNoteTime($note['created_at'])]]);
+    }
+
+    if ($action === 'delete_note') {
+        $id = (int)($d['id'] ?? 0);
+        if (!$id) fail('Missing id');
+        $pdo->prepare("DELETE FROM studio_project_notes WHERE id=?")->execute([$id]);
+        ok(['message' => 'Note deleted']);
     }
 
     fail('Unknown action');

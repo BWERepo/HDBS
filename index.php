@@ -1067,9 +1067,9 @@ if (!empty($bz['logo'])) {
 <script src="js/admin-general.js?v=5"></script>
 <script src="js/admin-products.js?v=15"></script>
 <script src="js/admin-orders.js?v=32"></script>
-<script src="js/admin-misc.js?v=22"></script>
+<script src="js/admin-misc.js?v=24"></script>
 <script src="js/admin-business.js?v=9"></script>
-<script src="js/admin-studio.js?v=1"></script>
+<script src="js/admin-studio.js?v=3"></script>
 <script src="js/table.js"></script>
 <script src="js/toolbar.js"></script>
 <script>document.addEventListener('DOMContentLoaded', function(){ TableKit.initAll(); });</script>

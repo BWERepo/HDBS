@@ -30,7 +30,7 @@ var DS_DEFAULT_CFG={
     sub:"Every commission starts with a simple hello. Tell Suzi what you're imagining — she'll take it from there.",
     cta:"Begin the collaboration"}
 };
-var DS_TABS=[['inquiries','📥 Inquiries'],['service','🎨 Services'],['gallery','🖼️ Inspiration Gallery'],['project','📖 Projects'],['testimonial','💬 Testimonials'],['faq','❓ FAQs'],['copy','📝 Page Copy']];
+var DS_TABS=[['inquiries','📁 Projects'],['service','🎨 Services'],['gallery','🖼️ Inspiration Gallery'],['project','📖 Portfolio'],['testimonial','💬 Testimonials'],['faq','❓ FAQs'],['copy','📝 Page Copy']];
 var DS_SECTION_HINTS={
   service:'These cards appear under "What We Create". The starter copy was seeded automatically — please review and personalize it.',
   gallery:'Inspiration photos, grouped into filter pills on the page. Tip: use groups like Portraits, Branding, Jewelry, Photography, Mixed Media, or Corvette Themes. Shoppers can ♥ a photo to attach it to their inquiry.',
@@ -38,6 +38,13 @@ var DS_SECTION_HINTS={
   testimonial:'Real customer quotes only. The section stays hidden on the page until at least one active testimonial exists.',
   faq:'Shown in the Design Studio FAQ accordion (separate from the main site FAQs). The starter answers were seeded automatically — please review and personalize them.'
 };
+var DS_PROJECT_STATUSES=['inquiry','started','in_progress','completed'];
+var DS_STATUS_COLORS={inquiry:['#fff8e1','#e65100'],started:['#e3f2fd','#1565c0'],in_progress:['#f3e5f5','#6a1b9a'],completed:['#e8f5e9','#2e7d32']};
+function dsStatusStyle(status){
+  var c=DS_STATUS_COLORS[status]||DS_STATUS_COLORS.inquiry;
+  return 'background:'+c[0]+';color:'+c[1]+';font-weight:600;border:1px solid '+c[1]+';border-radius:6px;padding:.3rem .5rem';
+}
+var _dsProjectDraft=null;
 
 function rStudio(el){
   el.innerHTML='<div style="padding:2rem;text-align:center;color:#6b6040">Loading Design Studio…</div>';
@@ -72,20 +79,30 @@ function dsRenderInquiries(body){
     var rows='';
     DS_INQUIRIES.forEach(function(q){
       rows+='<tr><td>'+escHtml(q.created_at||'')+'</td><td>'+escHtml(q.name)+'</td><td>'+escHtml(q.project_type||'—')+'</td><td>'+escHtml(q.budget||'—')+'</td>'+
-        '<td><select onchange="dsSetInqStatus('+q.id+',this.value)" style="padding:.2rem;border-radius:6px;border:1px solid #e8e0b8">'+
-        ['new','replied','closed'].map(function(s){return '<option'+(q.status===s?' selected':'')+'>'+s+'</option>';}).join('')+
-        '</select></td>'+
+        '<td><select id="ds-status-'+q.id+'" onchange="dsSetInqStatus('+q.id+',this.value)" style="'+dsStatusStyle(q.status)+'">'+
+        DS_PROJECT_STATUSES.map(function(s){return '<option'+(q.status===s?' selected':'')+'>'+s+'</option>';}).join('')+
+        '</select> <span id="ds-status-saved-'+q.id+'" style="font-size:.72rem;color:#2e7d32;opacity:0;transition:opacity .3s">✓ Saved</span></td>'+
         '<td><button class="bp" style="font-size:.75rem;padding:.3rem .7rem" onclick="dsViewInquiry('+q.id+')">View</button></td></tr>';
     });
-    body.innerHTML='<div style="font-size:.85rem;color:#6b6040;margin-bottom:.8rem">'+DS_INQUIRIES.length+' inquir'+(DS_INQUIRIES.length===1?'y':'ies')+' — new inquiries also arrive by email.</div>'+
+    body.innerHTML='<div style="font-size:.85rem;color:#6b6040;margin-bottom:.8rem">'+DS_INQUIRIES.length+' project'+(DS_INQUIRIES.length===1?'':'s')+' — new inquiries also arrive by email.</div>'+
       '<table class="tablekit"><thead><tr><th>Received</th><th>Name</th><th>Project</th><th>Budget</th><th>Status</th><th></th></tr></thead><tbody>'+
-      (rows||'<tr><td colspan="6" style="text-align:center;padding:2rem;color:#6b6040">No inquiries yet.<br><span style="font-size:.8rem">Submissions from the Design Studio page will appear here.</span></td></tr>')+
+      (rows||'<tr><td colspan="6" style="text-align:center;padding:2rem;color:#6b6040">No projects yet.<br><span style="font-size:.8rem">Submissions from the Design Studio page will appear here.</span></td></tr>')+
       '</tbody></table>';
     if(typeof TableKit!=='undefined')TableKit.initAll();
   }).catch(function(){body.innerHTML='<div style="padding:2rem;text-align:center;color:#c0392b">Could not load inquiries.</div>';});
 }
 function dsSetInqStatus(id,status){
-  apiFetch('studio.php','POST',{action:'inquiry_status',id:id,status:status}).catch(function(){});
+  var sel=document.getElementById('ds-status-'+id);
+  if(sel)sel.setAttribute('style',dsStatusStyle(status));
+  var q=null;DS_INQUIRIES.forEach(function(x){if(x.id===id)q=x;});
+  if(q)q.status=status;
+  apiFetch('studio.php','POST',{action:'inquiry_status',id:id,status:status}).then(function(d){
+    var saved=document.getElementById('ds-status-saved-'+id);
+    if(saved&&d&&d.success){
+      saved.style.opacity='1';
+      setTimeout(function(){saved.style.opacity='0';},1500);
+    }
+  }).catch(function(){});
 }
 function dsViewInquiry(id){
   var q=null;DS_INQUIRIES.forEach(function(x){if(x.id===id)q=x;});
@@ -98,7 +115,14 @@ function dsViewInquiry(id){
       picks+='<span style="display:inline-block;margin:.2rem;text-align:center">'+(p.image?'<img src="'+escHtml(p.image)+'" style="width:64px;height:64px;object-fit:cover;border-radius:8px;display:block">':'')+'<span style="font-size:.68rem;color:#6b6040">'+escHtml(p.title||'')+'</span></span>';
     });
   }
-  body.innerHTML='<button class="bp" style="font-size:.78rem;padding:.35rem .8rem;margin-bottom:1rem" onclick="renderStudioAdminTab()">← Back to inquiries</button>'+
+  var notes=q.notes||[];
+  var notesHtml='';
+  notes.forEach(function(n){
+    notesHtml+='<div style="display:flex;justify-content:space-between;gap:.6rem;padding:.5rem 0;border-bottom:1px solid #f0ead9">'+
+      '<div><div style="font-size:.68rem;color:#a99;margin-bottom:.15rem">'+escHtml(n.created_at||'')+'</div><div style="font-size:.85rem;white-space:pre-wrap">'+escHtml(n.note_text)+'</div></div>'+
+      '<button class="bd" style="font-size:.68rem;padding:.2rem .5rem;height:fit-content;flex-shrink:0" onclick="dsDeleteNote('+q.id+','+n.id+')">Delete</button></div>';
+  });
+  body.innerHTML='<button class="bp" style="font-size:.78rem;padding:.35rem .8rem;margin-bottom:1rem" onclick="renderStudioAdminTab()">← Back to projects</button>'+
     '<div style="background:#fff;border:1px solid #e8e0b8;border-radius:12px;padding:1.5rem;max-width:680px">'+
     '<table style="width:100%;font-size:.88rem;border-collapse:collapse">'+
     row('Received',q.created_at)+row('Name',q.name)+row('Email',q.email)+row('Phone',q.phone)+
@@ -107,8 +131,125 @@ function dsViewInquiry(id){
     '<div style="margin-top:1rem;background:#fdfbf0;border:1px solid #e8e0b8;border-radius:8px;padding:1rem;font-size:.88rem;white-space:pre-wrap">'+escHtml(q.description||'')+'</div>'+
     (picks?'<div style="margin-top:1rem"><div style="font-size:.78rem;color:#6b6040;margin-bottom:.3rem">Inspiration picks</div>'+picks+'</div>':'')+
     (q.inspiration&&q.inspiration.links?'<div style="margin-top:.8rem;font-size:.85rem"><span style="color:#6b6040">Links:</span> '+escHtml(q.inspiration.links)+'</div>':'')+
-    '<div style="margin-top:1.2rem"><a class="bp" style="font-size:.8rem;padding:.4rem .9rem;text-decoration:none" href="mailto:'+escHtml(q.email)+'?subject='+encodeURIComponent('Your Design Studio inquiry — '+(window.BIZ_NAME||'Handmade Designs By Suzi'))+'">✉️ Reply by email</a></div>'+
+    '<div style="margin-top:1.2rem"><button class="bp" style="font-size:.8rem;padding:.4rem .9rem" onclick="sendProjectEmail('+q.id+')">📧 Email Customer</button></div>'+
+    '<h3 style="font-size:.92rem;color:#2d2220;margin:1.4rem 0 .5rem">Notes</h3>'+
+    '<div id="ds-notes-list-'+q.id+'">'+(notesHtml||'<div style="font-size:.82rem;color:#6b6040">No notes yet.</div>')+'</div>'+
+    '<textarea class="fi" id="ds-note-text-'+q.id+'" rows="2" style="resize:vertical;margin-top:.6rem" placeholder="Add a note about this project…"></textarea>'+
+    '<button class="bp" style="font-size:.8rem;padding:.4rem .9rem;margin-top:.4rem" onclick="dsAddNote('+q.id+')">+ Add Note</button>'+
     '</div>';
+}
+function dsAddNote(projectId){
+  var ta=document.getElementById('ds-note-text-'+projectId);
+  var text=ta?ta.value.trim():'';
+  if(!text)return;
+  apiFetch('studio.php','POST',{action:'add_note',project_id:projectId,note_text:text}).then(function(d){
+    if(d&&d.success){
+      var q=null;DS_INQUIRIES.forEach(function(x){if(x.id===projectId)q=x;});
+      if(q){q.notes=q.notes||[];q.notes.unshift(d.note);}
+      dsViewInquiry(projectId);
+    }
+  }).catch(function(){});
+}
+function dsDeleteNote(projectId,noteId){
+  if(!confirm('Delete this note?'))return;
+  apiFetch('studio.php','POST',{action:'delete_note',id:noteId}).then(function(){
+    var q=null;DS_INQUIRIES.forEach(function(x){if(x.id===projectId)q=x;});
+    if(q)q.notes=(q.notes||[]).filter(function(n){return n.id!==noteId;});
+    dsViewInquiry(projectId);
+  }).catch(function(){});
+}
+
+// ── Email customer (mirrors sendGenericEmail/emailPreviewThenSend in admin-orders.js,
+// kept separate since those are keyed to order_id and are working order-flow code) ──
+function sendProjectEmail(projectId){
+  var existing=document.getElementById('generic-email-modal');if(existing)existing.remove();
+  var div=document.createElement('div');
+  div.id='generic-email-modal';
+  div.className='modal-ov on';
+  div.style.zIndex='400';
+  div.innerHTML=
+    '<div class="modal-box" style="max-width:520px;width:95%;padding:1.4rem">'+
+      '<div style="font-weight:700;font-size:1rem;margin-bottom:1rem;color:#2d2220">📧 Email Project Customer</div>'+
+      '<div class="merr" id="ge-err" style="display:none;background:#fdecea;color:#c0392b;padding:.5rem .8rem;border-radius:6px;font-size:.82rem;margin-bottom:.7rem"></div>'+
+      '<label class="fl">Subject *</label>'+
+      '<input class="afi" id="ge-subject" placeholder="e.g. Update on your project">'+
+      '<label class="fl">Message *</label>'+
+      '<textarea class="afi" id="ge-message" rows="6" placeholder="Type your message to the customer…"></textarea>'+
+      '<div style="display:flex;gap:.6rem;margin-top:1rem">'+
+        '<button class="bp" onclick="previewProjectEmail('+projectId+')">Preview</button>'+
+        '<button class="bs" onclick="document.getElementById(\'generic-email-modal\').remove()">Cancel</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+}
+function previewProjectEmail(projectId){
+  var subjEl=document.getElementById('ge-subject'), msgInputEl=document.getElementById('ge-message');
+  var subject=subjEl?subjEl.value.trim():'', message=msgInputEl?msgInputEl.value.trim():'';
+  var errEl=document.getElementById('ge-err');
+  if(!subject||!message){
+    if(errEl){errEl.style.display='block';errEl.textContent='Subject and message are both required.';}
+    return;
+  }
+  _dsProjectDraft={subject:subject,message:message};
+  fetch(SITE_ORIGIN+'/send_studio_project.php',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Token':(window._adminToken||'')},
+    body:JSON.stringify({project_id:projectId,subject:subject,message:message,preview:true})})
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(!d||!d.success||!d.html){
+      if(errEl){errEl.style.display='block';errEl.textContent='Could not load preview: '+((d&&d.error)||'unknown');}
+      return;
+    }
+    var modal=document.getElementById('generic-email-modal');if(modal)modal.remove();
+    showProjectEmailPreview(projectId,d);
+  }).catch(function(e){
+    if(errEl){errEl.style.display='block';errEl.textContent='Network error: '+e;}
+  });
+}
+function showProjectEmailPreview(projectId,d){
+  var esc=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  var existing=document.getElementById('email-preview-modal');if(existing)existing.remove();
+  var div=document.createElement('div');
+  div.id='email-preview-modal';
+  div.className='modal-ov on';
+  div.style.zIndex='400';
+  div.innerHTML=
+    '<div class="modal-box" style="max-width:640px;width:95%;padding:0;overflow:hidden;display:flex;flex-direction:column;max-height:90vh">'+
+      '<div style="padding:1rem 1.4rem;border-bottom:1px solid #e8e0b8;display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="font-weight:700;color:#2d2220">Preview: Project Update</div>'+
+        '<button onclick="document.getElementById(\'email-preview-modal\').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b6040;line-height:1">×</button>'+
+      '</div>'+
+      '<div style="padding:.7rem 1.4rem;background:#fffdf0;border-bottom:1px solid #e8e0b8;font-size:.82rem;color:#6b6040">'+
+        '<div><strong>To:</strong> '+esc(d.to)+'</div>'+
+        '<div><strong>Subject:</strong> '+esc(d.subject)+'</div>'+
+      '</div>'+
+      '<iframe id="email-preview-frame" style="flex:1;width:100%;min-height:360px;border:0;background:#fff"></iframe>'+
+      '<div style="padding:.9rem 1.4rem;border-top:1px solid #e8e0b8;display:flex;justify-content:flex-end;gap:.6rem">'+
+        '<button class="bs" onclick="document.getElementById(\'email-preview-modal\').remove()">Cancel</button>'+
+        '<button class="bp" id="email-preview-send">Send Email</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+  var frame=document.getElementById('email-preview-frame');
+  if(frame)frame.srcdoc=d.html;
+  var sendBtn=document.getElementById('email-preview-send');
+  if(sendBtn)sendBtn.onclick=function(){projectEmailSendNow(projectId,sendBtn);};
+}
+function projectEmailSendNow(projectId,btn){
+  if(btn){btn.disabled=true;btn.textContent='Sending…';}
+  var payload={project_id:projectId};
+  if(_dsProjectDraft){payload.subject=_dsProjectDraft.subject;payload.message=_dsProjectDraft.message;}
+  fetch(SITE_ORIGIN+'/send_studio_project.php',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Token':(window._adminToken||'')},
+    body:JSON.stringify(payload)})
+  .then(function(r){return r.json();})
+  .then(function(d){
+    var modal=document.getElementById('email-preview-modal');if(modal)modal.remove();
+    _dsProjectDraft=null;
+    if(d&&d.success){alert('✓ Email sent to '+(d.to||'customer')+'!');}
+    else{alert('Email failed: '+((d&&d.error)||'unknown'));}
+  }).catch(function(e){
+    var modal=document.getElementById('email-preview-modal');if(modal)modal.remove();
+    alert('Network error: '+e);
+  });
 }
 
 // ── Content item lists ──
