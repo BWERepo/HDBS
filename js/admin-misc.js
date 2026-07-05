@@ -11,7 +11,7 @@ var RT_GROUPS={
   'Regression Test Security':['regression_test.php has token gate','regression_test.php returns 403 on bad token','admin-misc fetches rt_token','runRegTests appends token','bare URL returns 403'],
   'TableKit Integration':['css/table.css exists','js/table.js exists','index.html loads table.css','index.html loads table.js','TableKit.initAll() in index.html','buildCustThead plain th','buildOrdThead plain th','buildElThead plain th','buildProdThead plain th','sqPay thead plain th','orders table has tablekit class','customers table has tablekit class','products table has tablekit class','email log table has tablekit class','sqPay table has tablekit class','tk-drop-btn hidden in shop.css','tk-th-label arrow in shop.css'],
   'Page View Logging':['pagelog() in applog.php','page_log_enabled() in applog.php','log_page_view action in admin.php','pages.log in read_log allowlist','setPageLogMode function exists','hdbs_pagelog in admin-misc.js','log_page_changes setting key used','goAbout logs visit','goFAQ logs visit','goCustom logs visit','goContact logs visit','goAuth logs visit','openCart logs visit','openCheckout logs visit','rLogs fetches pages.log','dblclick wired for pages log','Clear Pages button exists','pages.log in email dropdown','admin-nav logs page view'],
-  'Design Studio':['api/studio.php','js/studio.js','js/admin-studio.js','studio_items table','studio_inquiries table','studio services seeded','studio faqs seeded','studio GET public','studio POST auth','studio inquire validates','studio rate limit','JS:goStudio','JS:renderStudio','JS:submitStudioInquiry','JS:STUDIO_PICKS','JS:rStudio','JS:dsSaveItem','index.php studio-page','index.php studio scripts','ADMIN_NAV_LABELS has studio','studio_project_notes table','inquiry_status allows new pipeline','send_studio_project.php exists','JS:sendProjectEmail','JS:dsAddNote','note timestamps shown in business timezone']
+  'Design Studio':['api/studio.php','js/studio.js','js/admin-studio.js','studio_items table','studio_inquiries table','studio services seeded','studio faqs seeded','studio GET public','studio POST auth','studio inquire validates','studio rate limit','JS:goStudio','JS:renderStudio','JS:submitStudioInquiry','JS:STUDIO_PICKS','JS:rStudio','JS:dsSaveItem','index.php studio-page','index.php studio scripts','ADMIN_NAV_LABELS has studio','studio_project_notes table','inquiry_status allows new pipeline','send_studio_project.php exists','send_studio_project.php requires admin','JS:sendProjectEmail','JS:dsAddNote','note timestamps shown in business timezone','studio_inquiries has due_date column','due date defaults from customer timeline','studio POST set_due_date action','JS:dsSetDueDate','studio POST delete_project action','JS:dsDeleteProject','studio is a top-level nav item after Shop folder','nav migration pulls studio out of folders']
 };
 function rtBuildSkeleton(){
   var html='';
@@ -410,6 +410,7 @@ var ADMIN_NAV_DEFAULT=Object.keys(ADMIN_NAV_LABELS).map(function(s){return{sec:s
 var ADMIN_NAV_STRUCTURE_DEFAULT=[
   {type:'item',sec:'dash'},
   {type:'folder',sec:'shop',label:'🛍️ Shop',children:['prods','orders','custs','sales','subs','blast','emaillog','sqpay','paypalpay']},
+  {type:'item',sec:'studio'},
   {type:'folder',sec:'business',label:'🏢 Business',children:['bizprofile','bizdocs','bizinv','bizreports','bizequip']},
   {type:'folder',sec:'developer',label:'🔧 Developer',children:['regtest','gitlog','deploylog','dbbackup','logs','settings']},
   {type:'item',sec:'faqs'},
@@ -418,7 +419,6 @@ var ADMIN_NAV_STRUCTURE_DEFAULT=[
   {type:'item',sec:'cats'},
   {type:'item',sec:'shipping'},
   {type:'item',sec:'sweep'},
-  {type:'item',sec:'studio'},
   {type:'item',sec:'logout'}
 ];
 function _navFolderState(){try{return JSON.parse(localStorage.getItem('hdbs_nav_folders')||'{}');}catch(e){return{};}}
@@ -511,6 +511,24 @@ function loadNavOrder(callback){
     Object.keys(ADMIN_NAV_LABELS).forEach(function(sec){
       if(existing.indexOf(sec)<0)structure.push({type:'item',sec:sec});
     });
+    // Design Studio must be a TOP-LEVEL item (same level as the Shop / Business / Developer
+    // folders), never nested inside one. Pull it out of any folder it was dropped into and
+    // re-add it as a lone top-level item right after the Shop folder. Bails once it's already
+    // correctly placed, so it doesn't fight top-level reordering.
+    (function(){
+      var nestedInFolder=structure.some(function(n){return n.type==='folder'&&(n.children||[]).indexOf('studio')>=0;});
+      var topLevelCount=structure.filter(function(n){return n.type==='item'&&n.sec==='studio';}).length;
+      if(!nestedInFolder&&topLevelCount===1)return; // already a single top-level item
+      structure.forEach(function(n){if(n.type==='folder')n.children=(n.children||[]).filter(function(s){return s!=='studio';});});
+      structure=structure.filter(function(n){return !(n.type==='item'&&n.sec==='studio');});
+      var shopIdx=-1,devIdx=-1;
+      structure.forEach(function(n,i){
+        if(n.type==='folder'&&n.sec==='shop')shopIdx=i;
+        if(n.type==='folder'&&n.sec==='developer')devIdx=i;
+      });
+      var at=shopIdx>=0?shopIdx+1:(devIdx>=0?devIdx+1:structure.length);
+      structure.splice(at,0,{type:'item',sec:'studio'});
+    })();
     callback(structure);
   }).catch(function(){callback(JSON.parse(JSON.stringify(ADMIN_NAV_STRUCTURE_DEFAULT)));});
 }

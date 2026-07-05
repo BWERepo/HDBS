@@ -3057,6 +3057,15 @@ try{
     t('JS:sendProjectEmail',strpos($asjs,'function sendProjectEmail(')!==false);
     t('JS:dsAddNote',strpos($asjs,'function dsAddNote(')!==false);
     t('note timestamps shown in business timezone',strpos($spphp,'function dsFormatNoteTime')!==false&&strpos($spphp,"America/New_York")!==false);
+    $sicols2=$pdo->query("SHOW COLUMNS FROM studio_inquiries")->fetchAll(PDO::FETCH_COLUMN);
+    t('studio_inquiries has due_date column',in_array('due_date',$sicols2));
+    t('due date defaults from customer timeline',strpos($spphp,'function dsDefaultDueDate')!==false&&strpos($spphp,"'two weeks'")!==false);
+    t('studio POST set_due_date action',strpos($spphp,"'set_due_date'")!==false);
+    t('JS:dsSetDueDate',strpos($asjs,'function dsSetDueDate(')!==false);
+    t('studio POST delete_project action',strpos($spphp,"'delete_project'")!==false&&strpos($spphp,'DELETE FROM studio_project_notes WHERE project_id')!==false);
+    t('JS:dsDeleteProject',strpos($asjs,'function dsDeleteProject(')!==false);
+    t('studio is a top-level nav item after Shop folder',strpos($amjs,"{type:'item',sec:'studio'}")!==false&&strpos($amjs,"folder',sec:'shop'")<strpos($amjs,"{type:'item',sec:'studio'}"));
+    t('nav migration pulls studio out of folders',strpos($amjs,'Design Studio must be a TOP-LEVEL item')!==false);
 }catch(Exception $e){t('design studio checks',false,$e->getMessage());}
 
 }catch(Exception $e){t('Exception',false,$e->getMessage().' line '.$e->getLine());}

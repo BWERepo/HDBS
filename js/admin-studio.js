@@ -78,15 +78,18 @@ function dsRenderInquiries(body){
     DS_INQUIRIES=(d&&d.inquiries)||[];
     var rows='';
     DS_INQUIRIES.forEach(function(q){
-      rows+='<tr><td>'+escHtml(q.created_at||'')+'</td><td>'+escHtml(q.name)+'</td><td>'+escHtml(q.project_type||'—')+'</td><td>'+escHtml(q.budget||'—')+'</td>'+
+      rows+='<tr><td>'+escHtml(q.created_at||'')+'</td>'+
+        '<td><input type="date" id="ds-due-'+q.id+'" value="'+escHtml(q.due_date||'')+'" onchange="dsSetDueDate('+q.id+',this.value)" style="padding:.2rem;border-radius:6px;border:1px solid #e8e0b8;font-size:.85rem"> <span id="ds-due-saved-'+q.id+'" style="font-size:.72rem;color:#2e7d32;opacity:0;transition:opacity .3s">✓ Saved</span></td>'+
+        '<td>'+escHtml(q.name)+'</td><td>'+escHtml(q.project_type||'—')+'</td><td>'+escHtml(q.budget||'—')+'</td>'+
         '<td><select id="ds-status-'+q.id+'" onchange="dsSetInqStatus('+q.id+',this.value)" style="'+dsStatusStyle(q.status)+'">'+
         DS_PROJECT_STATUSES.map(function(s){return '<option'+(q.status===s?' selected':'')+'>'+s+'</option>';}).join('')+
         '</select> <span id="ds-status-saved-'+q.id+'" style="font-size:.72rem;color:#2e7d32;opacity:0;transition:opacity .3s">✓ Saved</span></td>'+
-        '<td><button class="bp" style="font-size:.75rem;padding:.3rem .7rem" onclick="dsViewInquiry('+q.id+')">View</button></td></tr>';
+        '<td><button class="bp" style="font-size:.75rem;padding:.3rem .7rem" onclick="dsViewInquiry('+q.id+')">View</button> '+
+        '<button class="bd" style="font-size:.75rem;padding:.3rem .7rem" onclick="dsDeleteProject('+q.id+')">Delete</button></td></tr>';
     });
     body.innerHTML='<div style="font-size:.85rem;color:#6b6040;margin-bottom:.8rem">'+DS_INQUIRIES.length+' project'+(DS_INQUIRIES.length===1?'':'s')+' — new inquiries also arrive by email.</div>'+
-      '<table class="tablekit"><thead><tr><th>Received</th><th>Name</th><th>Project</th><th>Budget</th><th>Status</th><th></th></tr></thead><tbody>'+
-      (rows||'<tr><td colspan="6" style="text-align:center;padding:2rem;color:#6b6040">No projects yet.<br><span style="font-size:.8rem">Submissions from the Design Studio page will appear here.</span></td></tr>')+
+      '<table class="tablekit"><thead><tr><th>Received</th><th>Due Date</th><th>Name</th><th>Project</th><th>Budget</th><th>Status</th><th></th></tr></thead><tbody>'+
+      (rows||'<tr><td colspan="7" style="text-align:center;padding:2rem;color:#6b6040">No projects yet.<br><span style="font-size:.8rem">Submissions from the Design Studio page will appear here.</span></td></tr>')+
       '</tbody></table>';
     if(typeof TableKit!=='undefined')TableKit.initAll();
   }).catch(function(){body.innerHTML='<div style="padding:2rem;text-align:center;color:#c0392b">Could not load inquiries.</div>';});
@@ -103,6 +106,26 @@ function dsSetInqStatus(id,status){
       setTimeout(function(){saved.style.opacity='0';},1500);
     }
   }).catch(function(){});
+}
+function dsSetDueDate(id,dueDate){
+  var q=null;DS_INQUIRIES.forEach(function(x){if(x.id===id)q=x;});
+  if(q)q.due_date=dueDate;
+  apiFetch('studio.php','POST',{action:'set_due_date',id:id,due_date:dueDate}).then(function(d){
+    var saved=document.getElementById('ds-due-saved-'+id);
+    if(saved&&d&&d.success){
+      saved.style.opacity='1';
+      setTimeout(function(){saved.style.opacity='0';},1500);
+    }
+  }).catch(function(){});
+}
+function dsDeleteProject(id){
+  if(!confirm('Delete this project and all its notes? This cannot be undone.'))return;
+  apiFetch('studio.php','POST',{action:'delete_project',id:id}).then(function(d){
+    if(d&&d.success){
+      DS_INQUIRIES=DS_INQUIRIES.filter(function(x){return x.id!==id;});
+      renderStudioAdminTab();
+    } else {alert('Delete failed: '+((d&&d.error)||'unknown'));}
+  }).catch(function(){alert('Delete failed — network error.');});
 }
 function dsViewInquiry(id){
   var q=null;DS_INQUIRIES.forEach(function(x){if(x.id===id)q=x;});
@@ -131,7 +154,8 @@ function dsViewInquiry(id){
     '<div style="margin-top:1rem;background:#fdfbf0;border:1px solid #e8e0b8;border-radius:8px;padding:1rem;font-size:.88rem;white-space:pre-wrap">'+escHtml(q.description||'')+'</div>'+
     (picks?'<div style="margin-top:1rem"><div style="font-size:.78rem;color:#6b6040;margin-bottom:.3rem">Inspiration picks</div>'+picks+'</div>':'')+
     (q.inspiration&&q.inspiration.links?'<div style="margin-top:.8rem;font-size:.85rem"><span style="color:#6b6040">Links:</span> '+escHtml(q.inspiration.links)+'</div>':'')+
-    '<div style="margin-top:1.2rem"><button class="bp" style="font-size:.8rem;padding:.4rem .9rem" onclick="sendProjectEmail('+q.id+')">📧 Email Customer</button></div>'+
+    '<div style="margin-top:1.2rem;display:flex;gap:.6rem;flex-wrap:wrap"><button class="bp" style="font-size:.8rem;padding:.4rem .9rem" onclick="sendProjectEmail('+q.id+')">📧 Email Customer</button>'+
+    '<button class="bd" style="font-size:.8rem;padding:.4rem .9rem" onclick="dsDeleteProject('+q.id+')">🗑️ Delete Project</button></div>'+
     '<h3 style="font-size:.92rem;color:#2d2220;margin:1.4rem 0 .5rem">Notes</h3>'+
     '<div id="ds-notes-list-'+q.id+'">'+(notesHtml||'<div style="font-size:.82rem;color:#6b6040">No notes yet.</div>')+'</div>'+
     '<textarea class="fi" id="ds-note-text-'+q.id+'" rows="2" style="resize:vertical;margin-top:.6rem" placeholder="Add a note about this project…"></textarea>'+

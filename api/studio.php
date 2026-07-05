@@ -49,6 +49,9 @@ $statusCol = $pdo->query("SHOW COLUMNS FROM studio_inquiries LIKE 'status'")->fe
 if ($statusCol && stripos($statusCol['Type'], 'varchar(10)') !== false) {
     $pdo->exec("ALTER TABLE studio_inquiries MODIFY status VARCHAR(20) NOT NULL DEFAULT 'inquiry'");
 }
+if (empty($pdo->query("SHOW COLUMNS FROM studio_inquiries LIKE 'due_date'")->fetchAll())) {
+    $pdo->exec("ALTER TABLE studio_inquiries ADD COLUMN due_date DATE NULL");
+}
 
 $STUDIO_SECTIONS = ['service','gallery','project','testimonial','faq'];
 $PROJECT_STATUSES = ['inquiry','started','in_progress','completed'];
@@ -60,6 +63,17 @@ function dsFormatNoteTime($utcDatetime) {
     $dt = new DateTime($utcDatetime, new DateTimeZone('UTC'));
     $dt->setTimezone(new DateTimeZone('America/New_York'));
     return $dt->format('M j, Y g:i A');
+}
+
+// Default due date from the customer's chosen timeline — a starting point the admin can
+// always edit; "no rush" and "specific date" (mentioned in their own description) are left
+// blank since they're either open-ended or need a human to read the actual date.
+function dsDefaultDueDate($timeline) {
+    $days = null;
+    if (stripos($timeline, 'two weeks') !== false) $days = 14;
+    elseif (stripos($timeline, 'a month') !== false) $days = 30;
+    if ($days === null) return null;
+    return date('Y-m-d', strtotime("+{$days} days"));
 }
 
 // One-time seed: starter service cards + FAQs (placeholder copy for Suzi to review in the
@@ -203,9 +217,10 @@ if ($method === 'POST') {
         $inspo    = $d['inspiration'] ?? null; // {picks:[{id,title,image}], links:'...'}
         $inspoJson = $inspo ? json_encode($inspo) : null;
 
-        $pdo->prepare("INSERT INTO studio_inquiries (name,email,phone,project_type,budget,timeline,description,contact_pref,inspiration,status,ip)
-            VALUES (?,?,?,?,?,?,?,?,?,'inquiry',?)")
-            ->execute([$name,$email,$phone,$type,$budget,$timeline,$desc,$pref,$inspoJson,($_SERVER['REMOTE_ADDR'] ?? '')]);
+        $dueDate = dsDefaultDueDate($timeline);
+        $pdo->prepare("INSERT INTO studio_inquiries (name,email,phone,project_type,budget,timeline,description,contact_pref,inspiration,status,due_date,ip)
+            VALUES (?,?,?,?,?,?,?,?,?,'inquiry',?,?)")
+            ->execute([$name,$email,$phone,$type,$budget,$timeline,$desc,$pref,$inspoJson,$dueDate,($_SERVER['REMOTE_ADDR'] ?? '')]);
         $newProjectId = (int)$pdo->lastInsertId();
 
         // Email notification to Suzi (same template style + Yahoo relay rules as contact.php)
@@ -326,6 +341,23 @@ if ($method === 'POST') {
         if (!$id || !in_array($status, $PROJECT_STATUSES, true)) fail('Missing id or invalid status');
         $pdo->prepare("UPDATE studio_inquiries SET status=? WHERE id=?")->execute([$status,$id]);
         ok(['message' => 'Status updated']);
+    }
+
+    if ($action === 'set_due_date') {
+        $id = (int)($d['id'] ?? 0);
+        $dueDate = trim($d['due_date'] ?? '');
+        if (!$id) fail('Missing id');
+        if ($dueDate && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dueDate)) fail('Invalid date');
+        $pdo->prepare("UPDATE studio_inquiries SET due_date=? WHERE id=?")->execute([$dueDate ?: null, $id]);
+        ok(['message' => 'Due date updated']);
+    }
+
+    if ($action === 'delete_project') {
+        $id = (int)($d['id'] ?? 0);
+        if (!$id) fail('Missing id');
+        $pdo->prepare("DELETE FROM studio_project_notes WHERE project_id=?")->execute([$id]);
+        $pdo->prepare("DELETE FROM studio_inquiries WHERE id=?")->execute([$id]);
+        ok(['message' => 'Project deleted']);
     }
 
     if ($action === 'add_note') {
