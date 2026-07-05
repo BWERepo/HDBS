@@ -362,10 +362,11 @@ if ($method === 'POST' && $action === 'send_log') {
     require_once dirname(__DIR__) . '/mailer.php';
     $edt      = (new DateTime('now', new DateTimeZone('America/New_York')))->format('Y-m-d g:i A') . ' EDT';
     $subject  = "[$file] Log export — $edt";
+    $html     = "<p>Log file <strong>$file</strong> exported $edt. See attached.</p>";
     $result   = sendEmailWithAttachment(
         $to,
         $subject,
-        "<p>Log file <strong>$file</strong> exported $edt. See attached.</p>",
+        $html,
         $file,
         $logText,
         'text/plain',

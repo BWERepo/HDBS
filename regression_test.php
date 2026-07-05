@@ -1688,6 +1688,7 @@ try{
 
     // Settings buttons
     t('btn:Save Square Fees wired',strpos($aojs,'saveSquareFees()')!==false);
+    t('btn:Save PayPal Fees wired',strpos($aojs,'savePaypalFees()')!==false);
     t('btn:Save Tax Rates wired',strpos($aojs,'saveTaxRates()')!==false);
     t('btn:Reset Default Tax Rates wired',strpos($aojs,'resetDefaultTaxRates()')!==false);
     t('btn:Save Version wired',strpos($amjs,'saveVersion()')!==false);
@@ -2361,6 +2362,7 @@ try{
     t('store.js loads PayPal SDK',strpos($stjs,'function loadPayPalSdk')!==false&&strpos($stjs,'paypal.com/sdk/js')!==false);
     t('store.js enables Venmo',strpos($stjs,'enable-funding=venmo')!==false);
     t('store.js disables card + credit + Pay Later (Square owns cards; no Pay Later)',strpos($stjs,'disable-funding=credit,card,paylater')!==false);
+    t('Square Payments money-goes table no longer lists Pay Later (removed from checkout)',strpos($aojs,'Pay&nbsp;Later')===false&&strpos($aojs,'>PayPal, Venmo</td>')!==false);
     t('store.js calls paypal_create.php',strpos($stjs,'paypal_create.php')!==false);
     t('store.js calls paypal_capture.php',strpos($stjs,'paypal_capture.php')!==false);
     t('config.js defines PAYPAL_ENV',strpos($cfgjs,'PAYPAL_ENV')!==false);
@@ -2376,6 +2378,90 @@ try{
 
 }catch(Exception $e){t('PayPal integration checks',false,$e->getMessage());}
 
+// ── PAYPAL PAYMENTS ADMIN SCREEN (below Square Payments, sourced from our own orders table) ──
+try{
+    t('api/paypal_payments.php exists',file_exists($root.'/api/paypal_payments.php'));
+    $ppPayApi=file_get_contents($root.'/api/paypal_payments.php');
+    t('paypal_payments.php requires admin',strpos($ppPayApi,'requireAdmin()')!==false);
+    t('paypal_payments.php sources from our own orders table (no live PayPal API call)',strpos($ppPayApi,'FROM orders')!==false&&strpos($ppPayApi,'paypal_capture_id')!==false);
+    t('paypal_payments.php supports begin/end date filtering',strpos($ppPayApi,"\$_GET['begin']")!==false&&strpos($ppPayApi,"\$_GET['end']")!==false);
+    t('paypal_payments.php reports mode via pp_env()',strpos($ppPayApi,'pp_env()')!==false);
+    t('paypal_payments.php classifies refund status',strpos($ppPayApi,'REFUNDED')!==false&&strpos($ppPayApi,'PARTIAL_REFUND')!==false);
+
+    $aojsPp=file_get_contents($root.'/js/admin-orders.js');
+    t('admin-orders.js defines rPpPay',strpos($aojsPp,'function rPpPay')!==false);
+    t('admin-orders.js defines ppPayLoad (calls paypal_payments.php)',strpos($aojsPp,'function ppPayLoad')!==false&&strpos($aojsPp,'paypal_payments.php')!==false);
+    t('admin-orders.js defines renderPpPayTable',strpos($aojsPp,'function renderPpPayTable')!==false);
+    t('admin-orders.js defines ppPayExportCsv',strpos($aojsPp,'function ppPayExportCsv')!==false);
+    t('admin-orders.js PayPal Payments defaults From to launch date',strpos($aojsPp,"ppPayLoad(el,'2026-07-01'")!==false);
+    t('admin-orders.js Square Payments note points to PayPal Payments screen',strpos($aojsPp,'PayPal Payments screen')!==false);
+
+    $anavPp=file_get_contents($root.'/js/admin-nav.js');
+    t('admin-nav.js routes paypalpay to rPpPay',strpos($anavPp,"sec==='paypalpay')rPpPay(el)")!==false);
+    t('admin-nav.js has PayPal Payments title',strpos($anavPp,"paypalpay:'PayPal Payments'")!==false);
+
+    $amiscPp=file_get_contents($root.'/js/admin-misc.js');
+    t('admin-misc.js has PayPal Payments nav label',strpos($amiscPp,"paypalpay:'🅿️ PayPal Payments'")!==false);
+    $shopMatchPp=preg_match("/sec:'shop'.*?children:\[([^\]]+)\]/s",$amiscPp,$smPp);
+    t('Shop folder default has paypalpay right after sqpay',$shopMatchPp&&strpos($smPp[1],"'sqpay','paypalpay'")!==false);
+    t('loadNavOrder migrates paypalpay into Shop after sqpay on saved nav_orders',strpos($amiscPp,'add PayPal Payments into Shop right after Square Payments')!==false&&strpos($amiscPp,"idx>=0)n.children.splice(idx+1,0,'paypalpay')")!==false);
+}catch(Exception $e){t('PayPal Payments admin screen checks',false,$e->getMessage());}
+
+// ── PAYPAL TRANSACTION FEES (Settings card, right after Square Transaction Fees) ──
+try{
+    $cfgjsPp=file_get_contents($root.'/js/config.js');
+    t('config.js defines PP_FEE_PCT/PP_FEE_CENTS',strpos($cfgjsPp,'var PP_FEE_PCT=')!==false&&strpos($cfgjsPp,'var PP_FEE_CENTS=')!==false);
+
+    $uijsPp=file_get_contents($root.'/js/ui.js');
+    t('ui.js loads paypal_fees setting on startup',strpos($uijsPp,"key:'paypal_fees'")!==false&&strpos($uijsPp,'PP_FEE_PCT=pf.pct')!==false);
+
+    $aojsPpFee=file_get_contents($root.'/js/admin-orders.js');
+    t('Settings has PayPal Transaction Fees card right after Square\'s',strpos($aojsPpFee,'Square Transaction Fees</div>')!==false&&strpos($aojsPpFee,'PayPal Transaction Fees</div>')!==false&&strpos($aojsPpFee,'Square Transaction Fees</div>')<strpos($aojsPpFee,'PayPal Transaction Fees</div>'));
+    t('PayPal fee card has pct/cents inputs',strpos($aojsPpFee,'id="ppfee-pct"')!==false&&strpos($aojsPpFee,'id="ppfee-cents"')!==false);
+    t('savePaypalFees defined and saves to paypal_fees setting',strpos($aojsPpFee,'function savePaypalFees')!==false&&strpos($aojsPpFee,"key:'paypal_fees'")!==false);
+    t('savePaypalFees validates pct/cents like saveSquareFees',strpos($aojsPpFee,"Invalid percentage")!==false&&strpos($aojsPpFee,'Invalid per-transaction cost')!==false);
+}catch(Exception $e){t('PayPal transaction fees checks',false,$e->getMessage());}
+
+// ── PAYPAL CUSTOMER-PAID SURCHARGE (customer covers the PayPal/Venmo fee; Square/card unaffected) ──
+try{
+    $ppApiSc=file_get_contents($root.'/api/paypal.php');
+    t('paypal.php defines pp_surcharge()',strpos($ppApiSc,'function pp_surcharge')!==false);
+    t('pp_surcharge reads the paypal_fees setting',strpos($ppApiSc,"getSetting(\$pdo, 'paypal_fees')")!==false);
+    t('ensurePaypalColumn adds paypal_surcharge column',strpos($ppApiSc,'paypal_surcharge')!==false&&strpos($ppApiSc,"LIKE 'paypal_surcharge'")!==false);
+
+    $ppCreateSc=file_get_contents($root.'/api/paypal_create.php');
+    t('paypal_create adds the surcharge to the PayPal order total',strpos($ppCreateSc,'pp_surcharge($pdo, $total)')!==false&&strpos($ppCreateSc,'round($total + $surcharge, 2)')!==false);
+    t('paypal_create includes a handling breakdown line for the surcharge (PayPal amount validation)',strpos($ppCreateSc,"'handling'")!==false);
+    t('paypal_create returns the surcharge/total to the frontend',strpos($ppCreateSc,"'surcharge' => \$surcharge")!==false);
+
+    $ppCapSc=file_get_contents($root.'/api/paypal_capture.php');
+    t('paypal_capture applies the same surcharge before capturing',strpos($ppCapSc,'pp_surcharge($pdo, $total)')!==false);
+    t('paypal_capture stores paypal_surcharge on the order (real + test_mode paths)',substr_count($ppCapSc,'paypal_surcharge=?')>=2);
+    t('paypal_capture passes surcharge into the confirmation email',strpos($ppCapSc,'sendOrderConfirmation($pdo, $order, $lineItems, $total, $shipping, $tax, $captureId, $surcharge)')!==false);
+
+    $oceSc=file_get_contents($root.'/api/order_confirm_email.php');
+    t('sendOrderConfirmation accepts an optional $surcharge param (defaults 0, Square path unaffected)',strpos($oceSc,'$surcharge = 0')!==false);
+    t('order_confirm_email shows a processing-fee line only when a surcharge was charged',strpos($oceSc,'$surcharge > 0')!==false&&strpos($oceSc,'Processing Fee')!==false);
+
+    $ordersApiSc=file_get_contents($root.'/api/orders.php');
+    t('orders.php exposes paypal_surcharge to the admin',strpos($ordersApiSc,"'paypal_surcharge'")!==false);
+
+    $stjsSc=file_get_contents($root.'/js/store.js');
+    t('store.js defines showPaypalFeeNote',strpos($stjsSc,'function showPaypalFeeNote')!==false);
+    t('store.js shows the fee note using PP_FEE_PCT/PP_FEE_CENTS as the pre-click estimate',strpos($stjsSc,'PP_FEE_PCT')!==false&&strpos($stjsSc,'PP_FEE_CENTS')!==false);
+    t('store.js updates the fee note with the server-confirmed surcharge from paypal_create.php',strpos($stjsSc,'d.surcharge')!==false&&strpos($stjsSc,'showPaypalFeeNote(total,d.surcharge,d.total)')!==false);
+    t('resetWalletButtons hides the PayPal fee note',strpos($stjsSc,"getElementById('paypal-fee-note')")!==false);
+
+    $idxSc=file_get_contents($root.'/index.php');
+    t('index.php has the paypal-fee-note element',strpos($idxSc,'id="paypal-fee-note"')!==false);
+
+    $aojsSc=file_get_contents($root.'/js/admin-orders.js');
+    t('printInvoice shows the PayPal/Venmo processing fee when charged',strpos($aojsSc,"order.paypal_surcharge")!==false&&strpos($aojsSc,'PayPal/Venmo Processing Fee')!==false);
+
+    $apjsSc=file_get_contents($root.'/js/admin-products.js');
+    t('Order Detail (viewOrder) shows the PayPal/Venmo processing fee when charged',strpos($apjsSc,'order.paypal_surcharge')!==false&&strpos($apjsSc,'PayPal/Venmo Processing Fee')!==false);
+}catch(Exception $e){t('PayPal customer-paid surcharge checks',false,$e->getMessage());}
+
 // ── ORDERS bulk select/delete + Square Payments default date ──
 try{
     $aojs=file_get_contents($root.'/js/admin-orders.js');
@@ -2388,6 +2474,128 @@ try{
     t('admin-orders.js keeps deleteAllOrders for Settings full wipe',strpos($aojs,'function deleteAllOrders')!==false);
     t('admin-orders.js Square Payments defaults From to launch date',strpos($aojs,"sqPayLoad(el,'2026-07-01'")!==false);
 }catch(Exception $e){t('orders bulk-delete + sqpay default checks',false,$e->getMessage());}
+
+// ── CUSTOMER ORDER LOOKUP (account view + guest magic link) ──
+try{
+    t('api/order_token.php exists',file_exists($root.'/api/order_token.php'));
+    t('api/order_lookup.php exists',file_exists($root.'/api/order_lookup.php'));
+
+    // Signed, expiring token (HMAC with DB_PASS, same pattern as the order cancel token)
+    $otk=file_get_contents($root.'/api/order_token.php');
+    t('order_token defines makeOrderToken',strpos($otk,'function makeOrderToken')!==false);
+    t('order_token defines verifyOrderToken',strpos($otk,'function verifyOrderToken')!==false);
+    t('order_token signs with DB_PASS + hash_equals',strpos($otk,'hash_hmac')!==false&&strpos($otk,'DB_PASS')!==false&&strpos($otk,'hash_equals')!==false);
+    t('order_token enforces expiry',strpos($otk,'< time()')!==false);
+
+    // Lookup endpoint: generic non-enumerating request + token-gated view
+    $olk=file_get_contents($root.'/api/order_lookup.php');
+    t('order_lookup handles request action',strpos($olk,"=== 'request'")!==false);
+    t('order_lookup handles view action',strpos($olk,"=== 'view'")!==false);
+    t('order_lookup response is generic (no enumeration)',strpos($olk,'If we found orders for that email')!==false);
+    t('order_lookup rate-limits link requests',strpos($olk,'order_lookup_requests')!==false);
+    t('order_lookup verifies token before returning orders',strpos($olk,'verifyOrderToken')!==false);
+    t('order_lookup scopes orders to the token email',strpos($olk,'LOWER(customer_email)')!==false);
+    t('order_lookup magic link is environment-aware',strpos($olk,'ALLOWED_ORIGIN')!==false);
+
+    // customers.php issues the order token at login + register
+    $custPhp2=file_get_contents($root.'/api/customers.php');
+    t('customers.php requires order_token helper',strpos($custPhp2,'order_token.php')!==false);
+    t('customers.php returns orders_token (login + register)',substr_count($custPhp2,'orders_token')>=2&&strpos($custPhp2,'makeOrderToken')!==false);
+
+    // Frontend: account order fetch + guest lookup + magic-link landing
+    $authjs=file_get_contents($root.'/js/auth.js');
+    t('auth.js account page fetches real orders via token',strpos($authjs,'loadMyOrders(CUR_USER.orders_token')!==false);
+    t('auth.js defines loadMyOrders (calls order_lookup)',strpos($authjs,'function loadMyOrders')!==false&&strpos($authjs,'order_lookup.php')!==false);
+    t('auth.js defines renderOrderCards',strpos($authjs,'function renderOrderCards')!==false);
+    t('auth.js defines openMyOrders',strpos($authjs,'function openMyOrders')!==false);
+    t('auth.js defines requestOrderLink',strpos($authjs,'function requestOrderLink')!==false);
+    t('auth.js defines checkOrdersLink (magic link)',strpos($authjs,'function checkOrdersLink')!==false&&strpos($authjs,"params.get('orders')")!==false);
+    t('ui.js calls checkOrdersLink on load',strpos(file_get_contents($root.'/js/ui.js'),'checkOrdersLink()')!==false);
+
+    // index.php: modal + three entry points (side menu, top nav, footer)
+    $idxOl=file_get_contents($root.'/index.php');
+    t('index.php has My Orders modal',strpos($idxOl,'id="myorders-modal"')!==false&&strpos($idxOl,'id="mo-email"')!==false);
+    t('index.php wires openMyOrders entry points (menu+nav+footer)',substr_count($idxOl,'openMyOrders()')>=3);
+    t('index.php footer has Track My Order link',strpos($idxOl,'Track / View My Orders')!==false);
+}catch(Exception $e){t('customer order lookup checks',false,$e->getMessage());}
+
+// ── INVOICE LOGO ──
+try{
+    $aoInv=file_get_contents($root.'/js/admin-orders.js');
+    t('printInvoice includes logo image',strpos($aoInv,'inv-logo')!==false&&strpos($aoInv,'HDBSLogo.jpeg')!==false);
+    t('printInvoice logo has graceful onerror fallback',strpos($aoInv,'this.style.display=')!==false);
+    t('HDBSLogo.jpeg exists',file_exists($root.'/HDBSLogo.jpeg'));
+}catch(Exception $e){t('invoice logo checks',false,$e->getMessage());}
+
+// ── EMAIL LOGO (spliced into each template's own colored header block) ──
+try{
+    $mailPhp=file_get_contents($root.'/mailer.php');
+    t('mailer defines _emailLogoHeader with logo',strpos($mailPhp,'function _emailLogoHeader')!==false&&strpos($mailPhp,'HDBSLogo.jpeg')!==false);
+    t('sendEmail applies the logo header',strpos($mailPhp,'$html = _emailLogoHeader($html);')!==false);
+    t('sendEmailWithAttachment applies the logo header',substr_count($mailPhp,'_emailLogoHeader($html)')>=3);
+    t('_emailLogoHeader turns the header div into a flex row (logo beside title)',strpos($mailPhp,'display:flex')!==false&&strpos($mailPhp,'preg_replace_callback')!==false);
+    t('_emailLogoHeader keeps a masthead fallback for unrecognized header shapes',strpos($mailPhp,'background:#2d2220;padding:14px 0')!==false);
+
+    // Functional check: run the real function against sample headers shaped like our actual
+    // templates (h1+subtitle, and a plain styled div with no h1) and confirm the logo lands
+    // INSIDE that header, before the title, rather than in a separate bar above it.
+    require_once $root.'/mailer.php';
+    $sampleH1 = "<body><div style='background:#a07810;padding:28px;text-align:center'>"
+              . "<h1 style='color:#fff'>Handmade Designs By Suzi</h1>"
+              . "<p style='color:#fdf3d0'>Order Confirmation</p></div></body>";
+    $outH1 = _emailLogoHeader($sampleH1);
+    $logoPos = strpos($outH1,'HDBSLogo.jpeg');
+    $h1Pos   = strpos($outH1,'<h1');
+    t('_emailLogoHeader (h1 template): logo present',$logoPos!==false);
+    t('_emailLogoHeader (h1 template): logo appears before the title',$logoPos!==false&&$h1Pos!==false&&$logoPos<$h1Pos);
+    t('_emailLogoHeader (h1 template): title + subtitle both preserved',strpos($outH1,'Handmade Designs By Suzi')!==false&&strpos($outH1,'Order Confirmation')!==false);
+    t('_emailLogoHeader (h1 template): header div becomes a flex row',preg_match('/background:#a07810[^\'"]*display:flex/',$outH1)===1);
+
+    $samplePlain = "<body><div style='background:#a07810;padding:28px;text-align:center'>"
+                 . "<div style='color:#fff;font-weight:bold'>Handmade Designs By Suzi</div></div></body>";
+    $outPlain = _emailLogoHeader($samplePlain);
+    $logoPosPlain=strpos($outPlain,'HDBSLogo.jpeg'); $titlePosPlain=strpos($outPlain,'font-weight:bold');
+    t('_emailLogoHeader (plain-div template): logo appears before the title',$logoPosPlain!==false&&$titlePosPlain!==false&&$logoPosPlain<$titlePosPlain);
+
+    // Fallback path: a body with no recognizable colored header should still get the logo somewhere.
+    $sampleNoHeader = "<body><p>No colored header here.</p></body>";
+    $outFallback = _emailLogoHeader($sampleNoHeader);
+    t('_emailLogoHeader falls back to a masthead when no header div matches',strpos($outFallback,'HDBSLogo.jpeg')!==false);
+
+    // Preview modes bypass sendEmail() entirely (they return $html without sending), so each
+    // preview-supporting endpoint must apply _emailLogoHeader() itself or the admin preview
+    // modal shows an email that doesn't match what actually gets sent.
+    foreach(['send_confirm.php','send_shipping.php','send_generic.php'] as $pf){
+        $pfSrc=file_get_contents($root.'/'.$pf);
+        t($pf.' preview applies logo header',strpos($pfSrc,"'html'=>_emailLogoHeader(\$html)")!==false||strpos($pfSrc,'\'html\' => _emailLogoHeader($html)')!==false);
+    }
+
+    // sendEmail()/sendEmailWithAttachment() take $html BY REFERENCE, so the logo-splice mutates
+    // the caller's own variable — every template logs this SAME $html to email_log afterward, so
+    // that log now reflects what was actually sent instead of the pre-logo template (previously
+    // the preview showed the logo but the Email Log entry didn't, since the caller's copy of
+    // $html was never updated by the old by-value sendEmail()).
+    t('sendEmail takes $html by reference',strpos($mailPhp,'function sendEmail($to, $subject, &$html,')!==false);
+    t('sendEmailWithAttachment takes $html by reference',strpos($mailPhp,'function sendEmailWithAttachment($to, $subject, &$html,')!==false);
+    foreach(['send_confirm.php','send_shipping.php','send_generic.php','api/order_confirm_email.php',
+             'api/refund.php','notify.php','order_confirm.php','api/contact.php'] as $ef){
+        $efSrc=file_get_contents($root.'/'.$ef);
+        // Confirms the email_log INSERT for this template logs the same $html variable that was
+        // passed to sendEmail() (not a separately-built string), so the by-ref fix covers it.
+        t($ef.' logs the same $html passed to sendEmail (by-ref fix applies)',preg_match('/INSERT INTO email_log.*?execute\(\[.*?\$html\]\)/s',$efSrc)===1||preg_match('/INSERT INTO email_log.*?execute\(\[.*?\$html_body\]\)/s',$efSrc)===1);
+    }
+}catch(Exception $e){t('email logo checks',false,$e->getMessage());}
+
+// ── SCROLL TO TOP / BOTTOM ──
+try{
+    $idxSn=file_get_contents($root.'/index.php');
+    t('index.php has scroll-nav widget with top+bottom buttons',strpos($idxSn,'id="scroll-nav"')!==false&&strpos($idxSn,'id="scroll-top-btn"')!==false&&strpos($idxSn,'id="scroll-bottom-btn"')!==false);
+    $uijs2=file_get_contents($root.'/js/ui.js');
+    t('ui.js defines scrollToTop/scrollToBottom',strpos($uijs2,'function scrollToTop')!==false&&strpos($uijs2,'function scrollToBottom')!==false);
+    t('ui.js toggles scroll-nav visibility on scroll',strpos($uijs2,'function _updateScrollNav')!==false&&strpos($uijs2,"addEventListener('scroll'")!==false);
+    $cfgjs2=file_get_contents($root.'/js/config.js');
+    t('config.js hides scroll-nav on admin panel',strpos($cfgjs2,"id==='apanel'")!==false&&strpos($cfgjs2,'scroll-nav')!==false);
+}catch(Exception $e){t('scroll to top/bottom checks',false,$e->getMessage());}
 
 // ── DIGITAL WALLETS (Apple Pay / Google Pay) + SANDBOX/LIVE MODE ──
 try{

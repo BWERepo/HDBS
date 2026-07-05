@@ -96,6 +96,26 @@ function ensurePaypalColumn($pdo) {
     if (empty($pdo->query("SHOW COLUMNS FROM orders LIKE 'paypal_capture_id'")->fetchAll())) {
         $pdo->exec("ALTER TABLE orders ADD COLUMN paypal_capture_id VARCHAR(60) DEFAULT NULL");
     }
+    if (empty($pdo->query("SHOW COLUMNS FROM orders LIKE 'paypal_surcharge'")->fetchAll())) {
+        $pdo->exec("ALTER TABLE orders ADD COLUMN paypal_surcharge DECIMAL(10,2) DEFAULT 0");
+    }
+}
+
+// Customer-facing processing-fee surcharge added ONLY when the customer pays via PayPal/Venmo —
+// Square/card customers are never charged this; the business absorbs the Square fee instead. The
+// admin sets the rate in Settings -> PayPal Transaction Fees; falls back to PayPal's published
+// standard Checkout rate if that setting is unset.
+function pp_surcharge($pdo, $amount) {
+    $pct = 3.49; $cents = 0.49;
+    try {
+        $raw = getSetting($pdo, 'paypal_fees');
+        if ($raw) {
+            $f = json_decode($raw, true);
+            if (isset($f['pct']))   $pct   = (float)$f['pct'];
+            if (isset($f['cents'])) $cents = (float)$f['cents'];
+        }
+    } catch (Exception $e) { /* keep defaults */ }
+    return round((float)$amount * $pct / 100 + $cents, 2);
 }
 
 // Recomputes an order's total server-side from its stored line items (never trust the

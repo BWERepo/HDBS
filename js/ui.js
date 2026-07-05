@@ -1,3 +1,18 @@
+// ── SCROLL TO TOP / BOTTOM ──
+function scrollToTop(){window.scrollTo({top:0,behavior:'smooth'});}
+function scrollToBottom(){window.scrollTo({top:document.documentElement.scrollHeight,behavior:'smooth'});}
+function _updateScrollNav(){
+  var topBtn=document.getElementById('scroll-top-btn'),botBtn=document.getElementById('scroll-bottom-btn');
+  if(!topBtn||!botBtn)return;
+  var y=window.scrollY||document.documentElement.scrollTop;
+  var nearBottom=(window.innerHeight+y)>=(document.documentElement.scrollHeight-40);
+  topBtn.style.display=y>400?'flex':'none';
+  botBtn.style.display=nearBottom?'none':'flex';
+}
+window.addEventListener('scroll',_updateScrollNav,{passive:true});
+window.addEventListener('resize',_updateScrollNav);
+document.addEventListener('DOMContentLoaded',_updateScrollNav);
+
 // ── IMAGE LIGHTBOX ──
 var LB_IMGS=[];var LB_IDX=0;
 var LB_ALT='';
@@ -56,6 +71,10 @@ function tryLoad(){
   apiFetch('admin.php','POST',{action:'get_setting',key:'square_fees'}).then(function(d){
     if(d.success&&d.value){try{var f=JSON.parse(d.value);SQ_FEE_PCT=f.pct||2.6;SQ_FEE_CENTS=f.cents||0.10;}catch(e){}}
   }).catch(function(){});
+  // Load PayPal fee config
+  apiFetch('admin.php','POST',{action:'get_setting',key:'paypal_fees'}).then(function(d){
+    if(d.success&&d.value){try{var pf=JSON.parse(d.value);PP_FEE_PCT=pf.pct||3.49;PP_FEE_CENTS=pf.cents||0.49;}catch(e){}}
+  }).catch(function(){});
   // Load tax rates config
   apiFetch('admin.php','POST',{action:'get_setting',key:'tax_rates'}).then(function(d){
     if(d.success&&d.value){try{var t=JSON.parse(d.value);if(t&&typeof t==='object')TAX_RATES=t;}catch(e){}}
@@ -77,8 +96,8 @@ function tryLoad(){
       try{localStorage.setItem('suzi_products_cache',JSON.stringify(stripImgs(PRODS)));}catch(e){}
       renderStore();injectProductSchemas();
     }
-    checkThankYou();checkProductParam();
-  }).catch(function(){renderStore();checkThankYou();});
+    checkThankYou();checkProductParam();checkOrdersLink();
+  }).catch(function(){renderStore();checkThankYou();checkOrdersLink();});
   // Load reviews
   loadReviews();
   // Pre-load FAQs

@@ -186,10 +186,11 @@ dbg('send_shipping', "START order_id=$order_id carrier_override=$carrier_overrid
     $no_cust   = empty(trim($customer_email));
     $recipients = $no_cust ? [$from_email] : [$customer_email, $from_email];
 
-    // Preview mode: return the rendered email without sending or logging
+    // Preview mode: return the rendered email without sending or logging. Apply the same logo
+    // masthead sendEmail() would add, so the preview matches what actually gets sent.
     if(!empty($data['preview'])){
         ob_end_clean();
-        echo json_encode(['success'=>true,'preview'=>true,'html'=>$html,'subject'=>$subject,'to'=>($no_cust?$from_email:$customer_email)]);
+        echo json_encode(['success'=>true,'preview'=>true,'html'=>_emailLogoHeader($html),'subject'=>$subject,'to'=>($no_cust?$from_email:$customer_email)]);
         exit;
     }
 

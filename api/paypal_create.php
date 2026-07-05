@@ -30,6 +30,11 @@ if ($order['status'] !== 'Awaiting Payment') fail('Order is not awaiting payment
 list($subtotal, $shipping, $tax, $total) = pp_order_amounts($pdo, $order_id);
 if ($total < 1) fail('Order total is too small');
 
+// Customer-facing PayPal processing fee — added on top of the order total so the customer,
+// not the business, covers it (Square/card checkout never adds this surcharge).
+$surcharge = pp_surcharge($pdo, $total);
+$total     = round($total + $surcharge, 2);
+
 $token = pp_token();
 if (!$token) fail('PayPal is not configured. Please choose another payment method.');
 
@@ -46,6 +51,7 @@ $body = [
                 'item_total' => ['currency_code' => 'USD', 'value' => number_format($subtotal, 2, '.', '')],
                 'shipping'   => ['currency_code' => 'USD', 'value' => number_format($shipping, 2, '.', '')],
                 'tax_total'  => ['currency_code' => 'USD', 'value' => number_format($tax, 2, '.', '')],
+                'handling'   => ['currency_code' => 'USD', 'value' => number_format($surcharge, 2, '.', '')],
             ],
         ],
     ]],
@@ -58,4 +64,4 @@ if (($status !== 200 && $status !== 201) || empty($resp['id'])) {
     fail('Could not start PayPal checkout. Please try again.');
 }
 
-ok(['paypal_order_id' => $resp['id']]);
+ok(['paypal_order_id' => $resp['id'], 'surcharge' => $surcharge, 'total' => $total]);

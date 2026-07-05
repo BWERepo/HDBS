@@ -2,6 +2,7 @@
 // api/customers.php — Register, login, get customers, password reset
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/order_token.php';  // issues the order-view token on login/register
 cors();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -55,7 +56,8 @@ if ($method === 'POST' && $action === 'register') {
         strtolower(trim($d['secA'] ?? '')),
     ]);
 
-    ok(['id' => $id, 'name' => trim(($d['fn'] ?? '') . ' ' . ($d['ln'] ?? '')), 'em' => $d['em']]);
+    ok(['id' => $id, 'name' => trim(($d['fn'] ?? '') . ' ' . ($d['ln'] ?? '')), 'em' => $d['em'],
+        'orders_token' => makeOrderToken($d['em'], 86400)]);
 }
 
 // POST — login
@@ -103,6 +105,7 @@ if ($method === 'POST' && $action === 'login') {
         'ph'     => $cust['phone'],
         'orders' => (int)$cust['order_count'],
         'secQ'   => $cust['sec_question'],
+        'orders_token' => makeOrderToken($cust['email'], 86400),  // 24h token for the account order view
     ]);
 }
 

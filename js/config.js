@@ -12,6 +12,8 @@ var PAYPAL_CLIENT_ID=PAYPAL_ENV==='sandbox'
 var PAY_CONFIG='Online'; // global store payment mode: Online | InPerson | Test
 var SQ_FEE_PCT=2.6;
 var SQ_FEE_CENTS=0.10;
+var PP_FEE_PCT=3.49;
+var PP_FEE_CENTS=0.49;
 var TAX_RATES={
   'AL':4,'AK':0,'AZ':5.6,'AR':6.5,'CA':7.25,'CO':2.9,'CT':6.35,'DE':0,
   'FL':6,'GA':4,'HI':4,'ID':6,'IL':6.25,'IN':7,'IA':6,'KS':6.5,
@@ -139,6 +141,9 @@ function showOnly(id,flex){
       el.classList.remove('page-fade');
     }
   }
+  // Scroll-to-top/bottom widget applies to the storefront pages, not the admin back office
+  var sn=document.getElementById('scroll-nav');
+  if(sn)sn.style.display=(id==='apanel')?'none':'flex';
 }
 function injectProductSchemas(){
   document.querySelectorAll('script[data-type="product-schema"]').forEach(function(s){s.remove();});

@@ -67,6 +67,7 @@ if ($method === 'GET') { requireAdmin(); dbg('orders','GET all orders');
             'tracking'   => $o['tracking_number'] ?? '',
             'confirm_sent'     => $o['confirm_sent_at'] ?? null,
             'square_payment_id' => $o['square_payment_id'] ?? null,
+            'paypal_surcharge'  => (float)($o['paypal_surcharge'] ?? 0),
             'shipping_sent'=> $o['shipping_sent_at'] ?? null,
             'dispDate'   => $o['order_date'] ? date('n/j/Y', strtotime($o['order_date'])) : '',
             'items'      => isset($itemMap[$o['id']]) ? array_values(array_filter($itemMap[$o['id']], function($i){return $i['id']!=='_ship';})) : [],

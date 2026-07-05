@@ -394,7 +394,7 @@ var ADMIN_NAV_LABELS={
   subs:'✉️ Subscribers',blast:'📣 Email Blast',faqs:'❓ FAQs',
   tncity:'🏙️ TN City Sales Taxes',reviews:'⭐ Reviews',
   cats:'🏷️ Categories',shipping:'🚚 Shipping Charges',
-  sqpay:'💳 Square Payments',sweep:'🧾 Tax Sweep',
+  sqpay:'💳 Square Payments',paypalpay:'🅿️ PayPal Payments',sweep:'🧾 Tax Sweep',
   regtest:'🧪 Regression Tests',emaillog:'📧 Email Log',
   logs:'📋 Error Logs',bizprofile:'👤 Profile',
   bizdocs:'📄 Documents',bizinv:'📦 Inventory',bizreports:'📊 Reports',bizequip:'🏗️ Capital Equipment',
@@ -408,7 +408,7 @@ var ADMIN_NAV_DEFAULT=Object.keys(ADMIN_NAV_LABELS).map(function(s){return{sec:s
 // Default nested structure with Shop and Developer folders
 var ADMIN_NAV_STRUCTURE_DEFAULT=[
   {type:'item',sec:'dash'},
-  {type:'folder',sec:'shop',label:'🛍️ Shop',children:['prods','orders','custs','sales','subs','blast','emaillog','sqpay']},
+  {type:'folder',sec:'shop',label:'🛍️ Shop',children:['prods','orders','custs','sales','subs','blast','emaillog','sqpay','paypalpay']},
   {type:'folder',sec:'business',label:'🏢 Business',children:['bizprofile','bizdocs','bizinv','bizreports','bizequip']},
   {type:'folder',sec:'developer',label:'🔧 Developer',children:['regtest','gitlog','deploylog','dbbackup','logs','settings']},
   {type:'item',sec:'faqs'},
@@ -485,6 +485,19 @@ function loadNavOrder(callback){
       });
       structure.forEach(function(n){
         if(n.type==='folder'&&n.sec==='shop')n.children.push('sqpay');
+      });
+    })();
+    // One-time migration: add PayPal Payments into Shop right after Square Payments, on saved
+    // nav_orders that predate it (a fresh install picks this up from the folder defaults above).
+    (function(){
+      var inShop=structure.some(function(n){return n.type==='folder'&&n.sec==='shop'&&(n.children||[]).indexOf('paypalpay')>=0;});
+      if(inShop)return;
+      structure.forEach(function(n){
+        if(n.type==='folder'&&n.sec==='shop'){
+          var idx=n.children.indexOf('sqpay');
+          if(idx>=0)n.children.splice(idx+1,0,'paypalpay');
+          else n.children.push('paypalpay');
+        }
       });
     })();
     // Add any new secs not yet present anywhere in structure

@@ -601,6 +601,7 @@ function resetWalletButtons(){
   var ap=document.getElementById('apple-pay-button');if(ap){ap.style.display='none';ap.onclick=null;}
   var gp=document.getElementById('google-pay-button');if(gp){gp.style.display='none';gp.innerHTML='';gp.onclick=null;}
   var pp=document.getElementById('paypal-button-container');if(pp){pp.style.display='none';pp.innerHTML='';}
+  var ppFee=document.getElementById('paypal-fee-note');if(ppFee)ppFee.style.display='none';
   if(window._ppButtons){try{window._ppButtons.close();}catch(e){}window._ppButtons=null;}
   var div=document.getElementById('wallet-divider');if(div)div.style.display='none';
   window._sqApplePay=null;window._sqGooglePay=null;
@@ -662,6 +663,20 @@ function loadPayPalSdk(cb){
   document.head.appendChild(s);
 }
 
+// Shows the PayPal/Venmo processing-fee disclosure next to the button. Starts as a client-side
+// estimate from the admin-configured PP_FEE_PCT/PP_FEE_CENTS (Settings -> PayPal Transaction
+// Fees); once the customer actually clicks the button, createOrder() gets the server's
+// authoritative surcharge/total back from paypal_create.php and this is updated to match exactly
+// what PayPal will charge. Square/card checkout never shows this — only the PayPal button does.
+function showPaypalFeeNote(total,confirmedFee,confirmedTotal){
+  var note=document.getElementById('paypal-fee-note');
+  if(!note)return;
+  var fee=(typeof confirmedFee==='number')?confirmedFee:Math.round((total*PP_FEE_PCT/100+PP_FEE_CENTS)*100)/100;
+  var newTotal=(typeof confirmedTotal==='number')?confirmedTotal:Math.round((total+fee)*100)/100;
+  note.innerHTML='Paying with PayPal or Venmo adds a <strong>$'+fee.toFixed(2)+'</strong> processing fee — total <strong>$'+newTotal.toFixed(2)+'</strong>.';
+  note.style.display='block';
+}
+
 function initPayPal(total){
   var cont=document.getElementById('paypal-button-container');
   if(!cont)return;
@@ -674,7 +689,10 @@ function initPayPal(total){
       style:{layout:'vertical',color:'gold',shape:'rect',label:'paypal'},
       createOrder:function(){
         return apiFetch('paypal_create.php','POST',{order_id:window._pendingOrderId}).then(function(d){
-          if(d&&d.success&&d.paypal_order_id)return d.paypal_order_id;
+          if(d&&d.success&&d.paypal_order_id){
+            if(typeof d.surcharge==='number')showPaypalFeeNote(total,d.surcharge,d.total);
+            return d.paypal_order_id;
+          }
           throw new Error((d&&d.error)||'Could not start PayPal checkout.');
         });
       },
@@ -698,7 +716,7 @@ function initPayPal(total){
     window._ppButtons=btns;
     if(btns.isEligible&&!btns.isEligible()){cont.style.display='none';return;}
     btns.render('#paypal-button-container').then(function(){
-      cont.style.display='block';showWalletDivider();
+      cont.style.display='block';showWalletDivider();showPaypalFeeNote(total);
     }).catch(function(){cont.style.display='none';});
   });
 }

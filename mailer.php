@@ -21,7 +21,40 @@ function _smtpConfig() {
     return $cfg;
 }
 
-function sendEmail($to, $subject, $html, $from_email, $from_name) {
+// Splice the brand logo into each template's own colored header block (the div carrying the
+// business name), turning it into a flex row so the logo sits beside the title/subtitle instead
+// of in a separate masthead bar above everything. Templates all use one of three header
+// background colors, and the header div is always the first one using them (footers reuse the
+// same colors but appear later in the document), so matching only the first occurrence reliably
+// finds the header across every template without depending on whether it wraps the name in an
+// <h1> or a plain styled <div>, or has a subtitle line under it.
+function _emailLogoHeader($html) {
+    $logo = '<img src="https://handmadedesignsbysuzi.com/HDBSLogo.jpeg" alt="" '
+          . 'style="height:50px;width:auto;flex-shrink:0;border:0">';
+    $pattern = '/<div\s+style=([\'"])((?:(?!\1).)*?background\s*:\s*(?:#a07810|#2d2220|linear-gradient\(\s*135deg\s*,\s*#a07810\s*,\s*#d4a017\s*\))(?:(?!\1).)*)\1([^>]*)>(.*?)<\/div>/is';
+    if (preg_match($pattern, $html)) {
+        return preg_replace_callback($pattern, function($m) use ($logo) {
+            $style = rtrim($m[2], '; ') . ';display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap';
+            return '<div style=' . $m[1] . $style . $m[1] . $m[3] . '>'
+                 . $logo
+                 . '<div style="text-align:center">' . $m[4] . '</div>'
+                 . '</div>';
+        }, $html, 1);
+    }
+    // No matching header found (unexpected template shape) — fall back to a simple masthead bar
+    // above the body so the logo still appears somewhere rather than silently vanishing.
+    $fallback = '<div style="text-align:center;background:#2d2220;padding:14px 0">' . $logo . '</div>';
+    if (preg_match('/<body[^>]*>/i', $html)) {
+        return preg_replace('/(<body[^>]*>)/i', '$1' . $fallback, $html, 1);
+    }
+    return $fallback . $html;
+}
+
+// $html is BY REFERENCE: applying the logo here mutates the caller's own variable, so anything
+// the caller logs to email_log afterward (or reuses) reflects the actual email that was sent,
+// not the pre-logo template. Every call site passes a plain variable, so this is always safe.
+function sendEmail($to, $subject, &$html, $from_email, $from_name) {
+    $html = _emailLogoHeader($html);
     $c = _smtpConfig();
     $smtp_host = $c['host'];
     $smtp_port = $c['port'];
@@ -109,7 +142,9 @@ function sendEmail($to, $subject, $html, $from_email, $from_name) {
     return true;
 }
 
-function sendEmailWithAttachment($to, $subject, $html, $attachName, $attachContent, $attachMime, $from_email, $from_name) {
+// $html is BY REFERENCE — see sendEmail() above for why.
+function sendEmailWithAttachment($to, $subject, &$html, $attachName, $attachContent, $attachMime, $from_email, $from_name) {
+    $html = _emailLogoHeader($html);
     $c = _smtpConfig();
     $smtp_host = $c['host'];
     $smtp_port = $c['port'];

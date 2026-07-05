@@ -9,7 +9,7 @@ require_once __DIR__ . '/config.php';
 // email_log. $paymentId is the processor's charge/capture id (shown in the footer).
 // Returns the sendEmail() result (true on success). Never throws — email failure must
 // not roll back an already-captured payment.
-function sendOrderConfirmation($pdo, $order, $lineItems, $total, $shipping, $tax, $paymentId) {
+function sendOrderConfirmation($pdo, $order, $lineItems, $total, $shipping, $tax, $paymentId, $surcharge = 0) {
     $order_id = $order['id'];
 
     $biz_name  = bizName($pdo);
@@ -43,6 +43,7 @@ function sendOrderConfirmation($pdo, $order, $lineItems, $total, $shipping, $tax
       " . $itemHtml . "
       <tr><td style='padding:.3rem .5rem;border-top:1px solid #e8e0b8'>Shipping</td><td style='padding:.3rem .5rem;text-align:right;border-top:1px solid #e8e0b8'>" . ($shipping > 0 ? '$' . number_format($shipping, 2) : 'Free') . "</td></tr>
       <tr><td style='padding:.3rem .5rem'>Tax (9.75%)</td><td style='padding:.3rem .5rem;text-align:right'>$" . number_format($tax, 2) . "</td></tr>
+      " . ($surcharge > 0 ? "<tr><td style='padding:.3rem .5rem'>PayPal/Venmo Processing Fee</td><td style='padding:.3rem .5rem;text-align:right'>$" . number_format($surcharge, 2) . "</td></tr>" : "") . "
       <tr style='font-weight:700'><td style='padding:.5rem .5rem;border-top:2px solid #d4a017'>Total Charged</td><td style='padding:.5rem .5rem;text-align:right;border-top:2px solid #d4a017;color:#a07810'>$" . number_format($total, 2) . "</td></tr>
     </table>
   </div>

@@ -537,7 +537,8 @@ function viewOrder(oid){
           trow('Subtotal','$'+itemSubtotal.toFixed(2))+
           (shipCost>0?trow('Shipping','$'+shipCost.toFixed(2)):trow('Shipping','Free','color:#2e7d32'))+
           (tax>0?trow('Sales Tax','$'+tax.toFixed(2)):'')+
-          ((order.pay==='Credit Card'||order.pay==='Square')?trow('Transaction Fee','$'+(order.fee||0).toFixed(2),'color:#c62828'):'')+ 
+          ((order.pay==='Credit Card'||order.pay==='Square')?trow('Transaction Fee','$'+(order.fee||0).toFixed(2),'color:#c62828'):'')+
+          ((order.paypal_surcharge||0)>0?trow('PayPal/Venmo Processing Fee','$'+order.paypal_surcharge.toFixed(2),'color:#c62828'):'')+
           '<div style="display:flex;justify-content:space-between;padding:.5rem 0;font-size:1rem;font-weight:700;color:#2d2220;border-top:2px solid #e8e0b8;margin-top:.2rem">'+
             '<span>Total</span><span style="color:#a07810">$'+order.total.toFixed(2)+'</span>'+
           '</div>'+

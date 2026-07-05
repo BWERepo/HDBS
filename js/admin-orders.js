@@ -447,7 +447,9 @@ function printInvoice(oid){
     '<title>Invoice — '+oid+'</title>'+
     '<style>'+
       'body{font-family:Arial,sans-serif;font-size:13px;margin:30px;color:#2d2220}'+
-      'h1{color:#a07810;margin:0 0 4px;font-size:22px}'+
+      '.inv-head{display:flex;align-items:center;gap:14px;margin-bottom:4px}'+
+      '.inv-logo{height:56px;width:auto}'+
+      'h1{color:#a07810;margin:0;font-size:22px}'+
       '.sub{color:#6b6040;font-size:11px;margin-bottom:20px}'+
       '.grid{display:flex;justify-content:space-between;margin-bottom:24px}'+
       '.grid>div{width:48%}'+
@@ -460,7 +462,10 @@ function printInvoice(oid){
       '.grand td{font-weight:700;font-size:15px;border-top:2px solid #a07810!important;padding-top:8px!important}'+
       '@media print{@page{margin:1.5cm}button{display:none}}'+
     '</style></head><body>'+
-    '<h1>'+bizNamePrint+'</h1>'+
+    '<div class="inv-head">'+
+      '<img class="inv-logo" src="'+SITE_ORIGIN+'/HDBSLogo.jpeg" alt="" onerror="this.style.display=\'none\'">'+
+      '<h1>'+bizNamePrint+'</h1>'+
+    '</div>'+
     '<div class="sub">Invoice for Order '+oid+' &bull; '+(order.dispDate||order.date||'')+'</div>'+
     '<div class="grid">'+
       '<div><div class="lbl">Bill To</div>'+(order.cust||'')+'<br>'+(order.email||'')+'<br>'+(order.phone||'')+'</div>'+
@@ -472,6 +477,7 @@ function printInvoice(oid){
       trow('Subtotal',itemSubtotal)+
       trow('Shipping',shipCost)+
       (tax>0?trow('Sales Tax',tax):'')+
+      ((order.paypal_surcharge||0)>0?trow('PayPal/Venmo Processing Fee',order.paypal_surcharge):'')+
       (fee>0?trow('Transaction Fee',fee):'')+
       trow('Total',order.total,'grand')+
     '</table>'+
@@ -481,7 +487,7 @@ function printInvoice(oid){
   w.document.write(html);
   w.document.close();
   w.focus();
-  setTimeout(function(){w.focus();w.print();w.close();},400);
+  setTimeout(function(){w.focus();w.print();w.close();},500);
 }
 
 function printShippingLabel(oid){
@@ -1845,6 +1851,20 @@ function rSettingsInner(el){
     '<button class="bp" onclick="saveSquareFees()">Save Fees</button>'+
   '</div>'+
   '<div style="background:#fff;border-radius:10px;border:1px solid #e8e0b8;padding:1.2rem;margin-bottom:1.2rem">'+
+    '<div style="font-weight:700;margin-bottom:.4rem">🅿️ PayPal Transaction Fees</div>'+
+    '<div style="font-size:.8rem;color:#6b6040;margin-bottom:.9rem;line-height:1.6">Used to calculate net revenue in Sales Report after PayPal fees. Actual PayPal/Venmo orders already store their exact fee from PayPal at checkout — this is the reference rate shown here.</div>'+
+    '<div class="aok" id="ppfee-ok" style="display:none">PayPal fees saved!</div>'+
+    '<div class="aerr" id="ppfee-err" style="display:none"></div>'+
+    '<label class="fl">Transaction Percentage (%)</label>'+
+    '<input class="afi" id="ppfee-pct" type="number" step="0.01" min="0" max="100" value="'+PP_FEE_PCT+'" placeholder="e.g. 3.49">'+
+    '<label class="fl">Per-Transaction Cost ($)</label>'+
+    '<input class="afi" id="ppfee-cents" type="number" step="0.01" min="0" value="'+PP_FEE_CENTS+'" placeholder="e.g. 0.49">'+
+    '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:7px;padding:.65rem;font-size:.8rem;color:#6b6040;margin-bottom:.9rem">'+
+      'Standard PayPal Checkout rate: <strong>3.49% + $0.49</strong> per online transaction'+
+    '</div>'+
+    '<button class="bp" onclick="savePaypalFees()">Save Fees</button>'+
+  '</div>'+
+  '<div style="background:#fff;border-radius:10px;border:1px solid #e8e0b8;padding:1.2rem;margin-bottom:1.2rem">'+
     '<div style="font-weight:700;margin-bottom:.4rem">📧 Email (SMTP)</div>'+
     '<div style="font-size:.8rem;color:#6b6040;margin-bottom:.9rem;line-height:1.6">Outgoing email settings for order confirmations and shipping notifications.</div>'+
     '<div class="aok" id="smtp-ok" style="display:none">SMTP settings saved!</div>'+
@@ -1911,6 +1931,21 @@ function saveSquareFees(){
   if(isNaN(cents)||cents<0){err.textContent='Invalid per-transaction cost.';err.style.display='block';return;}
   SQ_FEE_PCT=pct;SQ_FEE_CENTS=cents;
   apiFetch('admin.php','POST',{action:'save_setting',key:'square_fees',value:JSON.stringify({pct:pct,cents:cents})})
+  .then(function(d){
+    if(d.message==='Setting saved'||d.success){ok.style.display='block';setTimeout(function(){ok.style.display='none';},2500);}
+    else{err.textContent='Save failed.';err.style.display='block';}
+  }).catch(function(){err.textContent='Network error.';err.style.display='block';});
+}
+function savePaypalFees(){
+  var pct=parseFloat(document.getElementById('ppfee-pct').value);
+  var cents=parseFloat(document.getElementById('ppfee-cents').value);
+  var ok=document.getElementById('ppfee-ok');
+  var err=document.getElementById('ppfee-err');
+  ok.style.display='none';err.style.display='none';
+  if(isNaN(pct)||pct<0||pct>100){err.textContent='Invalid percentage.';err.style.display='block';return;}
+  if(isNaN(cents)||cents<0){err.textContent='Invalid per-transaction cost.';err.style.display='block';return;}
+  PP_FEE_PCT=pct;PP_FEE_CENTS=cents;
+  apiFetch('admin.php','POST',{action:'save_setting',key:'paypal_fees',value:JSON.stringify({pct:pct,cents:cents})})
   .then(function(d){
     if(d.message==='Setting saved'||d.success){ok.style.display='block';setTimeout(function(){ok.style.display='none';},2500);}
     else{err.textContent='Save failed.';err.style.display='block';}
@@ -2017,14 +2052,14 @@ function renderSqPayTable(el,d,begin,end){
             '<td style="'+mnTd+'">Square Dashboard</td>'+
           '</tr>'+
           '<tr>'+
-            '<td style="'+mnTd+'">PayPal, Venmo, Pay&nbsp;Later</td>'+
+            '<td style="'+mnTd+'">PayPal, Venmo</td>'+
             '<td style="'+mnTd+';font-weight:700">PayPal</td>'+
             '<td style="'+mnTd+'">PayPal balance</td>'+
             '<td style="'+mnTd+'">PayPal Dashboard</td>'+
           '</tr>'+
         '</tbody>'+
       '</table>'+
-      '<div style="font-size:.75rem;color:#6b6040;margin-top:.5rem">Only Square payments are listed below. PayPal &amp; Venmo orders appear under Orders (Paid&nbsp;By: PayPal / Venmo).</div>'+
+      '<div style="font-size:.75rem;color:#6b6040;margin-top:.5rem">Only Square payments are listed below. See the PayPal Payments screen for PayPal &amp; Venmo orders.</div>'+
     '</div>';
   el.innerHTML='<div style="max-width:1100px">'+formHtml+statsHtml+moneyNote+'<div id="sqp-table-wrap"></div></div>';
   sqPayRenderTable();
@@ -2163,4 +2198,117 @@ function sqPayFilt(col){
       if(!drop.contains(e.target)){drop.remove();document.removeEventListener('click',_c);}
     });
   },10);
+}
+
+// ── PAYPAL PAYMENTS (PayPal + Venmo, sourced from our own order records — see api/paypal_payments.php) ──
+function rPpPay(el){
+  el.innerHTML='<div style="padding:2rem;text-align:center;color:#6b6040">Loading PayPal payments…</div>';
+  ppPayLoad(el,'2026-07-01','');  // default From = store launch, matching Square Payments
+}
+function ppPayLoad(el,begin,end){
+  var url='paypal_payments.php';
+  var p=[];
+  if(begin)p.push('begin='+encodeURIComponent(begin));
+  if(end)  p.push('end='+encodeURIComponent(end));
+  if(p.length)url+='?'+p.join('&');
+  apiFetch(url).then(function(d){
+    if(!d.success){el.innerHTML='<div style="color:#c62828;padding:1rem">'+d.error+'</div>';return;}
+    renderPpPayTable(el,d,begin,end);
+  }).catch(function(e){
+    el.innerHTML='<div style="color:#c62828;padding:1rem">Failed to load PayPal payments: '+e+'</div>';
+  });
+}
+var PP_PAY_DATA=[];
+function renderPpPayTable(el,d,begin,end){
+  PP_PAY_DATA=d.payments||[];
+  var modeTag=d.mode==='sandbox'?'<span style="background:#fff8e1;color:#e65100;font-size:.72rem;border-radius:4px;padding:1px 7px;font-weight:700;border:1px solid #ffe082;margin-left:.5rem">SANDBOX</span>':'';
+  var totAmt=0,totFee=0,totTax=0,totNet=0;
+  PP_PAY_DATA.forEach(function(p){totAmt+=p.amount;totFee+=p.fee;totTax+=p.tax;totNet+=p.net;});
+  var statsHtml=
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:1rem">'+
+      '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.7rem 1rem">'+
+        '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.2rem">Charges'+modeTag+'</div>'+
+        '<div style="font-weight:700;font-size:1.05rem;color:#2d2220">$'+totAmt.toFixed(2)+'</div>'+
+      '</div>'+
+      '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.7rem 1rem">'+
+        '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.2rem">PayPal Fees</div>'+
+        '<div style="font-weight:700;font-size:1.05rem;color:#c62828">-$'+totFee.toFixed(2)+'</div>'+
+      '</div>'+
+      '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.7rem 1rem">'+
+        '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.2rem">Tax Collected</div>'+
+        '<div style="font-weight:700;font-size:1.05rem;color:#2d2220">$'+totTax.toFixed(2)+'</div>'+
+      '</div>'+
+      '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.7rem 1rem">'+
+        '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.2rem">Net Revenue</div>'+
+        '<div style="font-weight:700;font-size:1.05rem;color:#2e7d32">$'+totNet.toFixed(2)+'</div>'+
+      '</div>'+
+    '</div>';
+  var formHtml=
+    '<div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:.7rem;margin-bottom:1rem">'+
+      '<div><div style="font-size:.72rem;font-weight:700;color:#a07810;margin-bottom:.2rem;text-transform:uppercase">From</div>'+
+        '<input type="date" id="ppp-from" value="'+(begin||'')+'" style="padding:.35rem .6rem;border:1.5px solid #e8e0b8;border-radius:7px;font-size:.83rem"></div>'+
+      '<div><div style="font-size:.72rem;font-weight:700;color:#a07810;margin-bottom:.2rem;text-transform:uppercase">To</div>'+
+        '<input type="date" id="ppp-to" value="'+(end||'')+'" style="padding:.35rem .6rem;border:1.5px solid #e8e0b8;border-radius:7px;font-size:.83rem"></div>'+
+      '<button class="bp" style="font-size:.8rem" onclick="ppPayLoad(document.getElementById(\'acnt\'),document.getElementById(\'ppp-from\').value,document.getElementById(\'ppp-to\').value)">Search</button>'+
+      '<button class="bs" style="font-size:.8rem" onclick="rPpPay(document.getElementById(\'acnt\'))">Reset</button>'+
+      '<button class="bs" style="font-size:.8rem;margin-left:auto" onclick="ppPayExportCsv()">⬇ Export CSV</button>'+
+    '</div>';
+  var noteHtml=
+    '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.7rem .9rem;margin-bottom:1rem;font-size:.8rem;color:#6b6040;line-height:1.6">'+
+      'PayPal &amp; Venmo orders settle to your <strong>PayPal balance</strong>, not Square — see the Square Payments screen for the full funding-source breakdown. This report is built from our own order records (each capture stores its exact PayPal fee and tax at checkout).'+
+    '</div>';
+  var hs=['Date / Time','Order','Method','Status','Amount','Tax','Fee','Net','Buyer'].map(function(l){return'<th>'+l+'</th>';}).join('');
+  var rows=PP_PAY_DATA.map(function(p){
+    var dt=p.created?new Date(p.created):'';
+    var dtStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'--';
+    var sc=p.status==='COMPLETED'?'#2e7d32':p.status==='REFUNDED'?'#c62828':p.status==='PARTIAL_REFUND'?'#e65100':'#6b6040';
+    var statusLabel=p.status==='PARTIAL_REFUND'?'Partial Refund':(p.status.charAt(0)+p.status.slice(1).toLowerCase());
+    var methodPill=p.method==='Venmo'
+      ?'<span class="badge" style="background:#e8f4fd;color:#008cff;border:1px solid #b3e0ff">Venmo</span>'
+      :'<span class="badge" style="background:#e8f0fd;color:#003087;border:1px solid #b3c7ff">PayPal</span>';
+    return '<tr>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-size:.78rem;color:#6b6040">'+dtStr+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-size:.75rem;font-family:monospace;color:#a07810">'+(p.order_id||'--')+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0">'+methodPill+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-size:.75rem;font-weight:600;color:'+sc+'">'+statusLabel+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;font-weight:700;color:#2d2220">$'+p.amount.toFixed(2)+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;color:#6b6040">'+(p.tax>0?'$'+p.tax.toFixed(2):'--')+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;color:#c62828">-$'+p.fee.toFixed(2)+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;font-weight:700;color:#2e7d32">$'+p.net.toFixed(2)+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-size:.75rem;color:#6b6040">'+(p.buyer||'--')+'</td>'+
+    '</tr>';
+  }).join('');
+  var tableHtml=PP_PAY_DATA.length===0?
+    '<div style="text-align:center;padding:2rem;color:#6b6040">No PayPal payments found.</div>':
+    '<div style="overflow-x:auto"><table class="tablekit" style="font-size:.83rem">'+
+    '<thead><tr>'+hs+'</tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<div style="font-size:.78rem;color:#6b6040;margin-top:.5rem">'+PP_PAY_DATA.length+' payment'+(PP_PAY_DATA.length!==1?'s':'')+'</div>';
+  el.innerHTML='<div style="max-width:1100px">'+formHtml+statsHtml+noteHtml+tableHtml+'</div>';
+  if(typeof TableKit!=='undefined')TableKit.initAll();
+  showPageToolbar({title:'PayPal Payments',logoText:(window.BIZ_NAME||'Handmade Designs By Suzi')});
+}
+function ppPayExportCsv(){
+  if(!PP_PAY_DATA.length){alert('No payments to export.');return;}
+  var headers=['Date/Time','Order','Method','Status','Amount','Tax','Fee','Net','Buyer'];
+  var rows=[headers.join(',')];
+  PP_PAY_DATA.forEach(function(p){
+    var dt=p.created?new Date(p.created):'';
+    var dtStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'';
+    rows.push([
+      '"'+dtStr+'"',
+      '"'+(p.order_id||'').replace(/"/g,'""')+'"',
+      '"'+p.method+'"',
+      '"'+p.status+'"',
+      p.amount.toFixed(2),
+      p.tax.toFixed(2),
+      (-p.fee).toFixed(2),
+      p.net.toFixed(2),
+      '"'+(p.buyer||'').replace(/"/g,'""')+'"'
+    ].join(','));
+  });
+  var blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='paypal_payments_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
 }

@@ -148,10 +148,11 @@ dbg('send_confirm', "START order_id=$order_id");
         ? array($from_email)
         : array($customer_email, $from_email);
 
-    // Preview mode: return the rendered email without sending or logging
+    // Preview mode: return the rendered email without sending or logging. Apply the same logo
+    // masthead sendEmail() would add, so the preview matches what actually gets sent.
     if(!empty($data['preview'])){
         ob_end_clean();
-        echo json_encode(array('success'=>true,'preview'=>true,'html'=>$html,'subject'=>$subject,'to'=>($no_cust_email?$from_email:$customer_email)));
+        echo json_encode(array('success'=>true,'preview'=>true,'html'=>_emailLogoHeader($html),'subject'=>$subject,'to'=>($no_cust_email?$from_email:$customer_email)));
         exit;
     }
 

@@ -151,6 +151,9 @@ if (!empty($bz['logo'])) {
       <button class="smitem" id="sm-signout" style="display:none" onclick="closeMenu();doSignOut()">
         <span class="smi-icon">🚪</span> Sign Out
       </button>
+      <button class="smitem" onclick="openMyOrders()">
+        <span class="smi-icon">📦</span> My Orders
+      </button>
       <div class="side-menu-divider"></div>
       <button class="smitem" onclick="closeMenu();goAdminLogin()">
         <span class="smi-icon">🔧</span> Back Office
@@ -173,6 +176,7 @@ if (!empty($bz['logo'])) {
     </div>
     <div class="nav-r">
       <span id="greeting" style="color:rgba(255,255,255,.78);font-size:.81rem"></span>
+      <button class="nb" onclick="openMyOrders()">📦 My Orders</button>
       <button class="nb" id="auth-btn" onclick="goAuth('si')">Sign In</button>
       <button class="nb" id="acct-btn" style="display:none" onclick="goAuth('account')">My Account</button>
       <button class="nb" id="so-btn" style="display:none" onclick="doSignOut()">Sign Out</button>
@@ -297,6 +301,7 @@ if (!empty($bz['logo'])) {
 
   <footer style="background:#2d2220;padding:1.5rem;text-align:center">
     <div style="color:rgba(255,255,255,.5);font-size:.82rem">© 2026 <?php echo $bizNameAttr; ?> · Knoxville, TN · <a href="mailto:<?php echo $bizEmailAttr; ?>" style="color:rgba(255,255,255,.5)"><?php echo $bizEmailAttr; ?></a></div>
+    <div style="margin-top:.55rem"><a href="#" onclick="event.preventDefault();openMyOrders()" style="color:#d4a017;font-size:.8rem;text-decoration:underline;cursor:pointer">📦 Track / View My Orders</a></div>
     <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem">Website by East Tennessee Web Services &middot; <a href="mailto:easttnwebservices@yahoo.com" style="color:rgba(255,255,255,.5);text-decoration:underline">easttnwebservices@yahoo.com</a></div>
     <div class="site-version-line" style="color:rgba(255,255,255,.5);font-size:.6rem;margin-top:.5rem"></div>
     <div style="margin-top:1rem">
@@ -337,6 +342,28 @@ if (!empty($bz['logo'])) {
         Questions? Contact us at <strong><?php echo $bizEmailAttr; ?></strong>
       </p>
       <button class="mbtn" style="max-width:260px;margin:0 auto" onclick="closeModal('ty-modal')">Continue Shopping</button>
+    </div>
+  </div>
+</div>
+
+<!-- MY ORDERS MODAL -->
+<div class="modal-ov" id="myorders-modal" style="z-index:300">
+  <div class="modal-box" style="max-width:640px;width:95%;max-height:90vh;overflow:auto;padding:0">
+    <div style="background:linear-gradient(135deg,#a07810,#d4a017);padding:1.3rem 1.6rem;display:flex;justify-content:space-between;align-items:center">
+      <h2 style="color:#fff;font-size:1.3rem;font-style:italic;margin:0">📦 My Orders</h2>
+      <button class="modal-close" style="background:rgba(255,255,255,.2);color:#fff" onclick="closeModal('myorders-modal')">×</button>
+    </div>
+    <div style="padding:1.5rem 1.6rem">
+      <div id="mo-form">
+        <p style="font-size:.9rem;color:#2d2220;line-height:1.6;margin-top:0">Enter the email you used at checkout and we'll send you a secure link to view your orders.</p>
+        <input class="fi" id="mo-email" type="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">
+        <div id="mo-msg" style="display:none;font-size:.85rem;padding:.6rem .8rem;border-radius:7px;margin-bottom:.6rem;line-height:1.5"></div>
+        <button class="mbtn" style="width:100%" id="mo-send-btn" onclick="requestOrderLink()">Email me a link to my orders</button>
+      </div>
+      <div id="mo-list" style="display:none">
+        <div id="mo-list-body"></div>
+        <button class="mbtn" style="width:100%;margin-top:.4rem" onclick="closeModal('myorders-modal')">Close</button>
+      </div>
     </div>
   </div>
 </div>
@@ -406,7 +433,8 @@ if (!empty($bz['logo'])) {
       <div id="co-pay-summary" style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem;color:#6b6040"></div>
       <button id="apple-pay-button" type="button" style="display:none;-webkit-appearance:-apple-pay-button;-apple-pay-button-type:plain;-apple-pay-button-style:black;width:100%;height:44px;border-radius:6px;margin-bottom:.6rem;cursor:pointer;border:none"></button>
       <div id="google-pay-button" style="display:none;margin-bottom:.6rem"></div>
-      <div id="paypal-button-container" style="display:none;margin-bottom:.6rem"></div>
+      <div id="paypal-button-container" style="display:none;margin-bottom:.4rem"></div>
+      <div id="paypal-fee-note" style="display:none;font-size:.78rem;color:#6b6040;background:#fffdf0;border:1px solid #e8e0b8;border-radius:6px;padding:.5rem .7rem;margin-bottom:.6rem;line-height:1.5;text-align:center"></div>
       <div id="wallet-divider" style="display:none;text-align:center;color:#aaa;font-size:.78rem;margin:.2rem 0 1rem;position:relative">
         <span style="background:#fff;padding:0 .6rem;position:relative;z-index:1">or pay with card</span>
         <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:#e8e0b8;z-index:0"></div>
@@ -710,6 +738,7 @@ if (!empty($bz['logo'])) {
 
   <footer style="background:#2d2220;padding:1.5rem;text-align:center">
     <div style="color:rgba(255,255,255,.5);font-size:.82rem">© 2026 <?php echo $bizNameAttr; ?> · Knoxville, TN · <a href="mailto:<?php echo $bizEmailAttr; ?>" style="color:rgba(255,255,255,.5)"><?php echo $bizEmailAttr; ?></a></div>
+    <div style="margin-top:.55rem"><a href="#" onclick="event.preventDefault();openMyOrders()" style="color:#d4a017;font-size:.8rem;text-decoration:underline;cursor:pointer">📦 Track / View My Orders</a></div>
     <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem">Website by East Tennessee Web Services &middot; <a href="mailto:easttnwebservices@yahoo.com" style="color:rgba(255,255,255,.5);text-decoration:underline">easttnwebservices@yahoo.com</a></div>
     <div class="site-version-line" style="color:rgba(255,255,255,.5);font-size:.6rem;margin-top:.5rem"></div>
   </footer>
@@ -847,6 +876,12 @@ if (!empty($bz['logo'])) {
   </div>
 </div>
 
+<!-- SCROLL TO TOP / BOTTOM -->
+<div id="scroll-nav" style="position:fixed;right:1rem;bottom:1rem;z-index:150;display:flex;flex-direction:column;gap:.5rem">
+  <button id="scroll-top-btn" onclick="scrollToTop()" title="Scroll to top" aria-label="Scroll to top" style="display:none;width:42px;height:42px;border-radius:50%;border:1px solid #e8e0b8;background:#fff;color:#a07810;font-size:1.2rem;line-height:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.15);align-items:center;justify-content:center">▲</button>
+  <button id="scroll-bottom-btn" onclick="scrollToBottom()" title="Scroll to bottom" aria-label="Scroll to bottom" style="width:42px;height:42px;border-radius:50%;border:none;background:#d4a017;color:#fff;font-size:1.2rem;line-height:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.2);align-items:center;justify-content:center">▼</button>
+</div>
+
 <!-- ADMIN PANEL -->
 <div id="apanel" style="display:none">
   <div class="aside">
@@ -865,16 +900,16 @@ if (!empty($bz['logo'])) {
 <video id="cam-video" style="display:none" autoplay playsinline></video>
 
 <script src="js/api.js?v=9"></script>
-<script src="js/config.js?v=15"></script>
+<script src="js/config.js?v=17"></script>
 <script src="js/data.js?v=5"></script>
-<script src="js/store.js?v=21"></script>
-<script src="js/auth.js?v=5"></script>
-<script src="js/ui.js?v=8"></script>
-<script src="js/admin-nav.js?v=10"></script>
+<script src="js/store.js?v=22"></script>
+<script src="js/auth.js?v=6"></script>
+<script src="js/ui.js?v=11"></script>
+<script src="js/admin-nav.js?v=11"></script>
 <script src="js/admin-general.js?v=5"></script>
-<script src="js/admin-products.js?v=14"></script>
-<script src="js/admin-orders.js?v=27"></script>
-<script src="js/admin-misc.js?v=20"></script>
+<script src="js/admin-products.js?v=15"></script>
+<script src="js/admin-orders.js?v=32"></script>
+<script src="js/admin-misc.js?v=21"></script>
 <script src="js/admin-business.js?v=9"></script>
 <script src="js/table.js"></script>
 <script src="js/toolbar.js"></script>
