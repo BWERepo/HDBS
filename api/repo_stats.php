@@ -39,7 +39,7 @@ try {
 }
 
 ok([
-    'repo'          => 'ETWSRepo/HDBS',
+    'repo'          => 'BWERepo/HDBS',
     'path'          => $root,
     'total_files'   => $totalFiles,
     'code_files'    => $codeFiles,

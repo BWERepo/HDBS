@@ -9,7 +9,7 @@ requireAdmin();
 // getSetting defined in config.php
 
 $token  = getSetting($pdo, 'github_token') ?: '';
-$owner   = 'ETWSRepo';
+$owner   = 'BWERepo';
 $repo    = 'HDBS';
 $perPage = 100;
 

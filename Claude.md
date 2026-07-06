@@ -55,7 +55,7 @@
 - FTP: host=ftp.handmadedesignsbysuzi.com, user=u541882440.handmadedesignsbysuzi
 - `regression_test.php` protected by `?token=` matching `rt_token` in settings DB
 - Current token: `9f21953ce5be66f40203791c4cf8055e` (treat as sensitive — do not log publicly)
-- GitHub API: private repo ETWSRepo/HDBS, token stored in `github_token` setting
+- GitHub API: private repo BWERepo/HDBS, token stored in `github_token` setting
 
 ## API Conventions
 - `apiFetch(endpoint)` in JS prepends `https://handmadedesignsbysuzi.com/api/` — pass `'products.php'` not `'api/products.php'`
@@ -128,7 +128,7 @@
 - **If you edit `regression_test.php`, deploy it immediately too** — even mid-task, not just on a "test" command.
 
 ## GitHub
-- Private repo: ETWSRepo/HDBS
+- Private repo: BWERepo/HDBS
 - GitHub token stored in `github_token` DB setting (not in `.ftp-credentials`)
 - `api/github_log.php` proxies GitHub API calls so the token never reaches the browser
 
