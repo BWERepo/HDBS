@@ -64,9 +64,12 @@ function aNavById(sec){
 }
 
 function rDash(el){
-  var rev=0;for(var i=0;i<ORDERS.length;i++)rev+=ORDERS[i].total;
+  var grossRev=0,totRefunded=0;
+  for(var i=0;i<ORDERS.length;i++){grossRev+=ORDERS[i].total;totRefunded+=(ORDERS[i].refunded_amount||0);}
+  var rev=grossRev-totRefunded;
+  var refundPct=grossRev>0?(totRefunded/grossRev*100):0;
   var low=0;for(var j=0;j<PRODS.length;j++)if(PRODS[j].stock>0&&PRODS[j].stock<=3)low++;
-  el.innerHTML='<div class="stats"><div class="stat"><div class="stl">Revenue</div><div class="stv">$'+rev.toFixed(2)+'</div></div><div class="stat"><div class="stl">Orders</div><div class="stv">'+ORDERS.length+'</div></div><div class="stat"><div class="stl">Customers</div><div class="stv">'+CUSTS.length+'</div></div><div class="stat"><div class="stl">Products</div><div class="stv">'+PRODS.length+'</div></div><div class="stat"><div class="stl">Subscribers</div><div class="stv">'+SUBS.length+'</div></div></div>';
+  el.innerHTML='<div class="stats"><div class="stat"><div class="stl">Revenue</div><div class="stv">$'+rev.toFixed(2)+'</div></div><div class="stat"><div class="stl">Orders</div><div class="stv">'+ORDERS.length+'</div></div><div class="stat"><div class="stl">Customers</div><div class="stv">'+CUSTS.length+'</div></div><div class="stat"><div class="stl">Products</div><div class="stv">'+PRODS.length+'</div></div><div class="stat"><div class="stl">Subscribers</div><div class="stv">'+SUBS.length+'</div></div><div class="stat"><div class="stl">Total Refunds</div><div class="stv" style="color:#c62828">$'+totRefunded.toFixed(2)+'</div></div><div class="stat"><div class="stl">Refunds % of Revenue</div><div class="stv">'+refundPct.toFixed(1)+'%</div></div></div>';
 }
 
 function rSubs(el){

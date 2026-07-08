@@ -492,18 +492,22 @@ function rBizReports(el){
   }).catch(function(){renderBizReports(el);});
 }
 function renderBizReports(el){
-  var rev=0,byMonth={},byStatus={},tp={};
+  var rev=0,grossRev=0,totRefunded=0,byMonth={},byStatus={},tp={};
   for(var i=0;i<ORDERS.length;i++){
     var o=ORDERS[i];
-    rev+=o.total;
+    var netTotal=o.total-(o.refunded_amount||0);
+    rev+=netTotal;
+    grossRev+=o.total;
+    totRefunded+=(o.refunded_amount||0);
     var norm=(typeof ordNormDate==='function')?ordNormDate(o):(o.date||'');
     var mk=norm.slice(0,7)||'Unknown';
     if(!byMonth[mk])byMonth[mk]={count:0,total:0};
-    byMonth[mk].count++;byMonth[mk].total+=o.total;
+    byMonth[mk].count++;byMonth[mk].total+=netTotal;
     var st=o.status||'Unknown';
     byStatus[st]=(byStatus[st]||0)+1;
     for(var j=0;j<(o.items||[]).length;j++){var it=o.items[j];tp[it.name]=(tp[it.name]||0)+it.q;}
   }
+  var refundPct=grossRev>0?(totRefunded/grossRev*100):0;
   var months=Object.keys(byMonth).sort().reverse().slice(0,6);
   var monthRows=months.map(function(mk){
     return '<tr><td>'+mk+'</td><td>'+byMonth[mk].count+'</td><td>$'+byMonth[mk].total.toFixed(2)+'</td></tr>';
@@ -515,7 +519,9 @@ function renderBizReports(el){
   var topRows=ts.map(function(t){return '<tr><td style="font-weight:600">'+t[0]+'</td><td><span class="badge bg">'+t[1]+' sold</span></td></tr>';}).join('');
   el.innerHTML='<div class="stats"><div class="stat"><div class="stl">Total Revenue</div><div class="stv">$'+rev.toFixed(2)+'</div></div>'+
     '<div class="stat"><div class="stl">Total Orders</div><div class="stv">'+ORDERS.length+'</div></div>'+
-    '<div class="stat"><div class="stl">Avg Order</div><div class="stv">$'+(ORDERS.length?(rev/ORDERS.length).toFixed(2):'0.00')+'</div></div></div>'+
+    '<div class="stat"><div class="stl">Avg Order</div><div class="stv">$'+(ORDERS.length?(rev/ORDERS.length).toFixed(2):'0.00')+'</div></div>'+
+    '<div class="stat"><div class="stl">Total Refunds</div><div class="stv" style="color:#c62828">$'+totRefunded.toFixed(2)+'</div></div>'+
+    '<div class="stat"><div class="stl">Refunds % of Revenue</div><div class="stv">'+refundPct.toFixed(1)+'%</div></div></div>'+
     '<div style="font-weight:700;color:#2d2220;margin:1.2rem 0 .6rem">Revenue by Month (last 6)</div>'+
     '<table class="tablekit"><thead><tr><th>Month</th><th>Orders</th><th>Revenue</th></tr></thead><tbody>'+(monthRows||'<tr><td colspan="3" style="text-align:center;padding:1.2rem;color:#6b6040">No orders yet</td></tr>')+'</tbody></table>'+
     '<div style="font-weight:700;color:#2d2220;margin:1.2rem 0 .6rem">Orders by Status</div>'+

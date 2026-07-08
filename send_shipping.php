@@ -24,6 +24,7 @@ try{
     $order_id = isset($data['order_id']) ? trim($data['order_id']) : '';
     $carrier_override = isset($data['carrier']) ? trim($data['carrier']) : '';
     $tracking_override = isset($data['tracking']) ? trim($data['tracking']) : '';
+    $comment = isset($data['comment']) ? trim($data['comment']) : '';
 dbg('send_shipping', "START order_id=$order_id carrier_override=$carrier_override tracking_override=$tracking_override");
     if(!$order_id){ ob_end_clean(); echo json_encode(['success'=>false,'error'=>'Missing order_id']); exit; }
 
@@ -125,6 +126,15 @@ dbg('send_shipping', "START order_id=$order_id carrier_override=$carrier_overrid
         {$address}
       </div>" : '';
 
+    $comment_html = '';
+    if($comment !== ''){
+        $comment_esc = nl2br(htmlspecialchars($comment));
+        $comment_html = "<div style='background:#fff9e6;border-left:4px solid #a07810;border-radius:6px;padding:14px 16px;margin:20px 0'>
+          <div style='color:#a07810;font-size:.75rem;font-weight:700;text-transform:uppercase;margin-bottom:6px'>A Note From Susan</div>
+          <div style='color:#2d2220;font-size:.9rem'>{$comment_esc}</div>
+        </div>";
+    }
+
     // Fetch business profile for footer
     $biz2 = [];
     try {
@@ -162,6 +172,7 @@ dbg('send_shipping', "START order_id=$order_id carrier_override=$carrier_overrid
       </div>
       {$addr_html}
     </div>
+    {$comment_html}
     {$track_btn}
     {$items_html}
     <p style='color:#6b6040;font-size:.88rem'>Please allow 24–48 hours for tracking information to update.</p>

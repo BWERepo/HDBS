@@ -1089,7 +1089,7 @@ try{
     t('github_log returns full commit message (not truncated to first line)',strpos($ghphp,'$lines[0]')===false&&strpos($ghphp,"'message' => \$msg")!==false);
     // Repo migration (2026-07-03): repo moved to ETWSRepo/HDBS — github_log.php's owner/repo
     // must point at the new location, not the pre-migration C177LVR/HandmadeDesignsBySuzi
-    t('github_log points at the migrated repo (ETWSRepo/HDBS)',strpos($ghphp,"\$owner   = 'ETWSRepo'")!==false&&strpos($ghphp,"\$repo    = 'HDBS'")!==false);
+    t('github_log points at the migrated repo (BWERepo/HDBS)',strpos($ghphp,"\$owner   = 'BWERepo'")!==false&&strpos($ghphp,"\$repo    = 'HDBS'")!==false);
     t('github_log no longer references the pre-migration repo',strpos($ghphp,'C177LVR/HandmadeDesignsBySuzi')===false);
     $navjs=file_get_contents($root.'/js/admin-nav.js');
     t('gitlog in nav titles',strpos($navjs,"gitlog:'Change History'")!==false);
@@ -1481,7 +1481,7 @@ try{
     t('repo_stats.php is admin-gated',strpos($rsphp,'requireAdmin()')!==false);
     t('repo_stats.php scans deployment dir',strpos($rsphp,'RecursiveDirectoryIterator')!==false&&strpos($rsphp,'dirname(__DIR__)')!==false);
     t('repo_stats.php returns file counts + LOC',strpos($rsphp,"'total_files'")!==false&&strpos($rsphp,"'code_files'")!==false&&strpos($rsphp,"'lines_of_code'")!==false);
-    t('repo_stats.php returns repo + path',strpos($rsphp,"'ETWSRepo/HDBS'")!==false&&strpos($rsphp,"'path'")!==false);
+    t('repo_stats.php returns repo + path',strpos($rsphp,"'BWERepo/HDBS'")!==false&&strpos($rsphp,"'path'")!==false);
     // github_log.php — full pagination, total commit count, refresh cache bypass
     $ghphp=file_get_contents($root.'/api/github_log.php');
     t('github_log paginates all commits',strpos($ghphp,'per_page=$perPage&page=$page')!==false&&strpos($ghphp,'array_merge($commits')!==false);
@@ -3077,6 +3077,55 @@ try{
     t('studio is a top-level nav item after Shop folder',strpos($amjs,"{type:'item',sec:'studio'}")!==false&&strpos($amjs,"folder',sec:'shop'")<strpos($amjs,"{type:'item',sec:'studio'}"));
     t('nav migration pulls studio out of folders',strpos($amjs,'Design Studio must be a TOP-LEVEL item')!==false);
 }catch(Exception $e){t('design studio checks',false,$e->getMessage());}
+
+try{
+    // Shipping email: optional comment + client-side tracking-number validation
+    $shipPhp=file_get_contents($root.'/send_shipping.php');
+    $aojsShip=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
+    $aojs=$aojsShip;
+    t('send_shipping.php reads comment from payload',strpos($shipPhp,"\$comment = isset(\$data['comment'])")!==false);
+    t('send_shipping.php only renders note box when comment non-empty',strpos($shipPhp,"if(\$comment !== '')")!==false);
+    t('send_shipping.php note box labeled from Susan',strpos($shipPhp,'A Note From Susan')!==false);
+    t('send_shipping.php comment is escaped (XSS-safe)',strpos($shipPhp,'htmlspecialchars($comment)')!==false);
+    t('JS:email-comment textarea in shipping preview modal',strpos($aojs,'id="email-comment"')!==false);
+    t('JS:comment included in shipping send payload',strpos($aojs,'payload.comment=commentEl.value.trim()')!==false);
+    t('JS:TRACKING_PATTERNS defined for USPS/UPS/FedEx',strpos($aojs,'TRACKING_PATTERNS')!==false&&strpos($aojs,'USPS:')!==false&&strpos($aojs,'UPS:')!==false&&strpos($aojs,'FedEx:')!==false);
+    t('JS:validateShippingTracking function exists',strpos($aojs,'function validateShippingTracking(')!==false);
+    t('JS:refreshShippingPreview function exists',strpos($aojs,'function refreshShippingPreview(')!==false);
+    t('JS:Validate button wired to tracking field',strpos($aojs,'onclick="validateShippingTracking(')!==false);
+    t('JS:send confirms before sending unvalidated tracking',strpos($aojs,'match the expected format for this carrier. Send anyway?')!==false);
+}catch(Exception $e){t('shipping email comment + tracking validation checks',false,$e->getMessage());}
+
+try{
+    // PayPal Payments admin screen: lazy-column defensive fix + refunds shown separately
+    $pppPhp=file_get_contents($root.'/api/paypal_payments.php');
+    $aojsPp=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
+    $aojs=$aojsPp;
+    t('paypal_payments.php calls ensurePaypalColumn (fixes prod 500 when column is missing)',strpos($pppPhp,'ensurePaypalColumn($pdo)')!==false);
+    t('JS:PayPal Payments has a Refunds stat tile',strpos($aojs,'>Refunds<')!==false);
+    t('JS:PayPal Payments Net Revenue subtracts refunds',strpos($aojs,'totNet=totAmt-totFee-totRefunded')!==false);
+    t('JS:PayPal Payments table has a Refunded column',strpos($aojs,"'Refunded','Net'")!==false);
+    t('JS:PayPal Payments CSV export includes Refunded',strpos($aojs,"'Fee','Refunded','Net'")!==false);
+}catch(Exception $e){t('paypal payments refund display checks',false,$e->getMessage());}
+
+try{
+    // Revenue figures (Dashboard, Sales Report, Business Reports) must net out refunds
+    $navjsRev=file_get_contents($root.'/js/admin-nav.js');
+    $aojsRev=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
+    $abjsRev=file_get_contents($root.'/js/admin-business.js');
+    $aojs=$aojsRev;
+    t('Dashboard revenue nets out refunded_amount',strpos($navjsRev,'totRefunded+=(ORDERS[i].refunded_amount||0)')!==false&&strpos($navjsRev,'var rev=grossRev-totRefunded')!==false);
+    t('Sales Report revenue nets out refunded_amount',strpos($aojsRev,'ORDERS[i].total-(ORDERS[i].refunded_amount||0)')!==false);
+    t('Business Reports revenue nets out refunded_amount',strpos($abjsRev,'o.total-(o.refunded_amount||0)')!==false);
+    // Total Refunds + Refunds % of Revenue stat cards
+    t('Dashboard has Total Refunds card',strpos($navjsRev,'Total Refunds')!==false);
+    t('Dashboard has Refunds % of Revenue card',strpos($navjsRev,'Refunds % of Revenue')!==false);
+    t('Dashboard refund % computed against gross revenue',strpos($navjsRev,'refundPct=grossRev>0?(totRefunded/grossRev*100):0')!==false);
+    t('Sales Report has Total Refunds card',strpos($aojsRev,'Total Refunds')!==false);
+    t('Sales Report has Refunds % of Revenue card',strpos($aojsRev,'Refunds % of Revenue')!==false);
+    t('Business Reports has Total Refunds card',strpos($abjsRev,'Total Refunds')!==false);
+    t('Business Reports has Refunds % of Revenue card',strpos($abjsRev,'Refunds % of Revenue')!==false);
+}catch(Exception $e){t('revenue-nets-refunds checks',false,$e->getMessage());}
 
 }catch(Exception $e){t('Exception',false,$e->getMessage().' line '.$e->getLine());}
 

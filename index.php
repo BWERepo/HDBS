@@ -1063,12 +1063,12 @@ if (!empty($bz['logo'])) {
 <script src="js/studio.js?v=2"></script>
 <script src="js/auth.js?v=6"></script>
 <script src="js/ui.js?v=11"></script>
-<script src="js/admin-nav.js?v=12"></script>
+<script src="js/admin-nav.js?v=14"></script>
 <script src="js/admin-general.js?v=5"></script>
 <script src="js/admin-products.js?v=15"></script>
-<script src="js/admin-orders.js?v=32"></script>
+<script src="js/admin-orders.js?v=35"></script>
 <script src="js/admin-misc.js?v=28"></script>
-<script src="js/admin-business.js?v=9"></script>
+<script src="js/admin-business.js?v=11"></script>
 <script src="js/admin-studio.js?v=5"></script>
 <script src="js/table.js"></script>
 <script src="js/toolbar.js"></script>

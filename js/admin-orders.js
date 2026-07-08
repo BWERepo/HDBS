@@ -124,12 +124,20 @@ function showEmailPreviewModal(endpoint,oid,label,d){
       '<div style="padding:.7rem 1.4rem;background:#fff9e6;border-bottom:1px solid #e8e0b8">'+
         '<div class="g2" style="gap:.8rem">'+
           '<div><label style="font-size:.75rem;font-weight:600;color:#6b6040;display:block;margin-bottom:.3rem">Shipper</label>'+
-            '<select class="afi" id="email-carrier" style="margin:0;font-size:.88rem">'+
+            '<select class="afi" id="email-carrier" style="margin:0;font-size:.88rem" onchange="validateShippingTracking(\''+oid+'\')">'+
             ['USPS','UPS','FedEx','Other'].map(function(cr){return'<option'+(cr===carrier?' selected':'')+'>'+cr+'</option>';}).join('')+
             '</select></div>'+
           '<div><label style="font-size:.75rem;font-weight:600;color:#6b6040;display:block;margin-bottom:.3rem">Tracking Number(s)</label>'+
-            '<input class="afi" id="email-tracking" value="'+esc(tracking)+'" placeholder="Comma-separate multiple" style="margin:0;font-family:monospace;font-size:.88rem">'+
+            '<div style="display:flex;gap:.4rem">'+
+            '<input class="afi" id="email-tracking" value="'+esc(tracking)+'" placeholder="Comma-separate multiple" style="margin:0;font-family:monospace;font-size:.88rem" onblur="validateShippingTracking(\''+oid+'\')">'+
+            '<button type="button" class="bs" style="white-space:nowrap;padding:0 .8rem" onclick="validateShippingTracking(\''+oid+'\')">Validate</button>'+
+            '</div>'+
           '</div>'+
+        '</div>'+
+        '<div id="email-tracking-status" style="font-size:.78rem;margin-top:.4rem;min-height:1.1em"></div>'+
+        '<div style="margin-top:.6rem">'+
+          '<label style="font-size:.75rem;font-weight:600;color:#6b6040;display:block;margin-bottom:.3rem">Add a Note (optional)</label>'+
+          '<textarea class="afi" id="email-comment" rows="2" placeholder="e.g. Thanks so much for your patience on this one!" style="margin:0;font-size:.88rem" onblur="refreshShippingPreview(\''+oid+'\')"></textarea>'+
         '</div>'+
       '</div>';
   }
@@ -160,14 +168,73 @@ function showEmailPreviewModal(endpoint,oid,label,d){
   var sendBtn=document.getElementById('email-preview-send');
   if(sendBtn)sendBtn.onclick=function(){emailSendNow(endpoint,oid,label,sendBtn,isShipping);};
 }
+// ── Tracking number format validation (client-side, per carrier) ──
+var TRACKING_PATTERNS={
+  USPS:[/^\d{20,22}$/,/^[A-Z]{2}\d{9}US$/i],
+  UPS:[/^1Z[0-9A-Z]{16}$/i],
+  FedEx:[/^\d{12}$/,/^\d{15}$/,/^\d{20}$/,/^\d{22}$/]
+};
+function isValidTrackingNum(carrier,num){
+  num=num.replace(/\s+/g,'');
+  if(!num)return false;
+  var pats=TRACKING_PATTERNS[carrier];
+  if(!pats)return true; // 'Other' carrier — no known format to check
+  return pats.some(function(p){return p.test(num);});
+}
+function validateShippingTracking(oid){
+  var carrierEl=document.getElementById('email-carrier');
+  var trackingEl=document.getElementById('email-tracking');
+  var statusEl=document.getElementById('email-tracking-status');
+  if(!carrierEl||!trackingEl||!statusEl)return true;
+  var carrier=carrierEl.value;
+  var raw=trackingEl.value.trim();
+  if(!raw){statusEl.style.color='#6b6040';statusEl.textContent='';return true;}
+  var nums=raw.split(/[,\n]+/).map(function(s){return s.trim();}).filter(Boolean);
+  var results=nums.map(function(n){return{n:n,ok:isValidTrackingNum(carrier,n)};});
+  var allOk=results.every(function(r){return r.ok;});
+  if(allOk){
+    statusEl.style.color='#2e7d32';
+    statusEl.textContent='✓ '+(results.length>1?'All '+results.length+' numbers match the '+carrier+' format.':'Looks like a valid '+carrier+' tracking number.');
+  }else{
+    var bad=results.filter(function(r){return!r.ok;}).map(function(r){return r.n;});
+    statusEl.style.color='#c62828';
+    statusEl.textContent='⚠ Doesn\'t match the expected '+carrier+' format: '+bad.join(', ');
+  }
+  refreshShippingPreview(oid);
+  return allOk;
+}
+// Re-fetches the shipping preview with the modal's current carrier/tracking/comment values
+function refreshShippingPreview(oid){
+  var carrierEl=document.getElementById('email-carrier');
+  var trackingEl=document.getElementById('email-tracking');
+  var commentEl=document.getElementById('email-comment');
+  var frame=document.getElementById('email-preview-frame');
+  if(!frame)return;
+  var payload={order_id:oid,preview:true};
+  if(carrierEl)payload.carrier=carrierEl.value;
+  if(trackingEl)payload.tracking=trackingEl.value.trim();
+  if(commentEl)payload.comment=commentEl.value.trim();
+  fetch(SITE_ORIGIN+'/send_shipping.php',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)})
+  .then(function(r){return r.json();})
+  .then(function(d){if(d&&d.success&&d.html)frame.srcdoc=d.html;}).catch(function(){});
+}
 function emailSendNow(endpoint,oid,label,btn,isShipping){
+  if(isShipping){
+    var trackingCheckEl=document.getElementById('email-tracking');
+    if(trackingCheckEl&&trackingCheckEl.value.trim()&&!validateShippingTracking(oid)){
+      if(!confirm('The tracking number doesn\'t match the expected format for this carrier. Send anyway?'))return;
+    }
+  }
   if(btn){btn.disabled=true;btn.textContent='Sending…';}
   var payload={order_id:oid};
   if(isShipping){
     var carrierEl=document.getElementById('email-carrier');
     var trackingEl=document.getElementById('email-tracking');
+    var commentEl=document.getElementById('email-comment');
     if(carrierEl)payload.carrier=carrierEl.value;
     if(trackingEl)payload.tracking=trackingEl.value.trim();
+    if(commentEl)payload.comment=commentEl.value.trim();
   }
   if(endpoint.indexOf('send_generic')!==-1 && _genericDraft){
     payload.subject=_genericDraft.subject;
@@ -1150,18 +1217,22 @@ function rSales(el){
   }).catch(function(){renderSalesTable(el);});
 }
 function renderSalesTable(el){
-  var rev=0,totalTax=0,payGroups={},tp={};
+  var rev=0,grossRev=0,totRefunded=0,totalTax=0,payGroups={},tp={};
   for(var i=0;i<ORDERS.length;i++){
-    rev+=ORDERS[i].total;
+    var netTotal=ORDERS[i].total-(ORDERS[i].refunded_amount||0);
+    rev+=netTotal;
+    grossRev+=ORDERS[i].total;
+    totRefunded+=(ORDERS[i].refunded_amount||0);
     totalTax+=(ORDERS[i].tax||0);
     var pm=ORDERS[i].pay||'Unknown';
     if(!payGroups[pm])payGroups[pm]={count:0,total:0};
-    payGroups[pm].count++;payGroups[pm].total+=ORDERS[i].total;
+    payGroups[pm].count++;payGroups[pm].total+=netTotal;
     for(var j=0;j<ORDERS[i].items.length;j++){var it=ORDERS[i].items[j];tp[it.name]=(tp[it.name]||0)+it.q;}
   }
+  var refundPct=grossRev>0?(totRefunded/grossRev*100):0;
   var ts=[];for(var k in tp)ts.push([k,tp[k]]);ts.sort(function(a,b){return b[1]-a[1];});ts=ts.slice(0,5);
   var trows='';for(var q=0;q<ts.length;q++)trows+='<tr><td style="font-weight:600">'+ts[q][0]+'</td><td><span class="badge bg">'+ts[q][1]+' sold</span></td></tr>';
-  el.innerHTML='<div class="stats"><div class="stat"><div class="stl">Revenue</div><div class="stv">$'+rev.toFixed(2)+'</div></div><div class="stat"><div class="stl">Orders</div><div class="stv">'+ORDERS.length+'</div></div><div class="stat"><div class="stl">Avg Order</div><div class="stv">$'+(ORDERS.length?(rev/ORDERS.length).toFixed(2):'0.00')+'</div></div><div class="stat"><div class="stl">Square Orders</div><div class="stv">'+(payGroups['Square']?payGroups['Square'].count:0)+'</div></div></div>'+
+  el.innerHTML='<div class="stats"><div class="stat"><div class="stl">Revenue</div><div class="stv">$'+rev.toFixed(2)+'</div></div><div class="stat"><div class="stl">Orders</div><div class="stv">'+ORDERS.length+'</div></div><div class="stat"><div class="stl">Avg Order</div><div class="stv">$'+(ORDERS.length?(rev/ORDERS.length).toFixed(2):'0.00')+'</div></div><div class="stat"><div class="stl">Square Orders</div><div class="stv">'+(payGroups['Square']?payGroups['Square'].count:0)+'</div></div><div class="stat"><div class="stl">Total Refunds</div><div class="stv" style="color:#c62828">$'+totRefunded.toFixed(2)+'</div></div><div class="stat"><div class="stl">Refunds % of Revenue</div><div class="stv">'+refundPct.toFixed(1)+'%</div></div></div>'+
     '<table class="tablekit"><thead><tr><th>Top Product</th><th>Units Sold</th></tr></thead><tbody>'+(trows||'<tr><td colspan="2" style="text-align:center;padding:1.2rem;color:#6b6040">No sales yet</td></tr>')+'</tbody></table>'+
     '<table class="tablekit"><thead><tr><th>Payment Method</th><th>Orders</th><th>Revenue</th></tr></thead><tbody>'+
     (Object.keys(payGroups).length?Object.keys(payGroups).map(function(pm){
@@ -2222,13 +2293,18 @@ var PP_PAY_DATA=[];
 function renderPpPayTable(el,d,begin,end){
   PP_PAY_DATA=d.payments||[];
   var modeTag=d.mode==='sandbox'?'<span style="background:#fff8e1;color:#e65100;font-size:.72rem;border-radius:4px;padding:1px 7px;font-weight:700;border:1px solid #ffe082;margin-left:.5rem">SANDBOX</span>':'';
-  var totAmt=0,totFee=0,totTax=0,totNet=0;
-  PP_PAY_DATA.forEach(function(p){totAmt+=p.amount;totFee+=p.fee;totTax+=p.tax;totNet+=p.net;});
+  var totAmt=0,totFee=0,totTax=0,totRefunded=0;
+  PP_PAY_DATA.forEach(function(p){totAmt+=p.amount;totFee+=p.fee;totTax+=p.tax;totRefunded+=(p.refunded||0);});
+  var totNet=totAmt-totFee-totRefunded;
   var statsHtml=
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:1rem">'+
+    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;margin-bottom:1rem">'+
       '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.7rem 1rem">'+
         '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.2rem">Charges'+modeTag+'</div>'+
         '<div style="font-weight:700;font-size:1.05rem;color:#2d2220">$'+totAmt.toFixed(2)+'</div>'+
+      '</div>'+
+      '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.7rem 1rem">'+
+        '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.2rem">Refunds</div>'+
+        '<div style="font-weight:700;font-size:1.05rem;color:#c62828">-$'+totRefunded.toFixed(2)+'</div>'+
       '</div>'+
       '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.7rem 1rem">'+
         '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.2rem">PayPal Fees</div>'+
@@ -2257,7 +2333,7 @@ function renderPpPayTable(el,d,begin,end){
     '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.7rem .9rem;margin-bottom:1rem;font-size:.8rem;color:#6b6040;line-height:1.6">'+
       'PayPal &amp; Venmo orders settle to your <strong>PayPal balance</strong>, not Square — see the Square Payments screen for the full funding-source breakdown. This report is built from our own order records (each capture stores its exact PayPal fee and tax at checkout).'+
     '</div>';
-  var hs=['Date / Time','Order','Method','Status','Amount','Tax','Fee','Net','Buyer'].map(function(l){return'<th>'+l+'</th>';}).join('');
+  var hs=['Date / Time','Order','Method','Status','Amount','Tax','Fee','Refunded','Net','Buyer'].map(function(l){return'<th>'+l+'</th>';}).join('');
   var rows=PP_PAY_DATA.map(function(p){
     var dt=p.created?new Date(p.created):'';
     var dtStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'--';
@@ -2274,7 +2350,8 @@ function renderPpPayTable(el,d,begin,end){
       '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;font-weight:700;color:#2d2220">$'+p.amount.toFixed(2)+'</td>'+
       '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;color:#6b6040">'+(p.tax>0?'$'+p.tax.toFixed(2):'--')+'</td>'+
       '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;color:#c62828">-$'+p.fee.toFixed(2)+'</td>'+
-      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;font-weight:700;color:#2e7d32">$'+p.net.toFixed(2)+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;color:#c62828">'+((p.refunded||0)>0?'-$'+p.refunded.toFixed(2):'--')+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;font-weight:700;color:#2e7d32">$'+(p.net-(p.refunded||0)).toFixed(2)+'</td>'+
       '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-size:.75rem;color:#6b6040">'+(p.buyer||'--')+'</td>'+
     '</tr>';
   }).join('');
@@ -2289,7 +2366,7 @@ function renderPpPayTable(el,d,begin,end){
 }
 function ppPayExportCsv(){
   if(!PP_PAY_DATA.length){alert('No payments to export.');return;}
-  var headers=['Date/Time','Order','Method','Status','Amount','Tax','Fee','Net','Buyer'];
+  var headers=['Date/Time','Order','Method','Status','Amount','Tax','Fee','Refunded','Net','Buyer'];
   var rows=[headers.join(',')];
   PP_PAY_DATA.forEach(function(p){
     var dt=p.created?new Date(p.created):'';
@@ -2302,7 +2379,8 @@ function ppPayExportCsv(){
       p.amount.toFixed(2),
       p.tax.toFixed(2),
       (-p.fee).toFixed(2),
-      p.net.toFixed(2),
+      (-(p.refunded||0)).toFixed(2),
+      (p.net-(p.refunded||0)).toFixed(2),
       '"'+(p.buyer||'').replace(/"/g,'""')+'"'
     ].join(','));
   });
