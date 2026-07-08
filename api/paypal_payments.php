@@ -11,6 +11,7 @@ cors();
 requireAdmin();
 
 $pdo = db();
+ensurePaypalColumn($pdo);  // paypal_capture_id may not exist yet if no PayPal capture/refund has ever run
 
 $begin = trim($_GET['begin'] ?? '');
 $end   = trim($_GET['end'] ?? '');
