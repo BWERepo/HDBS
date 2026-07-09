@@ -455,9 +455,32 @@ try{
     t('index.php admin sidebar shows name + short name',strpos($ixphp,'class="alogo"><?php echo $bizNameAttr; ?><br><?php echo $bizShortNameAttr; ?>')!==false);
     // api/admin.php converts an uploaded base64 logo to a real file on disk
     $adminphpBiz=isset($adphp)?$adphp:file_get_contents($root.'/api/admin.php');
+    $abjsHero=isset($abjs)?$abjs:file_get_contents($root.'/js/admin-business.js');
     t('admin.php converts biz_profile logo data URI to a file',strpos($adminphpBiz,"key === 'biz_profile'")!==false&&strpos($adminphpBiz,"dirname(__DIR__) . '/business_logo/'")!==false);
     t('admin.php validates logo magic bytes',strpos($adminphpBiz,'\x89PNG')!==false);
     t('admin.php cleans up previous logo file on re-upload',strpos($adminphpBiz,'@unlink($oldFile)')!==false);
+    // Hero image: same upload-to-file pattern as the logo, admin-editable, defaults to /hero.jpg
+    t('index.php hero image defaults to /hero.jpg when unset',strpos($ixphp,"\$bizHeroAbs = !empty(\$bz['hero_image']) ? \$bz['hero_image'] : '/hero.jpg?v=3'")!==false);
+    t('index.php hero-bg renders the dynamic hero image inline',strpos($ixphp,'id="hero-bg" style="background-image:url(\'<?php echo $bizHeroAbsAttr; ?>\')"')!==false);
+    t('admin.php converts biz_profile hero_image data URI to a file',strpos($adminphpBiz,"!empty(\$biz['hero_image'])")!==false&&strpos($adminphpBiz,"dirname(__DIR__) . '/business_hero/'")!==false);
+    t('admin.php cleans up previous hero image file on re-upload',strpos($adminphpBiz,'@unlink($oldFile2)')!==false);
+    // Hero overline/headline/copy: admin-editable text, defaults must match the live storefront copy
+    t('index.php hero overline defaults to "Handmade in Knoxville, Tennessee"',strpos($ixphp,"\$bizHeroOverline = !empty(\$bz['hero_overline']) ? \$bz['hero_overline'] : 'Handmade in Knoxville, Tennessee'")!==false);
+    t('index.php hero headline defaults to the original two-line copy',strpos($ixphp,'Handcrafted. One of a kind.\nNever repeated.')!==false);
+    t('index.php hero copy defaults to the original subcopy',strpos($ixphp,"Upcycled tote bags, purses, and quilts")!==false&&strpos($ixphp,"\$bizHeroCopy = !empty(\$bz['hero_copy'])")!==false);
+    t('index.php renders hero overline/headline/copy from PHP vars',strpos($ixphp,'<div class="hero-overline"><?php echo $bizHeroOverlineHtml; ?></div>')!==false&&strpos($ixphp,'<h1><?php echo $bizHeroHeadlineHtml; ?></h1>')!==false&&strpos($ixphp,'<p><?php echo $bizHeroCopyHtml; ?></p>')!==false);
+    t('admin-business.js hero text defaults match index.php fallbacks',strpos($abjsHero,"BIZ_HERO_OVERLINE_DEFAULT='Handmade in Knoxville, Tennessee'")!==false&&strpos($abjsHero,"BIZ_HERO_HEADLINE_DEFAULT='Handcrafted. One of a kind.\\nNever repeated.'")!==false);
+    t('Profile form has hero overline/headline/copy fields',strpos($abjsHero,'bp-hero-overline')!==false&&strpos($abjsHero,'bp-hero-headline')!==false&&strpos($abjsHero,'bp-hero-copy')!==false);
+    t('Profile form has hero image upload',strpos($abjsHero,'bp-hero-file')!==false);
+    t('saveBizProfile persists hero fields',strpos($abjsHero,'hero_overline:hero_overline')!==false&&strpos($abjsHero,'hero_headline:hero_headline')!==false&&strpos($abjsHero,'hero_copy:hero_copy')!==false&&strpos($abjsHero,'hero_image:heroData')!==false);
+    // Footer credits: copyright statement (live-bound to business name until overridden) + website-by credit/email
+    t('index.php copyright statement stays live-bound to business name by default',strpos($ixphp,"\$bizCopyright = !empty(\$bz['copyright_statement']) ? \$bz['copyright_statement'] : ('© 2026 ' . \$bizName . ' · Knoxville, TN')")!==false);
+    t('index.php website-by credit defaults to Business Web Express',strpos($ixphp,"\$bizWebsiteBy = !empty(\$bz['website_by']) ? \$bz['website_by'] : 'Website by Business Web Express'")!==false);
+    t('index.php website-by email defaults to info@businesswebexpress.com',strpos($ixphp,"\$bizWebsiteByEmail = !empty(\$bz['website_by_email']) ? \$bz['website_by_email'] : 'info@businesswebexpress.com'")!==false);
+    t('all 5 footers render the dynamic copyright statement',substr_count($ixphp,'<?php echo $bizCopyrightHtml; ?>')===5);
+    t('all 5 footers render the dynamic website-by credit + email (both feed the mailto link)',substr_count($ixphp,'<?php echo $bizWebsiteByHtml; ?>')===5&&substr_count($ixphp,'mailto:<?php echo $bizWebsiteByEmailAttr; ?>')===5);
+    t('Profile form has footer credit fields',strpos($abjsHero,'bp-copyright')!==false&&strpos($abjsHero,'bp-website-by')!==false&&strpos($abjsHero,'bp-website-by-email')!==false);
+    t('saveBizProfile persists footer credit fields',strpos($abjsHero,'copyright_statement:copyright_statement')!==false&&strpos($abjsHero,'website_by:website_by,website_by_email:website_by_email')!==false);
     // Email templates: dynamic name/email, no stale hardcoded strings in From/subject/footer
     foreach(['send_confirm.php'=>'biz_name','send_shipping.php'=>'from_name','verify_payment.php'=>'biz_name_vp','order_confirm.php'=>'from_name','notify.php'=>'from_name'] as $ef=>$var){
         $efc=file_get_contents($root.'/'.$ef);
@@ -2664,11 +2687,13 @@ try{
 }catch(Exception $e){t('digital wallet + sandbox mode checks',false,$e->getMessage());}
 
 try{
-    // Footer credit — updated from East Tennessee Web Services to Business Web Express
-    $footerCount=substr_count($idx,'Website by Business Web Express');
-    t('index.php:footer credits Business Web Express',$footerCount>0);
+    // Footer credit — was hardcoded "Website by Business Web Express" text in all 5 footers;
+    // now admin-editable (biz_profile.website_by/website_by_email), defaulting to the same text.
+    // See the "Footer credits" checks above for the default-value assertions.
+    $footerCount=substr_count($idx,'<?php echo $bizWebsiteByHtml; ?>');
+    t('index.php:footer credits Business Web Express (default value)',strpos($idx,"'Website by Business Web Express'")!==false);
     t('index.php:footer has all 5 footer instances updated',$footerCount===5,"found $footerCount");
-    t('index.php:footer email is info@businesswebexpress.com',strpos($idx,'mailto:info@businesswebexpress.com')!==false);
+    t('index.php:footer email is info@businesswebexpress.com (default value)',strpos($idx,"'info@businesswebexpress.com'")!==false);
     t('index.php:no stale East Tennessee Web Services footer text',strpos($idx,'East Tennessee Web Services')===false);
     t('index.php:no stale easttnwebservices email',strpos($idx,'easttnwebservices@yahoo.com')===false);
 }catch(Exception $e){t('footer credit checks',false,$e->getMessage());}

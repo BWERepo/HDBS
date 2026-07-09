@@ -22,6 +22,27 @@ if (!empty($bz['logo'])) {
     $dims = @getimagesize($logoLocalPath);
     if ($dims) { $bizLogoWidth = $dims[0]; $bizLogoHeight = $dims[1]; $bizLogoMime = $dims['mime']; }
 }
+// Hero image: uploaded hero image is stored as a full URL (see api/admin.php save_setting);
+// falls back to the original static file if no hero image has been uploaded yet.
+$bizHeroAbs = !empty($bz['hero_image']) ? $bz['hero_image'] : '/hero.jpg?v=3';
+$bizHeroAbsAttr = htmlspecialchars($bizHeroAbs, ENT_QUOTES, 'UTF-8');
+// Hero overline/headline/copy: admin-editable plain text (line breaks preserved via nl2br);
+// these defaults must match the BIZ_HERO_*_DEFAULT constants in js/admin-business.js.
+$bizHeroOverline = !empty($bz['hero_overline']) ? $bz['hero_overline'] : 'Handmade in Knoxville, Tennessee';
+$bizHeroHeadline = !empty($bz['hero_headline']) ? $bz['hero_headline'] : "Handcrafted. One of a kind.\nNever repeated.";
+$bizHeroCopy = !empty($bz['hero_copy']) ? $bz['hero_copy'] : 'Upcycled tote bags, purses, and quilts — sewn one stitch at a time by Suzi.';
+$bizHeroOverlineHtml = nl2br(htmlspecialchars($bizHeroOverline, ENT_QUOTES, 'UTF-8'));
+$bizHeroHeadlineHtml = nl2br(htmlspecialchars($bizHeroHeadline, ENT_QUOTES, 'UTF-8'));
+$bizHeroCopyHtml = nl2br(htmlspecialchars($bizHeroCopy, ENT_QUOTES, 'UTF-8'));
+// Footer copyright statement / website credit: admin-editable plain text. The copyright
+// statement's default stays live-bound to the business name (matching pre-existing behavior)
+// until an admin explicitly overrides it; the website-credit default is a flat string.
+$bizCopyright = !empty($bz['copyright_statement']) ? $bz['copyright_statement'] : ('© 2026 ' . $bizName . ' · Knoxville, TN');
+$bizWebsiteBy = !empty($bz['website_by']) ? $bz['website_by'] : 'Website by Business Web Express';
+$bizWebsiteByEmail = !empty($bz['website_by_email']) ? $bz['website_by_email'] : 'info@businesswebexpress.com';
+$bizCopyrightHtml = htmlspecialchars($bizCopyright, ENT_QUOTES, 'UTF-8');
+$bizWebsiteByHtml = htmlspecialchars($bizWebsiteBy, ENT_QUOTES, 'UTF-8');
+$bizWebsiteByEmailAttr = htmlspecialchars($bizWebsiteByEmail, ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
 <html>
@@ -184,12 +205,12 @@ if (!empty($bz['logo'])) {
     </div>
   </nav>
   <div class="hero" id="hero-section">
-    <div class="hero-bg" id="hero-bg"></div>
+    <div class="hero-bg" id="hero-bg" style="background-image:url('<?php echo $bizHeroAbsAttr; ?>')"></div>
     <div class="hero-overlay"></div>
     <div class="hero-content">
-      <div class="hero-overline">Handmade in Knoxville, Tennessee</div>
-      <h1>Handcrafted. One of a kind.<br>Never repeated.</h1>
-      <p>Upcycled tote bags, purses, and quilts — sewn one stitch at a time by Suzi.</p>
+      <div class="hero-overline"><?php echo $bizHeroOverlineHtml; ?></div>
+      <h1><?php echo $bizHeroHeadlineHtml; ?></h1>
+      <p><?php echo $bizHeroCopyHtml; ?></p>
       <div class="hero-btns">
         <button class="hbtn hbtn-primary" onclick="document.getElementById('ps').scrollIntoView({behavior:'smooth'})">Shop the collection</button>
         <button class="hbtn hbtn-secondary" onclick="goStudio()">Visit the Design Studio</button>
@@ -288,9 +309,9 @@ if (!empty($bz['logo'])) {
   </div>
 
   <footer style="background:#2d2220;padding:1.5rem;text-align:center">
-    <div style="color:rgba(255,255,255,.5);font-size:.82rem">© 2026 <?php echo $bizNameAttr; ?> · Knoxville, TN · <a href="mailto:<?php echo $bizEmailAttr; ?>" style="color:rgba(255,255,255,.5)"><?php echo $bizEmailAttr; ?></a></div>
+    <div style="color:rgba(255,255,255,.5);font-size:.82rem"><?php echo $bizCopyrightHtml; ?> · <a href="mailto:<?php echo $bizEmailAttr; ?>" style="color:rgba(255,255,255,.5)"><?php echo $bizEmailAttr; ?></a></div>
     <div style="margin-top:.55rem"><a href="#" onclick="event.preventDefault();openMyOrders()" style="color:#d4a017;font-size:.8rem;text-decoration:underline;cursor:pointer">📦 Track / View My Orders</a></div>
-    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem">Website by Business Web Express &middot; <a href="mailto:info@businesswebexpress.com" style="color:rgba(255,255,255,.5);text-decoration:underline">info@businesswebexpress.com</a></div>
+    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem"><?php echo $bizWebsiteByHtml; ?> &middot; <a href="mailto:<?php echo $bizWebsiteByEmailAttr; ?>" style="color:rgba(255,255,255,.5);text-decoration:underline"><?php echo $bizWebsiteByEmailAttr; ?></a></div>
     <div class="site-version-line" style="color:rgba(255,255,255,.5);font-size:.6rem;margin-top:.5rem"></div>
     <div style="margin-top:1rem">
       <img src="https://handmadedesignsbysuzi.com/QRCode.png" alt="Scan to visit handmadedesignsbysuzi.com" style="width:90px;height:90px;border-radius:6px;opacity:.85">
@@ -627,8 +648,8 @@ if (!empty($bz['logo'])) {
   </div>
 
   <footer style="background:#2d2220;padding:1.5rem;text-align:center">
-    <div style="color:rgba(255,255,255,.5);font-size:.82rem">© 2026 <?php echo $bizNameAttr; ?> · Knoxville, TN</div>
-    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem">Website by Business Web Express &middot; <a href="mailto:info@businesswebexpress.com" style="color:rgba(255,255,255,.5);text-decoration:underline">info@businesswebexpress.com</a></div>
+    <div style="color:rgba(255,255,255,.5);font-size:.82rem"><?php echo $bizCopyrightHtml; ?></div>
+    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem"><?php echo $bizWebsiteByHtml; ?> &middot; <a href="mailto:<?php echo $bizWebsiteByEmailAttr; ?>" style="color:rgba(255,255,255,.5);text-decoration:underline"><?php echo $bizWebsiteByEmailAttr; ?></a></div>
   </footer>
 </div>
 
@@ -781,8 +802,8 @@ if (!empty($bz['logo'])) {
   </div>
 
   <footer style="background:#2d2220;padding:1.5rem;text-align:center">
-    <div style="color:rgba(255,255,255,.5);font-size:.82rem">© 2026 <?php echo $bizNameAttr; ?> · Knoxville, TN</div>
-    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem">Website by Business Web Express &middot; <a href="mailto:info@businesswebexpress.com" style="color:rgba(255,255,255,.5);text-decoration:underline">info@businesswebexpress.com</a></div>
+    <div style="color:rgba(255,255,255,.5);font-size:.82rem"><?php echo $bizCopyrightHtml; ?></div>
+    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem"><?php echo $bizWebsiteByHtml; ?> &middot; <a href="mailto:<?php echo $bizWebsiteByEmailAttr; ?>" style="color:rgba(255,255,255,.5);text-decoration:underline"><?php echo $bizWebsiteByEmailAttr; ?></a></div>
   </footer>
 
   <!-- Sticky mobile CTA (shown after scrolling past the hero) -->
@@ -820,8 +841,8 @@ if (!empty($bz['logo'])) {
     </div>
   </div>
   <footer style="background:#2d2220;padding:1.5rem;text-align:center">
-    <div style="color:rgba(255,255,255,.5);font-size:.82rem">© 2026 <?php echo $bizNameAttr; ?> · Knoxville, TN</div>
-    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem">Website by Business Web Express &middot; <a href="mailto:info@businesswebexpress.com" style="color:rgba(255,255,255,.5);text-decoration:underline">info@businesswebexpress.com</a></div>
+    <div style="color:rgba(255,255,255,.5);font-size:.82rem"><?php echo $bizCopyrightHtml; ?></div>
+    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem"><?php echo $bizWebsiteByHtml; ?> &middot; <a href="mailto:<?php echo $bizWebsiteByEmailAttr; ?>" style="color:rgba(255,255,255,.5);text-decoration:underline"><?php echo $bizWebsiteByEmailAttr; ?></a></div>
   </footer>
 </div>
 
@@ -894,9 +915,9 @@ if (!empty($bz['logo'])) {
   </div>
 
   <footer style="background:#2d2220;padding:1.5rem;text-align:center">
-    <div style="color:rgba(255,255,255,.5);font-size:.82rem">© 2026 <?php echo $bizNameAttr; ?> · Knoxville, TN · <a href="mailto:<?php echo $bizEmailAttr; ?>" style="color:rgba(255,255,255,.5)"><?php echo $bizEmailAttr; ?></a></div>
+    <div style="color:rgba(255,255,255,.5);font-size:.82rem"><?php echo $bizCopyrightHtml; ?> · <a href="mailto:<?php echo $bizEmailAttr; ?>" style="color:rgba(255,255,255,.5)"><?php echo $bizEmailAttr; ?></a></div>
     <div style="margin-top:.55rem"><a href="#" onclick="event.preventDefault();openMyOrders()" style="color:#d4a017;font-size:.8rem;text-decoration:underline;cursor:pointer">📦 Track / View My Orders</a></div>
-    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem">Website by Business Web Express &middot; <a href="mailto:info@businesswebexpress.com" style="color:rgba(255,255,255,.5);text-decoration:underline">info@businesswebexpress.com</a></div>
+    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem"><?php echo $bizWebsiteByHtml; ?> &middot; <a href="mailto:<?php echo $bizWebsiteByEmailAttr; ?>" style="color:rgba(255,255,255,.5);text-decoration:underline"><?php echo $bizWebsiteByEmailAttr; ?></a></div>
     <div class="site-version-line" style="color:rgba(255,255,255,.5);font-size:.6rem;margin-top:.5rem"></div>
   </footer>
 </div>
@@ -1068,7 +1089,7 @@ if (!empty($bz['logo'])) {
 <script src="js/admin-products.js?v=15"></script>
 <script src="js/admin-orders.js?v=36"></script>
 <script src="js/admin-misc.js?v=28"></script>
-<script src="js/admin-business.js?v=11"></script>
+<script src="js/admin-business.js?v=16"></script>
 <script src="js/admin-studio.js?v=5"></script>
 <script src="js/table.js"></script>
 <script src="js/toolbar.js"></script>

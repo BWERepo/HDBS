@@ -1,5 +1,18 @@
 // ── BUSINESS: Profile, Documents, Inventory, Reports ──
 
+// Must match the fallback strings rendered server-side in index.php ($bizHeroOverline/Headline/Copy)
+var BIZ_HERO_OVERLINE_DEFAULT='Handmade in Knoxville, Tennessee';
+var BIZ_HERO_HEADLINE_DEFAULT='Handcrafted. One of a kind.\nNever repeated.';
+var BIZ_HERO_COPY_DEFAULT='Upcycled tote bags, purses, and quilts — sewn one stitch at a time by Suzi.';
+// Must match the fallbacks in index.php ($bizWebsiteBy / $bizWebsiteByEmail)
+var BIZ_WEBSITE_BY_DEFAULT='Website by Business Web Express';
+var BIZ_WEBSITE_BY_EMAIL_DEFAULT='info@businesswebexpress.com';
+// Copyright default stays live-bound to the business name field, mirroring index.php's fallback
+function bizCopyrightDefault(){
+  var n=document.getElementById('bp-name');
+  return '© 2026 '+((n&&n.value.trim())||'Handmade Designs By Suzi')+' · Knoxville, TN';
+}
+
 // Same formatting as fmtPhone() in store.js, but for a stored string rather than a live input
 function bizFmtPhone(s){
   var v=String(s||'').replace(/\D/g,'').substring(0,10);
@@ -65,6 +78,43 @@ function rBizProfile(el){
           '<img id="bp-logo-new-src" style="max-width:220px;max-height:160px;border-radius:8px;border:2px dashed #d4a017;display:block;cursor:zoom-in" onclick="bizLogoZoom(this)">'+
         '</div>'+
       '</div>'+
+      '<div style="background:#fff;border:1px solid #e8e0b8;border-radius:10px;padding:1.4rem;margin-bottom:1rem">'+
+        '<div style="font-weight:700;font-size:.88rem;text-transform:uppercase;letter-spacing:.06em;color:#a07810;margin-bottom:.9rem">🌄 Hero</div>'+
+        '<label class="fl">Hero Overline</label>'+
+        '<input class="afi" id="bp-hero-overline" value="'+ceEsc(p.hero_overline||BIZ_HERO_OVERLINE_DEFAULT)+'">'+
+        '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-hero-overline\',BIZ_HERO_OVERLINE_DEFAULT)">↺ Reset to Default</button></div>'+
+        '<label class="fl">Hero Headline</label>'+
+        '<textarea class="afi" id="bp-hero-headline" rows="2" style="resize:vertical;font-family:inherit">'+ceEsc(p.hero_headline||BIZ_HERO_HEADLINE_DEFAULT)+'</textarea>'+
+        '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-hero-headline\',BIZ_HERO_HEADLINE_DEFAULT)">↺ Reset to Default</button></div>'+
+        '<label class="fl">Hero Copy</label>'+
+        '<textarea class="afi" id="bp-hero-copy" rows="2" style="resize:vertical;font-family:inherit">'+ceEsc(p.hero_copy||BIZ_HERO_COPY_DEFAULT)+'</textarea>'+
+        '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-hero-copy\',BIZ_HERO_COPY_DEFAULT)">↺ Reset to Default</button></div>'+
+        '<div style="margin-bottom:.8rem">'+
+          '<img id="bp-hero-preview" data-custom="'+(p.hero_image?'1':'0')+'" src="'+(p.hero_image||'/hero.jpg?v=3')+'" onclick="bizLogoZoom(this)" style="max-width:320px;max-height:180px;border-radius:8px;border:1px solid #e8e0b8;display:block;cursor:zoom-in;object-fit:cover" title="Click to enlarge">'+
+          '<div style="display:flex;align-items:center;gap:.6rem;margin-top:.5rem">'+
+            '<span style="font-size:.72rem;color:#6b6040">'+(p.hero_image?'Click image to enlarge':'Using default homepage hero image')+'</span>'+
+            (p.hero_image?'<button class="bd" style="font-size:.72rem;padding:.2rem .6rem" onclick="clearBizHero()">✕ Reset to Default</button>':'')+
+          '</div>'+
+        '</div>'+
+        '<label class="fl">Upload Hero Image (JPG/PNG)</label>'+
+        '<input type="file" id="bp-hero-file" accept="image/jpeg,image/png" style="margin-bottom:.8rem;font-size:.83rem" onchange="bizPreviewHero(this)">'+
+        '<div id="bp-hero-new" style="display:none;margin-bottom:.8rem">'+
+          '<div style="font-size:.72rem;color:#a07810;font-weight:600;margin-bottom:.3rem">New hero image (not yet saved):</div>'+
+          '<img id="bp-hero-new-src" style="max-width:320px;max-height:180px;border-radius:8px;border:2px dashed #d4a017;display:block;cursor:zoom-in;object-fit:cover" onclick="bizLogoZoom(this)">'+
+        '</div>'+
+      '</div>'+
+      '<div style="background:#fff;border:1px solid #e8e0b8;border-radius:10px;padding:1.4rem;margin-bottom:1rem">'+
+        '<div style="font-weight:700;font-size:.88rem;text-transform:uppercase;letter-spacing:.06em;color:#a07810;margin-bottom:.9rem">©️ Footer Credits</div>'+
+        '<label class="fl">Copyright Statement</label>'+
+        '<input class="afi" id="bp-copyright" value="'+ceEsc(p.copyright_statement||bizCopyrightDefault())+'">'+
+        '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-copyright\',bizCopyrightDefault())">↺ Reset to Default</button></div>'+
+        '<label class="fl">Website By</label>'+
+        '<input class="afi" id="bp-website-by" value="'+ceEsc(p.website_by||BIZ_WEBSITE_BY_DEFAULT)+'">'+
+        '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-website-by\',BIZ_WEBSITE_BY_DEFAULT)">↺ Reset to Default</button></div>'+
+        '<label class="fl">Website By Email</label>'+
+        '<input class="afi" id="bp-website-by-email" value="'+ceEsc(p.website_by_email||BIZ_WEBSITE_BY_EMAIL_DEFAULT)+'" placeholder="info@businesswebexpress.com">'+
+        '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-website-by-email\',BIZ_WEBSITE_BY_EMAIL_DEFAULT)">↺ Reset to Default</button></div>'+
+      '</div>'+
       '<button class="bp" onclick="saveBizProfile()">💾 Save Business Profile</button>'+
       '</div>';
   }).catch(function(){
@@ -88,14 +138,25 @@ function saveBizProfile(){
   var contact_zip=document.getElementById('bp-cont-zip').value.trim();
   var phone=document.getElementById('bp-phone').value.trim();
   var email=document.getElementById('bp-email').value.trim();
+  var hero_overline=document.getElementById('bp-hero-overline').value.trim();
+  var copyright_statement=document.getElementById('bp-copyright').value.trim();
+  var website_by=document.getElementById('bp-website-by').value.trim();
+  var website_by_email=document.getElementById('bp-website-by-email').value.trim();
+  var hero_headline=document.getElementById('bp-hero-headline').value.trim();
+  var hero_copy=document.getElementById('bp-hero-copy').value.trim();
   var fileInput=document.getElementById('bp-logo-file');
+  var heroFileInput=document.getElementById('bp-hero-file');
 
-  function doSave(imgData){
+  function doSave(imgData,heroData){
     if(!imgData){
       var existing=document.getElementById('bp-logo-preview');
       imgData=existing?existing.src:'';
     }
-    var profile={name:name,short_name:short_name,mailing_street:mailing_street,mailing_city:mailing_city,mailing_state:mailing_state,mailing_zip:mailing_zip,contact_street:contact_street,contact_city:contact_city,contact_state:contact_state,contact_zip:contact_zip,phone:phone,email:email,logo:imgData};
+    if(heroData===undefined){
+      var existingHero=document.getElementById('bp-hero-preview');
+      heroData=(existingHero&&existingHero.getAttribute('data-custom')==='1')?existingHero.src:'';
+    }
+    var profile={name:name,short_name:short_name,mailing_street:mailing_street,mailing_city:mailing_city,mailing_state:mailing_state,mailing_zip:mailing_zip,contact_street:contact_street,contact_city:contact_city,contact_state:contact_state,contact_zip:contact_zip,phone:phone,email:email,logo:imgData,hero_image:heroData,hero_headline:hero_headline,hero_copy:hero_copy,hero_overline:hero_overline,copyright_statement:copyright_statement,website_by:website_by,website_by_email:website_by_email};
     apiFetch('admin.php','POST',{action:'save_setting',key:'biz_profile',value:JSON.stringify(profile)})
     .then(function(d){
       if(d.message==='Setting saved'||d.success){
@@ -111,17 +172,25 @@ function saveBizProfile(){
     }).catch(function(){err.textContent='Network error.';err.style.display='block';});
   }
 
-  if(fileInput&&fileInput.files&&fileInput.files[0]){
-    var file=fileInput.files[0];
-    if(file.size>2*1024*1024){
-      err.textContent='Logo image must be under 2MB.';err.style.display='block';return;
+  function readFileIfAny(input,maxMB,label,cb){
+    if(input&&input.files&&input.files[0]){
+      var file=input.files[0];
+      if(file.size>maxMB*1024*1024){
+        err.textContent=label+' must be under '+maxMB+'MB.';err.style.display='block';return;
+      }
+      var reader=new FileReader();
+      reader.onload=function(e){cb(e.target.result);};
+      reader.readAsDataURL(file);
+    } else {
+      cb(undefined);
     }
-    var reader=new FileReader();
-    reader.onload=function(e){doSave(e.target.result);};
-    reader.readAsDataURL(file);
-  } else {
-    doSave(null);
   }
+
+  readFileIfAny(fileInput,2,'Logo image',function(imgData){
+    readFileIfAny(heroFileInput,4,'Hero image',function(heroData){
+      doSave(imgData===undefined?null:imgData,heroData);
+    });
+  });
 }
 function clearBizLogo(){
   if(!confirm('Remove the business logo?'))return;
@@ -137,7 +206,43 @@ function clearBizLogo(){
   var contact_zip=document.getElementById('bp-cont-zip').value.trim();
   var phone=document.getElementById('bp-phone').value.trim();
   var email=document.getElementById('bp-email').value.trim();
-  var profile={name:name,short_name:short_name,mailing_street:mailing_street,mailing_city:mailing_city,mailing_state:mailing_state,mailing_zip:mailing_zip,contact_street:contact_street,contact_city:contact_city,contact_state:contact_state,contact_zip:contact_zip,phone:phone,email:email,logo:''};
+  var existingHero=document.getElementById('bp-hero-preview');
+  var hero_image=(existingHero&&existingHero.getAttribute('data-custom')==='1')?existingHero.src:'';
+  var hero_overline=document.getElementById('bp-hero-overline').value.trim();
+  var copyright_statement=document.getElementById('bp-copyright').value.trim();
+  var website_by=document.getElementById('bp-website-by').value.trim();
+  var website_by_email=document.getElementById('bp-website-by-email').value.trim();
+  var hero_headline=document.getElementById('bp-hero-headline').value.trim();
+  var hero_copy=document.getElementById('bp-hero-copy').value.trim();
+  var profile={name:name,short_name:short_name,mailing_street:mailing_street,mailing_city:mailing_city,mailing_state:mailing_state,mailing_zip:mailing_zip,contact_street:contact_street,contact_city:contact_city,contact_state:contact_state,contact_zip:contact_zip,phone:phone,email:email,logo:'',hero_image:hero_image,hero_headline:hero_headline,hero_copy:hero_copy,hero_overline:hero_overline,copyright_statement:copyright_statement,website_by:website_by,website_by_email:website_by_email};
+  apiFetch('admin.php','POST',{action:'save_setting',key:'biz_profile',value:JSON.stringify(profile)})
+  .then(function(d){
+    if(d.message==='Setting saved'||d.success)rBizProfile(document.getElementById('acnt'));
+  }).catch(function(){alert('Network error.');});
+}
+function clearBizHero(){
+  if(!confirm('Reset the hero image to the default?'))return;
+  var name=document.getElementById('bp-name').value.trim();
+  var short_name=document.getElementById('bp-short-name').value.trim();
+  var mailing_street=document.getElementById('bp-mail-street').value.trim();
+  var mailing_city=document.getElementById('bp-mail-city').value.trim();
+  var mailing_state=document.getElementById('bp-mail-state').value.trim();
+  var mailing_zip=document.getElementById('bp-mail-zip').value.trim();
+  var contact_street=document.getElementById('bp-cont-street').value.trim();
+  var contact_city=document.getElementById('bp-cont-city').value.trim();
+  var contact_state=document.getElementById('bp-cont-state').value.trim();
+  var contact_zip=document.getElementById('bp-cont-zip').value.trim();
+  var phone=document.getElementById('bp-phone').value.trim();
+  var email=document.getElementById('bp-email').value.trim();
+  var existingLogo=document.getElementById('bp-logo-preview');
+  var logo=existingLogo?existingLogo.src:'';
+  var hero_overline=document.getElementById('bp-hero-overline').value.trim();
+  var copyright_statement=document.getElementById('bp-copyright').value.trim();
+  var website_by=document.getElementById('bp-website-by').value.trim();
+  var website_by_email=document.getElementById('bp-website-by-email').value.trim();
+  var hero_headline=document.getElementById('bp-hero-headline').value.trim();
+  var hero_copy=document.getElementById('bp-hero-copy').value.trim();
+  var profile={name:name,short_name:short_name,mailing_street:mailing_street,mailing_city:mailing_city,mailing_state:mailing_state,mailing_zip:mailing_zip,contact_street:contact_street,contact_city:contact_city,contact_state:contact_state,contact_zip:contact_zip,phone:phone,email:email,logo:logo,hero_image:'',hero_headline:hero_headline,hero_copy:hero_copy,hero_overline:hero_overline,copyright_statement:copyright_statement,website_by:website_by,website_by_email:website_by_email};
   apiFetch('admin.php','POST',{action:'save_setting',key:'biz_profile',value:JSON.stringify(profile)})
   .then(function(d){
     if(d.message==='Setting saved'||d.success)rBizProfile(document.getElementById('acnt'));
@@ -149,6 +254,20 @@ function bizPreviewLogo(input){
   reader.onload=function(e){
     var div=document.getElementById('bp-logo-new');
     var img=document.getElementById('bp-logo-new-src');
+    if(div&&img){img.src=e.target.result;div.style.display='block';}
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+function bizResetHeroText(id,defaultVal){
+  var el=document.getElementById(id);
+  if(el)el.value=defaultVal;
+}
+function bizPreviewHero(input){
+  if(!input.files||!input.files[0])return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var div=document.getElementById('bp-hero-new');
+    var img=document.getElementById('bp-hero-new-src');
     if(div&&img){img.src=e.target.result;div.style.display='block';}
   };
   reader.readAsDataURL(input.files[0]);

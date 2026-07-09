@@ -242,6 +242,32 @@ if ($method === 'POST' && ($action === 'set_setting' || $action === 'save_settin
             $biz['logo'] = $logoUrl . $filename;
             $val = json_encode($biz);
         }
+        // biz_profile.hero_image works the same way — arrives as a base64 data URI, gets
+        // saved to disk, and the setting stores the fetchable URL instead.
+        if (is_array($biz) && !empty($biz['hero_image']) && preg_match('/^data:image\/(\w+);base64,(.+)$/s', $biz['hero_image'], $m2)) {
+            if (strlen($m2[2]) > 4 * 1024 * 1024 * 4 / 3) fail('Hero image too large (max 4MB)', 400);
+            $bytes2 = base64_decode($m2[2], true);
+            if (!$bytes2) fail('Could not decode hero image', 400);
+            $magic2  = substr($bytes2, 0, 4);
+            $isJpeg2 = (substr($magic2, 0, 2) === "\xFF\xD8");
+            $isPng2  = ($magic2 === "\x89PNG");
+            if (!$isJpeg2 && !$isPng2) fail('Invalid hero image format — only JPEG and PNG are accepted', 400);
+            $heroDir = dirname(__DIR__) . '/business_hero/';
+            $heroUrl = ALLOWED_ORIGIN . '/business_hero/';
+            if (!is_dir($heroDir)) mkdir($heroDir, 0755, true);
+            $ext2      = $isPng2 ? 'png' : 'jpg';
+            $filename2 = 'hero_' . time() . '.' . $ext2;
+            file_put_contents($heroDir . $filename2, $bytes2);
+            // Remove the previous hero image file, if any, to avoid orphaning uploads
+            $oldHeroRaw = getSetting($pdo, 'biz_profile');
+            $oldHero = $oldHeroRaw ? json_decode($oldHeroRaw, true) : null;
+            if (!empty($oldHero['hero_image']) && strpos($oldHero['hero_image'], $heroUrl) === 0) {
+                $oldFile2 = $heroDir . basename($oldHero['hero_image']);
+                if (is_file($oldFile2)) @unlink($oldFile2);
+            }
+            $biz['hero_image'] = $heroUrl . $filename2;
+            $val = json_encode($biz);
+        }
     }
     setSetting($pdo, $key, $val);
     // Track when the version actually last changed, so the footer can show that instead of
