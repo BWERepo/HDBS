@@ -100,6 +100,9 @@ if ($method === 'POST' && $action === 'change_password') {
     if (!$new) fail('New password cannot be empty');
     if ($new !== $cf) fail('Passwords do not match');
     setSetting($pdo, 'admin_password', password_hash($new, PASSWORD_DEFAULT));
+    // Invalidate all other admin sessions so a stolen token doesn't survive a password change
+    $curTok = $_SERVER['HTTP_X_ADMIN_TOKEN'] ?? '';
+    try { $pdo->prepare("DELETE FROM admin_sessions WHERE token != ?")->execute([$curTok]); } catch (Exception $e) {}
     ok(['message' => 'Password updated']);
 }
 

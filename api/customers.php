@@ -34,6 +34,26 @@ if ($method === 'POST' && $action === 'register') {
     if (empty($d['em']) || empty($d['pw'])) fail('Email and password required');
     if (strlen($d['pw']) < 6) fail('Password must be at least 6 characters');
 
+    // Rate limit: 5 registrations per IP per hour (prevents automated mass account creation)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS customer_login_attempts (
+        email_hash CHAR(32) PRIMARY KEY,
+        attempts   INT NOT NULL DEFAULT 0,
+        last_at    INT NOT NULL DEFAULT 0
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $rgHash = md5('register_ip_' . ($_SERVER['REMOTE_ADDR'] ?? ''));
+    $now    = time();
+    $rgRow  = $pdo->prepare("SELECT attempts, last_at FROM customer_login_attempts WHERE email_hash = ?");
+    $rgRow->execute([$rgHash]);
+    $rgRow  = $rgRow->fetch() ?: ['attempts' => 0, 'last_at' => 0];
+    if ($rgRow['attempts'] >= 5 && ($now - $rgRow['last_at']) < 3600) {
+        fail('Too many registration attempts from this network. Please try again later.');
+    }
+    if ($rgRow['attempts'] >= 5) {
+        $rgRow['attempts'] = 0; // stale window, reset
+    }
+    $pdo->prepare("INSERT INTO customer_login_attempts (email_hash,attempts,last_at) VALUES (?,?,?) ON DUPLICATE KEY UPDATE attempts=?,last_at=?")
+        ->execute([$rgHash, $rgRow['attempts'] + 1, $now, $rgRow['attempts'] + 1, $now]);
+
     // Check duplicate
     $check = $pdo->prepare("SELECT id FROM customers WHERE email = ?");
     $check->execute([$d['em']]);

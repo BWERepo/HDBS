@@ -3238,6 +3238,21 @@ try{
     t('Business Reports has Refunds % of Revenue card',strpos($abjsRev,'Refunds % of Revenue')!==false);
 }catch(Exception $e){t('revenue-nets-refunds checks',false,$e->getMessage());}
 
+try{
+    // Session HDBS_17: OWASP-driven hardening — registration rate limit, admin session
+    // invalidation on password change, Permissions-Policy header
+    $custphpReg=file_get_contents($root.'/api/customers.php');
+    t('register has per-IP rate limiting',strpos($custphpReg,'register_ip_')!==false&&strpos($custphpReg,'Too many registration attempts')!==false);
+    t('register rate limit caps at 5 per hour',strpos($custphpReg,"\$rgRow['attempts'] >= 5")!==false&&strpos($custphpReg,'< 3600')!==false);
+
+    $adphpCp=file_get_contents($root.'/api/admin.php');
+    t('change_password invalidates other admin sessions',strpos($adphpCp,'DELETE FROM admin_sessions WHERE token != ?')!==false);
+    t('change_password keeps the current session active',strpos($adphpCp,"\$curTok = \$_SERVER['HTTP_X_ADMIN_TOKEN']")!==false);
+
+    $htaccessPp=file_get_contents($root.'/.htaccess');
+    tProd('htaccess sets Permissions-Policy',strpos($htaccessPp,'Permissions-Policy')!==false&&strpos($htaccessPp,'camera=()')!==false);
+}catch(Exception $e){t('HDBS_17 security hardening checks',false,$e->getMessage());}
+
 }catch(Exception $e){t('Exception',false,$e->getMessage().' line '.$e->getLine());}
 
 // ── TEST-DATA CLEANUP SWEEP ──
