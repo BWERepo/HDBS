@@ -14,6 +14,11 @@ try {
     $pdo = db();
 } catch(Exception $e){ sq_fail('db error: '.$e->getMessage()); }
 requireAdmin();
+// refunded_amount may not exist yet if no refund has ever been issued (same idempotent check as
+// api/orders.php / api/refund.php)
+if (empty($pdo->query("SHOW COLUMNS FROM orders LIKE 'refunded_amount'")->fetchAll())) {
+    $pdo->exec("ALTER TABLE orders ADD COLUMN refunded_amount DECIMAL(10,2) DEFAULT 0");
+}
 
 try {
     $secretsPath = dirname(dirname(__DIR__)) . '/secrets.php';
@@ -118,12 +123,14 @@ $payments = isset($data['payments']) ? $data['payments'] : array();
 // square_payment_id instead of querying Square's Orders API (which would always return empty).
 $paymentIds = array_values(array_filter(array_map(function($p){ return isset($p['id']) ? $p['id'] : ''; }, $payments)));
 $taxByPaymentId = [];
+$refundedByPaymentId = [];
 if (!empty($paymentIds)) {
     $placeholders = implode(',', array_fill(0, count($paymentIds), '?'));
-    $taxRows = $pdo->prepare("SELECT square_payment_id, tax_amount FROM orders WHERE square_payment_id IN ($placeholders)");
+    $taxRows = $pdo->prepare("SELECT square_payment_id, tax_amount, refunded_amount FROM orders WHERE square_payment_id IN ($placeholders)");
     $taxRows->execute($paymentIds);
     foreach ($taxRows->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $taxByPaymentId[$row['square_payment_id']] = (float)$row['tax_amount'];
+        $refundedByPaymentId[$row['square_payment_id']] = (float)($row['refunded_amount'] ?? 0);
     }
 }
 
@@ -143,16 +150,25 @@ foreach($payments as $p){
         $fee = round($amt * 0.026 + 0.10, 2);
         $feeEstimated = true;
     }
+    // Refunds are issued through our own admin (api/refund.php), which stores the amount on the
+    // order (not Square's own status) — our orders table is the authoritative source, matched by
+    // square_payment_id (same join used for tax above).
+    $refunded = isset($p['id']) ? ($refundedByPaymentId[$p['id']] ?? 0) : 0;
+    $status = isset($p['status']) ? $p['status'] : '';
+    if ($status === 'COMPLETED' && $refunded > 0.004) {
+        $status = ($refunded >= $amt - 0.005) ? 'REFUNDED' : 'PARTIAL_REFUND';
+    }
     $out[] = array(
         'id'           => isset($p['id'])          ? $p['id']          : '',
         'created'      => isset($p['created_at'])  ? $p['created_at']  : '',
-        'status'       => isset($p['status'])      ? $p['status']      : '',
+        'status'       => $status,
         'amount'       => round($amt,2),
         'tax'          => round($tax,2),
         'tip'          => round($tip,2),
         'fee'          => round(abs($fee),2),
         'fee_estimated'=> $feeEstimated,
         'net'          => round($amt-abs($fee),2),
+        'refunded'  => round($refunded,2),
         'note'      => isset($p['note'])        ? $p['note']        : '',
         'card_brand'=> isset($p['card_details']['card']['card_brand']) ? $p['card_details']['card']['card_brand'] : '',
         'last4'     => isset($p['card_details']['card']['last_4'])     ? $p['card_details']['card']['last_4']     : '',

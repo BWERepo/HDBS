@@ -1097,8 +1097,8 @@ $bizAboutStoryHtml = implode('', array_map(function ($para) {
 <script src="js/admin-nav.js?v=14"></script>
 <script src="js/admin-general.js?v=5"></script>
 <script src="js/admin-products.js?v=15"></script>
-<script src="js/admin-orders.js?v=36"></script>
-<script src="js/admin-misc.js?v=32"></script>
+<script src="js/admin-orders.js?v=37"></script>
+<script src="js/admin-misc.js?v=33"></script>
 <script src="js/admin-business.js?v=19"></script>
 <script src="js/admin-studio.js?v=5"></script>
 <script src="js/table.js"></script>

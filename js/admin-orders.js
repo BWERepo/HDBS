@@ -2096,15 +2096,20 @@ function sqPayLoad(el,begin,end,cursor){
 function renderSqPayTable(el,d,begin,end){
   SQ_PAY_EL=el; SQ_PAY_BEGIN=begin; SQ_PAY_END=end;
   SQ_PAY_DATA=d.payments||[];
-  SQ_PAY_F={status:'',note:'',card:'',buyer:'',amount:'',tax:'',fee:'',net:'',created:''};
+  SQ_PAY_F={status:'',note:'',card:'',buyer:'',amount:'',tax:'',fee:'',refunded:'',net:'',created:''};
   var modeTag=d.mode==='test'?'<span style="background:#fff8e1;color:#e65100;font-size:.72rem;border-radius:4px;padding:1px 7px;font-weight:700;border:1px solid #ffe082;margin-left:.5rem">TEST MODE</span>':'';
-  var totAmt=0,totFee=0,totTax=0,totNet=0;
-  d.payments.forEach(function(p){if(p.status==='COMPLETED'){totAmt+=p.amount;totFee+=p.fee;totTax+=p.tax;totNet+=p.net;}});
+  var totAmt=0,totFee=0,totTax=0,totRefunded=0;
+  d.payments.forEach(function(p){if(p.status==='COMPLETED'||p.status==='REFUNDED'||p.status==='PARTIAL_REFUND'){totAmt+=p.amount;totFee+=p.fee;totTax+=p.tax;totRefunded+=(p.refunded||0);}});
+  var totNet=totAmt-totFee-totRefunded;
   var statsHtml=
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:1rem">'+
+    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;margin-bottom:1rem">'+
       '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.7rem 1rem">'+
         '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.2rem">Charges'+modeTag+'</div>'+
         '<div style="font-weight:700;font-size:1.05rem;color:#2d2220">$'+totAmt.toFixed(2)+'</div>'+
+      '</div>'+
+      '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.7rem 1rem">'+
+        '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.2rem">Refunds</div>'+
+        '<div style="font-weight:700;font-size:1.05rem;color:#c62828">-$'+totRefunded.toFixed(2)+'</div>'+
       '</div>'+
       '<div style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.7rem 1rem">'+
         '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.2rem">Square Fees</div>'+
@@ -2159,7 +2164,7 @@ function renderSqPayTable(el,d,begin,end){
 }
 var SQ_PAY_DATA=[];
 var SQ_PAY_SORT={col:'created',dir:-1};
-var SQ_PAY_F={status:'',note:'',card:'',buyer:'',amount:'',tax:'',fee:'',net:'',created:''};
+var SQ_PAY_F={status:'',note:'',card:'',buyer:'',amount:'',tax:'',fee:'',refunded:'',net:'',created:''};
 var SQ_PAY_EL=null;
 var SQ_PAY_BEGIN='';
 var SQ_PAY_END='';
@@ -2174,12 +2179,13 @@ function sqPayRenderTable(){
     if(k==='amount')return '$'+p.amount.toFixed(2);
     if(k==='tax')return p.tax>0?'$'+p.tax.toFixed(2):'--';
     if(k==='fee')return '-$'+p.fee.toFixed(2);
-    if(k==='net')return '$'+p.net.toFixed(2);
-    if(k==='created'){var dt=p.created?new Date(p.created):'';return dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';}  
+    if(k==='refunded')return (p.refunded||0)>0?'-$'+p.refunded.toFixed(2):'--';
+    if(k==='net')return '$'+(p.net-(p.refunded||0)).toFixed(2);
+    if(k==='created'){var dt=p.created?new Date(p.created):'';return dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';}
     return '';
   };
   var filt=SQ_PAY_DATA.filter(function(p){
-    var keys=['status','note','card','buyer','amount','tax','fee','net','created'];
+    var keys=['status','note','card','buyer','amount','tax','fee','refunded','net','created'];
     for(var i=0;i<keys.length;i++){
       var k=keys[i];
       if(SQ_PAY_F[k]&&sqFiltVal(p,k)!==SQ_PAY_F[k])return false;
@@ -2191,20 +2197,22 @@ function sqPayRenderTable(){
     if(typeof av==='number')return SQ_PAY_SORT.dir*(av-bv);
     return SQ_PAY_SORT.dir*String(av).localeCompare(String(bv));
   });
-  var hs=['Date / Time','Order','Status','Amount','Tax','Fee','Net','Card','Buyer'].map(function(l){return'<th>'+l+'</th>';}).join('');
+  var hs=['Date / Time','Order','Status','Amount','Tax','Fee','Refunded','Net','Card','Buyer'].map(function(l){return'<th>'+l+'</th>';}).join('');
   var rows=filt.map(function(p){
     var dt=p.created?new Date(p.created):'';
     var dtStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'--';
-    var sc=p.status==='COMPLETED'?'#2e7d32':p.status==='FAILED'?'#c62828':'#6b6040';
+    var sc=p.status==='COMPLETED'?'#2e7d32':p.status==='REFUNDED'?'#c62828':p.status==='PARTIAL_REFUND'?'#e65100':p.status==='FAILED'?'#c62828':'#6b6040';
+    var statusLabel=p.status==='PARTIAL_REFUND'?'Partial Refund':(p.status?p.status.charAt(0)+p.status.slice(1).toLowerCase():'--');
     var card=p.card_brand&&p.last4?(p.card_brand+'....'+p.last4):'--';
     return '<tr>'+
       '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-size:.78rem;color:#6b6040">'+dtStr+'</td>'+
       '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-size:.75rem;font-family:monospace;color:#a07810">'+(p.note||'--')+'</td>'+
-      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-size:.75rem;font-weight:600;color:'+sc+'">'+p.status+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-size:.75rem;font-weight:600;color:'+sc+'">'+statusLabel+'</td>'+
       '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;font-weight:700;color:#2d2220">$'+p.amount.toFixed(2)+'</td>'+
       '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;color:#6b6040">'+(p.tax>0?'$'+p.tax.toFixed(2):'--')+'</td>'+
       '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;color:#c62828">'+(p.fee_estimated?'<span title="Est">~</span>':'')+'-$'+p.fee.toFixed(2)+'</td>'+
-      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;font-weight:700;color:#2e7d32">'+(p.fee_estimated?'<span title="Est">~</span>':'')+'$'+p.net.toFixed(2)+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;color:#c62828">'+((p.refunded||0)>0?'-$'+p.refunded.toFixed(2):'--')+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:right;font-weight:700;color:#2e7d32">'+(p.fee_estimated?'<span title="Est">~</span>':'')+'$'+(p.net-(p.refunded||0)).toFixed(2)+'</td>'+
       '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-size:.75rem;color:#6b6040">'+card+'</td>'+
       '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-size:.75rem;color:#6b6040">'+(p.buyer||'--')+'</td>'+
     '</tr>';
@@ -2219,7 +2227,7 @@ function sqPayRenderTable(){
 }
 function sqPayExportCsv(){
   if(!SQ_PAY_DATA.length){alert('No payments to export.');return;}
-  var headers=['Date/Time','Order','Status','Amount','Tax','Fee','Net','Card','Buyer'];
+  var headers=['Date/Time','Order','Status','Amount','Tax','Fee','Refunded','Net','Card','Buyer'];
   var rows=[headers.join(',')];
   SQ_PAY_DATA.forEach(function(p){
     var dt=p.created?new Date(p.created):'';
@@ -2232,7 +2240,8 @@ function sqPayExportCsv(){
       p.amount.toFixed(2),
       p.tax.toFixed(2),
       (-p.fee).toFixed(2),
-      p.net.toFixed(2),
+      (-(p.refunded||0)).toFixed(2),
+      (p.net-(p.refunded||0)).toFixed(2),
       '"'+card+'"',
       '"'+(p.buyer||'').replace(/"/g,'""')+'"'
     ].join(','));
@@ -2259,8 +2268,9 @@ function sqPayFilt(col){
     if(k==='amount')return '$'+p.amount.toFixed(2);
     if(k==='tax')return p.tax>0?'$'+p.tax.toFixed(2):'--';
     if(k==='fee')return '-$'+p.fee.toFixed(2);
-    if(k==='net')return '$'+p.net.toFixed(2);
-    if(k==='created'){var dt=p.created?new Date(p.created):'';return dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';}  
+    if(k==='refunded')return (p.refunded||0)>0?'-$'+p.refunded.toFixed(2):'--';
+    if(k==='net')return '$'+(p.net-(p.refunded||0)).toFixed(2);
+    if(k==='created'){var dt=p.created?new Date(p.created):'';return dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';}
     return '';
   };
   var seen={};

@@ -1444,7 +1444,6 @@ window.addEventListener('load', function(){
       '<div style="font-size:.85rem;line-height:2.1;margin-bottom:.6rem">'+
         '<div><span style="color:#6b6040">Production URL:</span> <a href="https://handmadedesignsbysuzi.com" target="_blank" rel="noopener" style="color:#a07810">handmadedesignsbysuzi.com</a></div>'+
         '<div><span style="color:#6b6040">Staging URL:</span> <a href="https://staging.handmadedesignsbysuzi.com" target="_blank" rel="noopener" style="color:#a07810">staging.handmadedesignsbysuzi.com</a></div>'+
-        '<div><span style="color:#6b6040">Website hosted at:</span> Hostinger (LiteSpeed)</div>'+
       '</div>'+
       '<label class="fl">GitHub Repo</label>'+
       '<div style="display:flex;gap:.5rem;align-items:center">'+

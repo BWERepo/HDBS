@@ -3073,10 +3073,30 @@ try{
 try{
     $spPhp=file_get_contents($root.'/api/square_payments.php');
     t('square_payments.php no longer queries Square Orders API for tax',strpos($spPhp,'orders/batch-retrieve')===false);
-    t('square_payments.php looks up tax_amount from our own orders table by square_payment_id',strpos($spPhp,'SELECT square_payment_id, tax_amount FROM orders WHERE square_payment_id IN')!==false);
+    t('square_payments.php looks up tax_amount + refunded_amount from our own orders table by square_payment_id',strpos($spPhp,'SELECT square_payment_id, tax_amount, refunded_amount FROM orders WHERE square_payment_id IN')!==false);
     t('square_payments.php keys tax lookup by payment id, not Square order id',strpos($spPhp,"\$taxByPaymentId[\$row['square_payment_id']]")!==false);
     t('square_payments.php still requires admin',strpos($spPhp,'requireAdmin()')!==false);
 }catch(Exception $e){t('square payments report tax source checks',false,$e->getMessage());}
+
+// Square Payments refund awareness — refunds are issued through our own admin (api/refund.php),
+// which only updates orders.refunded_amount; Square's live Payments API never reflects it, so
+// this screen went stale until it started cross-referencing our own orders table (same pattern
+// PayPal Payments already used). See [[feedback]]: reported live by the user ("does not include
+// refund today") after a same-day refund didn't show up here.
+try{
+    $spPhp2=isset($spPhp)?$spPhp:file_get_contents($root.'/api/square_payments.php');
+    t('square_payments.php idempotently adds refunded_amount column if missing',strpos($spPhp2,"SHOW COLUMNS FROM orders LIKE 'refunded_amount'")!==false&&strpos($spPhp2,'ALTER TABLE orders ADD COLUMN refunded_amount')!==false);
+    t('square_payments.php keys refund lookup by payment id',strpos($spPhp2,"\$refundedByPaymentId[\$row['square_payment_id']]")!==false);
+    t('square_payments.php derives REFUNDED/PARTIAL_REFUND status from our own refunded_amount',strpos($spPhp2,"'REFUNDED'")!==false&&strpos($spPhp2,"'PARTIAL_REFUND'")!==false&&strpos($spPhp2,'$refunded > 0.004')!==false);
+    t('square_payments.php returns a refunded field per payment',strpos($spPhp2,"'refunded'  => round(\$refunded,2)")!==false);
+    $aojsSq=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
+    t('Square Payments has a Refunds stat tile',strpos($aojsSq,'>Refunds</div>')!==false&&strpos($aojsSq,"totRefunded.toFixed(2)")!==false);
+    t('Square Payments Net Revenue subtracts refunds',strpos($aojsSq,'totNet=totAmt-totFee-totRefunded')!==false);
+    t('Square Payments table has a Refunded column',strpos($aojsSq,"'Refunded'")!==false&&strpos($aojsSq,"(p.refunded||0)>0?'-\$'+p.refunded.toFixed(2):'--'")!==false);
+    t('Square Payments row Net subtracts that row\'s own refund',strpos($aojsSq,'(p.net-(p.refunded||0)).toFixed(2)')!==false);
+    t('Square Payments status coloring handles REFUNDED/PARTIAL_REFUND',strpos($aojsSq,"p.status==='REFUNDED'?'#c62828':p.status==='PARTIAL_REFUND'?'#e65100'")!==false);
+    t('Square Payments CSV export includes Refunded column',strpos($aojsSq,"'Refunded'")!==false&&strpos($aojsSq,"(-(p.refunded||0)).toFixed(2)")!==false);
+}catch(Exception $e){t('square payments refund awareness checks',false,$e->getMessage());}
 
 // ── DESIGN STUDIO (2026-07-05) ──
 // Commission-inquiry showcase page: services/gallery/projects/testimonials/FAQs content
