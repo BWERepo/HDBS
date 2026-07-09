@@ -506,6 +506,15 @@ if ($method === 'POST' && $action === 'db_table_contents') {
     if (!in_array($tbl, $allowed, true)) fail('unknown table');
     $total = (int)$pdo->query("SELECT COUNT(*) FROM `" . $tbl . "`")->fetchColumn();
     $rows  = $pdo->query("SELECT * FROM `" . $tbl . "` LIMIT " . $limit . " OFFSET " . $offset)->fetchAll(PDO::FETCH_ASSOC);
+    // Redact the same sensitive settings keys that get_setting() refuses to return directly —
+    // this generic table browser must not become a bypass for that filter.
+    if ($tbl === 'settings') {
+        $sensitiveKeys = ['github_token','admin_password','admin_sec_answer','square_access_token','square_app_secret','smtp_pass','backup_token'];
+        foreach ($rows as &$row) {
+            if (isset($row['key_name']) && in_array($row['key_name'], $sensitiveKeys, true)) $row['value'] = '[redacted]';
+        }
+        unset($row);
+    }
     ok(['table' => $tbl, 'total' => $total, 'offset' => $offset, 'limit' => $limit, 'rows' => $rows]);
 }
 

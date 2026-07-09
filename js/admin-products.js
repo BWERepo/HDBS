@@ -1,4 +1,5 @@
 // ── PRODUCT ADMIN ──
+function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 var PROD_SORT={col:'name',dir:1};
 var PROD_F={name:'',cat:'',sku:'',size:'',sell:'',status:''};
 
@@ -489,9 +490,9 @@ function viewOrder(oid){
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.5rem">'+
         '<div style="background:#fff;border:1px solid #e8e0b8;border-radius:10px;padding:1rem">'+
           '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.6rem">Customer</div>'+
-          '<div style="font-size:.9rem;font-weight:600;color:#2d2220;margin-bottom:.3rem">'+order.cust+'</div>'+
-          (order.email?'<div style="font-size:.83rem;color:#6b6040"><a href="mailto:'+order.email+'" style="color:#a07810;text-decoration:none">'+order.email+'</a></div>':'<div style="font-size:.83rem;color:#bbb;font-style:italic">No email on file</div>')+
-          (order.phone?'<div style="font-size:.83rem;color:#6b6040">'+order.phone+'</div>':'')+
+          '<div style="font-size:.9rem;font-weight:600;color:#2d2220;margin-bottom:.3rem">'+escHtml(order.cust)+'</div>'+
+          (order.email?'<div style="font-size:.83rem;color:#6b6040"><a href="mailto:'+escHtml(order.email)+'" style="color:#a07810;text-decoration:none">'+escHtml(order.email)+'</a></div>':'<div style="font-size:.83rem;color:#bbb;font-style:italic">No email on file</div>')+
+          (order.phone?'<div style="font-size:.83rem;color:#6b6040">'+escHtml(order.phone)+'</div>':'')+
         '</div>'+
         '<div style="background:#fff;border:1px solid #e8e0b8;border-radius:10px;padding:1rem">'+
           '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.6rem">Order Info</div>'+
@@ -500,12 +501,12 @@ function viewOrder(oid){
           '<div style="font-size:.83rem;color:#6b6040">Order Type: <strong style="color:#2d2220">'+(order.order_type||'Online')+'</strong></div>'+
           '<div style="font-size:.83rem;color:#6b6040">Tax Swept: <strong style="color:'+(order.swept_date?'#2e7d32':'#c62828')+'">'+(order.swept_date||'Not swept')+'</strong></div>'+
           (order.carrier?'<div style="font-size:.83rem;color:#6b6040">Carrier: <strong style="color:#2d2220">'+(order.carrier||'USPS')+'</strong></div>':'')+
-          (order.tracking?'<div style="font-size:.83rem;color:#6b6040">Tracking: '+order.tracking.split(/[,\n]+/).map(function(t){return t.trim();}).filter(Boolean).map(function(t){return '<code style="color:#a07810;font-size:.8rem;margin-right:.4rem">'+t+'</code>';}).join('')+'</div>':'')+
+          (order.tracking?'<div style="font-size:.83rem;color:#6b6040">Tracking: '+order.tracking.split(/[,\n]+/).map(function(t){return t.trim();}).filter(Boolean).map(function(t){return '<code style="color:#a07810;font-size:.8rem;margin-right:.4rem">'+escHtml(t)+'</code>';}).join('')+'</div>':'')+
         '</div>'+
         (order.addr?
           '<div style="background:#fff;border:1px solid #e8e0b8;border-radius:10px;padding:1rem;grid-column:1/-1">'+
             '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:.4rem">Shipping Address</div>'+
-            '<div style="font-size:.88rem;color:#2d2220">'+order.addr+'</div>'+
+            '<div style="font-size:.88rem;color:#2d2220">'+escHtml(order.addr)+'</div>'+
           '</div>':'')+
       '</div>'+
       // Items table

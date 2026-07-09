@@ -3253,6 +3253,79 @@ try{
     tProd('htaccess sets Permissions-Policy',strpos($htaccessPp,'Permissions-Policy')!==false&&strpos($htaccessPp,'camera=()')!==false);
 }catch(Exception $e){t('HDBS_17 security hardening checks',false,$e->getMessage());}
 
+try{
+    // HDBS_17 full security review — order fraud (#1), stored XSS (#2), inventory DoS (#3),
+    // SMTP injection (#4), and the Medium/Low findings (#5-13)
+
+    // #1: order pricing — guests always priced from products table; admins keep price
+    // override (Manual Order phone-sale discounts) via $isAdmin
+    $ordphpSec=file_get_contents($root.'/api/orders.php');
+    t('orders.php looks up real product price/name (not client-trusted)',strpos($ordphpSec,"SELECT name, price FROM products WHERE id = ? LIMIT 1")!==false);
+    t('orders.php admin price override preserved, guests locked to catalog price',strpos($ordphpSec,"\$price = \$isAdmin ? (float)(\$item['price'] ?? \$prod['price']) : (float)\$prod['price'];")!==false);
+    t('orders.php throws on unknown product id',strpos($ordphpSec,"throw new Exception('Unknown product: ' . \$pid)")!==false);
+
+    // #1: verify_payment.php rejects a Square payment whose amount doesn't match the order
+    $vpphpSec=file_get_contents($root.'/verify_payment.php');
+    t('verify_payment.php computes expected total from order_items',strpos($vpphpSec,'$expTotal = round($expSubtotal + $expShipping')!==false);
+    t('verify_payment.php refuses to mark Paid on amount mismatch',strpos($vpphpSec,"'status'=>'amount_mismatch'")!==false&&strpos($vpphpSec,"abs(\$paid_total - \$expTotal) > 0.02")!==false);
+
+    // #1: checkout.php (dead/unused by storefront) is now admin-gated, not public
+    $coPhpSec=file_get_contents($root.'/checkout.php');
+    t('checkout.php requires admin auth',strpos($coPhpSec,"require_once __DIR__ . '/api/config.php'")!==false&&strpos($coPhpSec,'requireAdmin();')!==false);
+
+    // #2: stored XSS — escHtml applied to unauthenticated-input render sites
+    $aojsSec=file_get_contents($root.'/js/admin-orders.js');
+    t('admin-orders.js escHtml escapes quotes (attribute-safe)',strpos($aojsSec,"replace(/\"/g,'&quot;').replace(/'/g,'&#39;')")!==false);
+    t('admin-orders.js escapes review fields',strpos($aojsSec,'escHtml(String(r.customer_name||\'\'))')!==false&&strpos($aojsSec,'escHtml(String(r.review_text||\'\'))')!==false);
+    t('admin-orders.js escapes order.cust in edit form',strpos($aojsSec,'value="\'+escHtml(order.cust)+\'"')!==false);
+    t('admin-orders.js escapes order.addr/email/phone in invoice print',strpos($aojsSec,'escHtml(order.cust)+\'<br>\'+escHtml(order.email)+\'<br>\'+escHtml(order.phone)')!==false);
+    t('admin-orders.js deleteCust no longer takes raw name via onclick string',strpos($aojsSec,'function deleteCust(id){')!==false&&strpos($aojsSec,'function deleteCust(id,name){')===false);
+    t('admin-orders.js escapes customer list name/email/phone',strpos($aojsSec,"escHtml(c.name)")!==false&&strpos($aojsSec,'escHtml(c.em)')!==false);
+    $amjsSec=file_get_contents($root.'/js/admin-misc.js');
+    t('admin-misc.js public review grid escapes customer_name/review_text/product_name',strpos($amjsSec,'escHtml(r.review_text)')!==false&&strpos($amjsSec,'escHtml(r.customer_name)')!==false);
+    $apjsSec=file_get_contents($root.'/js/admin-products.js');
+    t('admin-products.js has escHtml helper',strpos($apjsSec,'function escHtml(s)')!==false);
+    t('admin-products.js escapes order.cust/email/phone/addr in order detail',strpos($apjsSec,'escHtml(order.cust)')!==false&&strpos($apjsSec,'escHtml(order.addr)')!==false);
+
+    // #3: inventory-exhaustion DoS — per-IP rate limit + stale-order stock reclaim
+    t('orders.php POST rate limits guest order creation by IP',strpos($ordphpSec,"md5('order_ip_'")!==false);
+    t('orders.php reclaims stock from stale Awaiting Payment orders',strpos($ordphpSec,"status='Awaiting Payment' AND order_date < ?")!==false);
+
+    // #4: SMTP header injection — CRLF stripped at the mailer.php choke point
+    $mailerphpSec=file_get_contents($root.'/mailer.php');
+    t('mailer.php has _noCrlf helper',strpos($mailerphpSec,'function _noCrlf($s)')!==false);
+    t('sendEmail strips CRLF from subject/to/from',substr_count($mailerphpSec,'_noCrlf($subject)')>=1&&substr_count($mailerphpSec,"is_array(\$to) ? array_map('_noCrlf', \$to) : _noCrlf(\$to)")>=2);
+
+    // #5: deploy_log.php POST rate limited (can't requireAdmin — deploy.ps1 sends no token)
+    $dlphpSec=file_get_contents($root.'/api/deploy_log.php');
+    t('deploy_log.php POST rate limits by IP',strpos($dlphpSec,"md5('deploy_log_ip_'")!==false);
+
+    // #6: customers.php change_password rate limited like login
+    $custphpSec=file_get_contents($root.'/api/customers.php');
+    t('customers.php change_password rate limited',strpos($custphpSec,"md5('changepw_' . \$d['id'])")!==false);
+
+    // #7: products.php cogm hidden from non-admin requests
+    $prodphpSec=file_get_contents($root.'/api/products.php');
+    t('products.php only returns cogm to admin requests',strpos($prodphpSec,'$showCogm = isAdminRequest();')!==false&&strpos($prodphpSec,"'cogm'   => \$showCogm ? (float)(\$r['cogm'] ?? 0) : null")!==false);
+
+    // #9/#13: db_table_contents redacts sensitive settings + backup_token
+    $adphpSec=file_get_contents($root.'/api/admin.php');
+    t('db_table_contents redacts sensitive settings values',strpos($adphpSec,"\$row['value'] = '[redacted]'")!==false&&strpos($adphpSec,"'backup_token'")!==false);
+
+    // #10: inc_orders requires a real matching order, not just a bare email
+    t('customers.php inc_orders requires order_id tied to the email',strpos($custphpSec,"SELECT id FROM orders WHERE id = ? AND customer_email = ?")!==false);
+    $stjsSec=file_get_contents($root.'/js/store.js');
+    t('store.js passes order_id with every inc_orders call',substr_count($stjsSec,"action:'inc_orders',em:em,order_id:oid")===3);
+
+    // #11: CSV formula-injection guard on export
+    $pcsvphpSec=file_get_contents($root.'/api/products_csv.php');
+    t('products_csv.php has csvSafe formula-injection guard',strpos($pcsvphpSec,'function csvSafe($v)')!==false&&strpos($pcsvphpSec,"array_map('csvSafe', \$r)")!==false);
+
+    // #12: customer security answers bcrypt-hashed (legacy plaintext still supported)
+    t('customers.php hashes sec_answer at registration',strpos($custphpSec,"password_hash(strtolower(trim(\$d['secA'])), PASSWORD_DEFAULT)")!==false);
+    t('customers.php reset_password supports hashed + legacy plaintext sec_answer',strpos($custphpSec,"str_starts_with(\$stored, '\$2y\$') && password_verify(\$givenAns, \$stored)")!==false);
+}catch(Exception $e){t('HDBS_17 full security review fixes',false,$e->getMessage());}
+
 }catch(Exception $e){t('Exception',false,$e->getMessage().' line '.$e->getLine());}
 
 // ── TEST-DATA CLEANUP SWEEP ──

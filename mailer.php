@@ -53,7 +53,16 @@ function _emailLogoHeader($html) {
 // $html is BY REFERENCE: applying the logo here mutates the caller's own variable, so anything
 // the caller logs to email_log afterward (or reuses) reflects the actual email that was sent,
 // not the pre-logo template. Every call site passes a plain variable, so this is always safe.
+// Strips CR/LF (and other control chars) so a value can't inject extra SMTP headers —
+// every header-line value below (subject, from name/email, recipients, attachment name)
+// is user- or order-data-derived somewhere upstream, so this is applied unconditionally.
+function _noCrlf($s) { return preg_replace('/[\r\n]+/', ' ', (string)$s); }
+
 function sendEmail($to, $subject, &$html, $from_email, $from_name) {
+    $to = is_array($to) ? array_map('_noCrlf', $to) : _noCrlf($to);
+    $subject   = _noCrlf($subject);
+    $from_email = _noCrlf($from_email);
+    $from_name  = _noCrlf($from_name);
     $html = _emailLogoHeader($html);
     $c = _smtpConfig();
     $smtp_host = $c['host'];
@@ -144,6 +153,11 @@ function sendEmail($to, $subject, &$html, $from_email, $from_name) {
 
 // $html is BY REFERENCE — see sendEmail() above for why.
 function sendEmailWithAttachment($to, $subject, &$html, $attachName, $attachContent, $attachMime, $from_email, $from_name) {
+    $to = is_array($to) ? array_map('_noCrlf', $to) : _noCrlf($to);
+    $subject    = _noCrlf($subject);
+    $from_email = _noCrlf($from_email);
+    $from_name  = _noCrlf($from_name);
+    $attachName = _noCrlf($attachName);
     $html = _emailLogoHeader($html);
     $c = _smtpConfig();
     $smtp_host = $c['host'];

@@ -13,7 +13,10 @@ $pdo    = db();
 // GET — return all products (public)
 if ($method === 'GET') { dbg('products','GET all products');
     $rows = $pdo->query("SELECT * FROM products ORDER BY created_at ASC")->fetchAll();
-    $products = array_map(function($r) {
+    // cogm (cost of goods) is internal margin data — only include it for authenticated admin
+    // requests, not the public storefront, which uses this same endpoint.
+    $showCogm = isAdminRequest();
+    $products = array_map(function($r) use ($showCogm) {
         return [
             'id'     => $r['id'],
             'name'   => $r['name'],
@@ -32,7 +35,7 @@ if ($method === 'GET') { dbg('products','GET all products');
             'ship_mode'  => $r['ship_mode'] ?? 'weight',
             'ship_fixed' => (float)($r['ship_fixed'] ?? 0),
             'coming_soon' => (int)($r['coming_soon'] ?? 0),
-            'cogm'   => (float)($r['cogm'] ?? 0),
+            'cogm'   => $showCogm ? (float)($r['cogm'] ?? 0) : null,
             'launch_date' => $r['launch_date'] ?? '2026-07-01',
         ];
     }, $rows);

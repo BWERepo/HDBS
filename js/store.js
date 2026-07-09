@@ -524,7 +524,7 @@ function placeOrder(){
   // ── Test mode: skip card form, show mock confirmation ──
   if(mode==='Test'){
     apiFetch('orders.php','POST',o).then(function(){}).catch(function(){});
-    apiFetch('customers.php','POST',{action:'inc_orders',em:em}).catch(function(){});
+    apiFetch('customers.php','POST',{action:'inc_orders',em:em,order_id:oid}).catch(function(){});
     CART=[];window._pendingCartItems=null;updCartCount();renderStore();
     var tOpts={method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({order_id:oid,date:o.date,customer_name:o.cust,customer_email:o.email,
@@ -539,7 +539,7 @@ function placeOrder(){
   if(mode==='InPerson'&&!isCard){
     // orders.php sends + logs the customer confirmation server-side for in-person cash/check sales
     apiFetch('orders.php','POST',o).then(function(){}).catch(function(){});
-    apiFetch('customers.php','POST',{action:'inc_orders',em:em}).catch(function(){});
+    apiFetch('customers.php','POST',{action:'inc_orders',em:em,order_id:oid}).catch(function(){});
     CART=[];window._pendingCartItems=null;updCartCount();renderStore();
     var nOpts={method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({order_id:oid,date:o.date,customer_name:o.cust,customer_email:o.email,
@@ -553,7 +553,7 @@ function placeOrder(){
   apiFetch('orders.php','POST',o)
     .then(function(d){
       window._pendingCancelToken=d.cancel_token||null;
-      apiFetch('customers.php','POST',{action:'inc_orders',em:em}).catch(function(){});
+      apiFetch('customers.php','POST',{action:'inc_orders',em:em,order_id:oid}).catch(function(){});
       CART=[];updCartCount();renderStore();
       showPaymentStep(subtotal,shipping,tax,total);
     })

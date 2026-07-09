@@ -292,20 +292,20 @@ function editOrderDetail(oid){
     '</div>'+
     '<div class="pform">'+
     '<div class="g2">'+
-      '<div><label class="fl">Customer Name</label><input class="afi" id="eo-cust" value="'+(order.cust||'')+'"></div>'+
-      '<div><label class="fl">Email</label><input class="afi" id="eo-email" value="'+(order.email||'')+'"></div>'+
-      '<div><label class="fl">Phone</label><input class="afi" id="eo-phone" value="'+(order.phone||'')+'"></div>'+
+      '<div><label class="fl">Customer Name</label><input class="afi" id="eo-cust" value="'+escHtml(order.cust)+'"></div>'+
+      '<div><label class="fl">Email</label><input class="afi" id="eo-email" value="'+escHtml(order.email)+'"></div>'+
+      '<div><label class="fl">Phone</label><input class="afi" id="eo-phone" value="'+escHtml(order.phone)+'"></div>'+
       '<div><label class="fl">Total ($)</label><input class="afi" id="eo-total" type="number" step="0.01" value="'+order.total.toFixed(2)+'"></div>'+
       '<div><label class="fl">Tax Amount ($)</label><input class="afi" id="eo-tax" type="number" step="0.01" min="0" value="'+(order.tax||0).toFixed(2)+'"></div>'+
       '<div><label class="fl">Transaction Fee ($)</label><input class="afi" id="eo-fee" type="number" step="0.01" min="0" value="'+(order.fee||0).toFixed(2)+'"></div>'+
     '</div>'+
-    '<label class="fl">Shipping Address</label><input class="afi" id="eo-addr" value="'+(order.addr||'')+'">'+
+    '<label class="fl">Shipping Address</label><input class="afi" id="eo-addr" value="'+escHtml(order.addr)+'">'+
     '<div class="g2">'+
       '<div><label class="fl">Shipping Carrier</label>'+
         '<select class="afi" id="eo-carrier">'+
         ['USPS','UPS','FedEx','Other'].map(function(cr){return'<option'+(cr===(order.carrier||'USPS')?' selected':'')+'>'+cr+'</option>';}).join('')+
         '</select></div>'+
-      '<div><label class="fl">Tracking Number(s)</label><input class="afi" id="eo-tracking" value="'+(order.tracking||'')+'" placeholder="Tracking # (comma-separate multiple)" style="font-family:monospace"></div>'+
+      '<div><label class="fl">Tracking Number(s)</label><input class="afi" id="eo-tracking" value="'+escHtml(order.tracking)+'" placeholder="Tracking # (comma-separate multiple)" style="font-family:monospace"></div>'+
       '<div><label class="fl">Status</label>'+
         '<select class="afi" id="eo-status">'+
         ['Awaiting Payment','Paid','Pending','Processing','Shipped','Delivered','Cancelled','Refunded'].map(function(s){return'<option'+(s===order.status?' selected':'')+'>'+s+'</option>';}).join('')+
@@ -368,7 +368,7 @@ function saveEditOrder(oid){
 }
 function showRefundForm(){
   var opts=ORDERS.filter(function(o){return((o.total||0)-(o.refunded_amount||0))>0.004;}).slice().reverse().map(function(o){
-    return '<option value="'+o.id+'">'+o.id+' — '+o.cust+' ($'+((o.total||0)-(o.refunded_amount||0)).toFixed(2)+' refundable)</option>';
+    return '<option value="'+o.id+'">'+o.id+' — '+escHtml(o.cust)+' ($'+((o.total||0)-(o.refunded_amount||0)).toFixed(2)+' refundable)</option>';
   }).join('');
   if(!opts){alert('No orders available to refund.');return;}
   var panel=document.createElement('div');
@@ -462,7 +462,7 @@ function printOrdersPdf(){
   var rows=filt.map(function(o){
     return '<tr>'+
       '<td>'+o.id+'</td>'+
-      '<td>'+(o.cust||'')+'</td>'+
+      '<td>'+escHtml(o.cust)+'</td>'+
       '<td>'+(o.dispDate||o.date||'')+'</td>'+
       '<td>$'+(o.subtotal||0).toFixed(2)+'</td>'+
       '<td>$'+(o.shipping||0).toFixed(2)+'</td>'+
@@ -557,8 +557,8 @@ function printInvoice(oid){
     '</div>'+
     '<div class="sub">Invoice for Order '+oid+' &bull; '+(order.dispDate||order.date||'')+'</div>'+
     '<div class="grid">'+
-      '<div><div class="lbl">Bill To</div>'+(order.cust||'')+'<br>'+(order.email||'')+'<br>'+(order.phone||'')+'</div>'+
-      '<div><div class="lbl">Ship To</div>'+(order.addr||'—')+'</div>'+
+      '<div><div class="lbl">Bill To</div>'+escHtml(order.cust)+'<br>'+escHtml(order.email)+'<br>'+escHtml(order.phone)+'</div>'+
+      '<div><div class="lbl">Ship To</div>'+(order.addr?escHtml(order.addr):'—')+'</div>'+
     '</div>'+
     '<table><thead><tr><th>Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>'+
     rows+'</tbody></table>'+
@@ -617,10 +617,10 @@ function printShippingLabel(oid){
         '</div>'+
         '<div>'+
           '<div class="to-lbl">Ship To</div>'+
-          '<div class="to">'+(order.cust||'')+'<br>'+toLine1+(toLine2?'<br>'+toLine2:'')+'</div>'+
+          '<div class="to">'+escHtml(order.cust)+'<br>'+escHtml(toLine1)+(toLine2?'<br>'+escHtml(toLine2):'')+'</div>'+
         '</div>'+
         '<div>'+
-          (order.tracking?'<div class="oid">Tracking: '+order.tracking+'</div>':'')+
+          (order.tracking?'<div class="oid">Tracking: '+escHtml(order.tracking)+'</div>':'')+
           '<div class="oid">Order: '+oid+'</div>'+
         '</div>'+
       '</div>'+
@@ -862,7 +862,7 @@ function renderOrdersTable(el){
     rows+='<tr>'+
       '<td style="text-align:center"><input type="checkbox" class="ord-chk" value="'+o.id+'"></td>'+
       '<td><code style="font-size:.72rem;cursor:pointer;color:#a07810;text-decoration:underline" onclick="viewOrder(\''+o.id+'\')" title="View details">'+o.id+'</code></td>'+
-      '<td>'+o.cust+'</td>'+
+      '<td>'+escHtml(o.cust)+'</td>'+
       '<td>'+(o.dispDate||o.date)+'</td>'+
       '<td style="color:#6b6040;font-size:.78rem">'+(o.time||'')+'</td>'+
       '<td style="font-size:.8rem">$'+parseFloat(o.subtotal||0).toFixed(2)+'</td>'+
@@ -950,7 +950,7 @@ function clearOrderFilters(){
 function buildOrderRow(o){
   return '<tr>'+
     '<td><code style="font-size:.72rem;cursor:pointer;color:#a07810;text-decoration:underline" onclick="viewOrder(\''+o.id+'\')" title="View details">'+o.id+'</code></td>'+
-    '<td>'+o.cust+'</td>'+
+    '<td>'+escHtml(o.cust)+'</td>'+
     '<td>'+(o.dispDate||o.date)+'</td>'+
     '<td style="color:#6b6040;font-size:.78rem">'+(o.time||'')+'</td>'+
     '<td style="font-size:.8rem">$'+parseFloat(o.subtotal||0).toFixed(2)+'</td>'+
@@ -1137,9 +1137,9 @@ function custEditRow(c){
   var s=custInpStyle();
   var sh='style="width:50%;box-sizing:border-box;border:1.5px solid #d4c8a0;border-radius:5px;padding:.25rem .4rem;font-size:.82rem;font-family:inherit;background:#fffdf0"';
   return '<tr style="background:#fffdf0">'+
-    '<td><div style="display:flex;gap:4px"><input id="ci-fn" '+sh+' value="'+(c?c.fn:'')+'" placeholder="First"><input id="ci-ln" '+sh+' value="'+(c?c.ln:'')+'" placeholder="Last"></div></td>'+
-    '<td><input id="ci-em" '+s+' value="'+(c?c.em:'')+'" placeholder="email@example.com"></td>'+
-    '<td><input id="ci-ph" '+s+' value="'+(c?c.ph||'':'')+'" placeholder="Phone"></td>'+
+    '<td><div style="display:flex;gap:4px"><input id="ci-fn" '+sh+' value="'+escHtml(c?c.fn:'')+'" placeholder="First"><input id="ci-ln" '+sh+' value="'+escHtml(c?c.ln:'')+'" placeholder="Last"></div></td>'+
+    '<td><input id="ci-em" '+s+' value="'+escHtml(c?c.em:'')+'" placeholder="email@example.com"></td>'+
+    '<td><input id="ci-ph" '+s+' value="'+escHtml(c?c.ph||'':'')+'" placeholder="Phone"></td>'+
     '<td>'+(c?c.joined||'—':'—')+'</td>'+
     '<td>'+(c?'<span class="badge bb">'+(c.orders||0)+' orders</span>':'')+'</td>'+
     '<td><button class="bp" style="font-size:.72rem" onclick="saveCust()">💾 '+(c?'Update':'Add')+'</button> <button class="bs" style="font-size:.72rem" onclick="cancelCustForm()">Cancel</button></td>'+
@@ -1153,12 +1153,12 @@ function renderCustsTable(el){
     var c=filtered[i];
     if(CUST_EDITID&&CUST_EDITID===c.id){rows+=custEditRow(c);continue;}
     rows+='<tr>'+
-      '<td style="font-weight:600">'+c.name+'</td>'+
-      '<td>'+c.em+'</td>'+
-      '<td>'+(c.ph||'—')+'</td>'+
+      '<td style="font-weight:600">'+escHtml(c.name)+'</td>'+
+      '<td>'+escHtml(c.em)+'</td>'+
+      '<td>'+escHtml(c.ph||'—')+'</td>'+
       '<td>'+(c.joined||'—')+'</td>'+
       '<td><span class="badge bb">'+(c.orders||0)+' orders</span></td>'+
-      '<td><button class="be" style="font-size:.72rem" onclick="showCustForm(\''+c.id+'\')">✏️ Edit</button> <button class="bd" style="font-size:.72rem" onclick="deleteCust(\''+c.id+'\',\''+c.name.replace(/'/g,'\\\'')+'\'  )">Delete</button></td>'+
+      '<td><button class="be" style="font-size:.72rem" onclick="showCustForm(\''+c.id+'\')">✏️ Edit</button> <button class="bd" style="font-size:.72rem" onclick="deleteCust(\''+c.id+'\')">Delete</button></td>'+
     '</tr>';
   }
   var isFiltered=CUST_F.name||CUST_F.em||CUST_F.orders;
@@ -1204,8 +1204,9 @@ function saveCust(){
       }).catch(function(){alert('Network error');});
   }
 }
-function deleteCust(id,name){
-  if(!confirm('Delete customer "'+name+'"? This cannot be undone.'))return;
+function deleteCust(id){
+  var c=CUSTS.find(function(x){return x.id===id;});
+  if(!confirm('Delete customer "'+(c?c.name:id)+'"? This cannot be undone.'))return;
   apiFetch('customers.php','POST',{action:'delete_customer',id:id})
     .then(function(d){
       if(!d.success){alert(d.error||'Delete failed');return;}
@@ -1361,10 +1362,10 @@ function rAdminReviews(el){
         return '<div style="background:#fff;border:1px solid #e8e0b8;border-radius:8px;padding:.9rem;margin-bottom:.6rem">'+
           '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
             '<div>'+
-              '<div style="font-weight:700;font-size:.88rem">'+r.customer_name+'</div>'+
-              (r.product_name?'<div style="font-size:.75rem;color:#6b6040">'+r.product_name+'</div>':'')+
+              '<div style="font-weight:700;font-size:.88rem">'+escHtml(String(r.customer_name||''))+'</div>'+
+              (r.product_name?'<div style="font-size:.75rem;color:#6b6040">'+escHtml(String(r.product_name))+'</div>':'')+
               '<div style="color:#d4a017;font-size:.85rem;margin:.2rem 0">'+stars+'</div>'+
-              '<div style="font-size:.83rem;color:#2d2220;font-style:italic">“'+r.review_text+'”</div>'+
+              '<div style="font-size:.83rem;color:#2d2220;font-style:italic">“'+escHtml(String(r.review_text||''))+'”</div>'+
             '</div>'+
             (showActions?'<div style="display:flex;flex-direction:column;gap:.35rem;margin-left:.8rem">'+
               '<button class="bp" style="font-size:.72rem;padding:.28rem .6rem;white-space:nowrap" onclick="approveReview('+r.id+')">✓ Approve</button>'+
@@ -1823,7 +1824,7 @@ function rLogs(el){
   });
 }
 function escHtml(s){
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 function clearLog(file){
   if(!confirm('Clear '+file+'? This cannot be undone.'))return;

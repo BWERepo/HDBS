@@ -73,7 +73,7 @@ if ($method === 'POST' && $action === 'register') {
         $hash,
         $d['ph'] ?? '',
         $d['secQ'] ?? '',
-        strtolower(trim($d['secA'] ?? '')),
+        $d['secA'] ? password_hash(strtolower(trim($d['secA'])), PASSWORD_DEFAULT) : '',
     ]);
 
     ok(['id' => $id, 'name' => trim(($d['fn'] ?? '') . ' ' . ($d['ln'] ?? '')), 'em' => $d['em'],
@@ -168,7 +168,15 @@ if ($method === 'POST' && $action === 'reset_password') {
     $stmt->execute([$d['em']]);
     $row = $stmt->fetch();
     if (!$row) fail('Account not found');
-    if (strtolower(trim($d['answer'])) !== $row['sec_answer']) {
+    $givenAns = strtolower(trim($d['answer']));
+    $stored   = (string)$row['sec_answer'];
+    // Supports both bcrypt-hashed answers (new registrations) and legacy plain-text answers
+    // (accounts registered before this was hashed) — same migration pattern as admin.php.
+    $answerOk = $stored !== '' && (
+        (str_starts_with($stored, '$2y$') && password_verify($givenAns, $stored)) ||
+        (!str_starts_with($stored, '$2y$') && $givenAns === $stored)
+    );
+    if (!$answerOk) {
         $newAttempts = $rRow['attempts'] + 1;
         $pdo->prepare("INSERT INTO customer_login_attempts (email_hash,attempts,last_at) VALUES (?,?,?) ON DUPLICATE KEY UPDATE attempts=?,last_at=?")->execute([$rHash,$newAttempts,$now,$newAttempts,$now]);
         fail('Incorrect answer');
@@ -186,10 +194,33 @@ if ($method === 'POST' && $action === 'reset_password') {
 if ($method === 'POST' && $action === 'change_password') {
     if (empty($d['id']) || empty($d['old_pw']) || empty($d['new_pw'])) fail('Missing fields');
 
+    // Rate limit: 10 attempts per customer id, 15-minute lockout (same policy as login —
+    // otherwise this endpoint is an unthrottled way to brute-force old_pw for a known id).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS customer_login_attempts (
+        email_hash CHAR(32) PRIMARY KEY,
+        attempts   INT NOT NULL DEFAULT 0,
+        last_at    INT NOT NULL DEFAULT 0
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $cpHash = md5('changepw_' . $d['id']);
+    $cpNow  = time();
+    $cpRow  = $pdo->prepare("SELECT attempts, last_at FROM customer_login_attempts WHERE email_hash = ?");
+    $cpRow->execute([$cpHash]);
+    $cpRow  = $cpRow->fetch() ?: ['attempts' => 0, 'last_at' => 0];
+    if ($cpRow['attempts'] >= 10 && ($cpNow - $cpRow['last_at']) < 900) {
+        $mins = (int)ceil((900 - ($cpNow - $cpRow['last_at'])) / 60);
+        fail("Too many failed attempts. Try again in {$mins} minute" . ($mins === 1 ? '' : 's') . '.');
+    }
+    if ($cpRow['attempts'] >= 10) { $cpRow['attempts'] = 0; }
+
     $stmt = $pdo->prepare("SELECT password_hash FROM customers WHERE id = ?");
     $stmt->execute([$d['id']]);
     $row = $stmt->fetch();
-    if (!$row || !password_verify($d['old_pw'], $row['password_hash'])) fail('Current password incorrect');
+    if (!$row || !password_verify($d['old_pw'], $row['password_hash'])) {
+        $pdo->prepare("INSERT INTO customer_login_attempts (email_hash,attempts,last_at) VALUES (?,?,?) ON DUPLICATE KEY UPDATE attempts=?,last_at=?")
+            ->execute([$cpHash, $cpRow['attempts'] + 1, $cpNow, $cpRow['attempts'] + 1, $cpNow]);
+        fail('Current password incorrect');
+    }
+    $pdo->prepare("INSERT INTO customer_login_attempts (email_hash,attempts,last_at) VALUES (?,0,0) ON DUPLICATE KEY UPDATE attempts=0,last_at=0")->execute([$cpHash]);
 
     $hash = password_hash($d['new_pw'], PASSWORD_DEFAULT);
     $pdo->prepare("UPDATE customers SET password_hash = ? WHERE id = ?")->execute([$hash, $d['id']]);
@@ -199,6 +230,12 @@ if ($method === 'POST' && $action === 'change_password') {
 // POST — increment order count
 if ($method === 'POST' && $action === 'inc_orders') {
     if (empty($d['em'])) fail('Email required');
+    // Tied to a real order the caller just created (not just a bare email) so this can't be
+    // used to inflate a stranger's order count with no order ever having been placed.
+    if (empty($d['order_id'])) fail('order_id required');
+    $chk = $pdo->prepare("SELECT id FROM orders WHERE id = ? AND customer_email = ? LIMIT 1");
+    $chk->execute([$d['order_id'], $d['em']]);
+    if (!$chk->fetch()) fail('Order not found for this email');
     $pdo->prepare("UPDATE customers SET order_count = order_count + 1 WHERE email = ?")->execute([$d['em']]);
     ok();
 }

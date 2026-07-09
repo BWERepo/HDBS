@@ -730,7 +730,7 @@ function _renderGitLog(el,d,deploys){
   apiFetch('admin.php','POST',{action:'get_version'}).then(function(v){var s=document.getElementById('gitlog-ver');if(s)s.textContent=(v&&v.version)?v.version:'—';}).catch(function(){});
   showPageToolbar({title:'Change History',logoText:(window.BIZ_NAME||'Handmade Designs By Suzi')});
 }
-function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 function saveNavOrder(){
   var container=document.getElementById('admin-nav');
@@ -1204,9 +1204,9 @@ function renderReviews(){
     for(var s=1;s<=5;s++)stars+='<span style="opacity:'+(s<=r.rating?'1':'.2')+'">★</span>';
     h+='<div class="review-card">'+
       '<div class="review-stars">'+stars+'</div>'+
-      '<div class="review-text">“'+r.review_text+'”</div>'+
-      '<div class="review-author">— '+r.customer_name+'</div>'+
-      (r.product_name?'<div class="review-product">'+r.product_name+'</div>':'')+
+      '<div class="review-text">“'+escHtml(r.review_text)+'”</div>'+
+      '<div class="review-author">— '+escHtml(r.customer_name)+'</div>'+
+      (r.product_name?'<div class="review-product">'+escHtml(r.product_name)+'</div>':'')+
     '</div>';
   }
   g.innerHTML=h;

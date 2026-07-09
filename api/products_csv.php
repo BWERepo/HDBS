@@ -7,6 +7,15 @@ requireAdmin();
 ensureProductColumns($pdo);
 $method = $_SERVER['REQUEST_METHOD'];
 
+// Neutralize CSV formula injection: a cell starting with =, +, -, @ (or tab/CR) is
+// interpreted as a formula by Excel/Sheets when the file is opened — prefix with a single
+// quote so it's always treated as literal text.
+function csvSafe($v) {
+    $v = (string)$v;
+    if ($v !== '' && strpbrk($v[0], "=+-@\t\r") !== false) return "'" . $v;
+    return $v;
+}
+
 // ── EXPORT (GET) ──
 if ($method === 'GET') {
     $rows = $pdo->query("SELECT id, sku, name, description, price, cogm, launch_date, stock, category, badge, weight, size, sell, img1, img2, img3, ship_mode, ship_fixed, coming_soon FROM products ORDER BY category, name")->fetchAll(PDO::FETCH_ASSOC);
@@ -14,7 +23,7 @@ if ($method === 'GET') {
     header('Content-Disposition: attachment; filename="products_' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
     fputcsv($out, ['id','sku','name','description','price','cogm','launch_date','stock','category','badge','weight','size','sell','img1','img2','img3','ship_mode','ship_fixed','coming_soon']);
-    foreach ($rows as $r) fputcsv($out, $r);
+    foreach ($rows as $r) fputcsv($out, array_map('csvSafe', $r));
     fclose($out);
     exit;
 }

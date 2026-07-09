@@ -187,6 +187,26 @@ if (!empty($matched['processing_fee']) && is_array($matched['processing_fee'])) 
     }
 }
 vlog("$ts | VP: sq_total=\$$sq_total tax=\$$tax_money fee=\$$sq_actual_fee");
+
+// Integrity check: the confirmed Square payment must be for what this order actually
+// costs (server-side price × quantity + shipping + tax from order_items), not just
+// whatever amount happened to carry this order's ID in its note. Prevents a payment
+// for an arbitrary/lower amount from marking a real order Paid.
+$oiRows = $pdo->prepare("SELECT product_id, price, quantity FROM order_items WHERE order_id = ?");
+$oiRows->execute([$order_id]);
+$expSubtotal = 0; $expShipping = 0;
+foreach ($oiRows->fetchAll(PDO::FETCH_ASSOC) as $it) {
+    if ($it['product_id'] === '_ship') { $expShipping = (float)$it['price']; }
+    else { $expSubtotal += (float)$it['price'] * (int)$it['quantity']; }
+}
+$expTotal = round($expSubtotal + $expShipping + round($expSubtotal * 0.0975, 2), 2);
+if ($expTotal > 0 && abs($paid_total - $expTotal) > 0.02) {
+    vlog("$ts | VP: AMOUNT MISMATCH paid=\$$paid_total expected=\$$expTotal — refusing to mark Paid, order: $order_id, payment: ".$matched['id']);
+    ob_end_clean();
+    echo json_encode(['success'=>false,'status'=>'amount_mismatch','error'=>'Payment amount does not match order total']);
+    exit();
+}
+
 // Update status, payment ID, tax, total, and fee  -  all from Square's authoritative payment data
 $pdo->prepare("UPDATE orders SET status='Paid', square_payment_id=?, tax_amount=?, total=?, transaction_fee=?, payment_method='Credit Card' WHERE id=?")
     ->execute([$matched['id'], $tax_money, $paid_total, $sq_actual_fee, $order_id]);

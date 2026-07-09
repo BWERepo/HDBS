@@ -92,6 +92,46 @@ if ($method === 'POST') { dbg('orders','POST new order body='.substr(file_get_co
     $d = body();
     if (empty($d['id']) || empty($d['total'])) fail('Missing order id or total');
     $isAdmin = isAdminRequest();
+
+    // Rate limit: 15 order creations per IP per hour (guests only — admins are trusted and
+    // may be entering multiple in-person sales). Stock is decremented on creation, before any
+    // payment, so an unthrottled endpoint here is an inventory-exhaustion DoS vector.
+    if (!$isAdmin) {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS customer_login_attempts (
+            email_hash CHAR(32) PRIMARY KEY,
+            attempts   INT NOT NULL DEFAULT 0,
+            last_at    INT NOT NULL DEFAULT 0
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $ordHash = md5('order_ip_' . ($_SERVER['REMOTE_ADDR'] ?? ''));
+        $now     = time();
+        $ordRow  = $pdo->prepare("SELECT attempts, last_at FROM customer_login_attempts WHERE email_hash = ?");
+        $ordRow->execute([$ordHash]);
+        $ordRow  = $ordRow->fetch() ?: ['attempts' => 0, 'last_at' => 0];
+        if ($ordRow['attempts'] >= 15 && ($now - $ordRow['last_at']) < 3600) {
+            fail('Too many orders from this network. Please try again later.');
+        }
+        if ($ordRow['attempts'] >= 15) { $ordRow['attempts'] = 0; }
+        $pdo->prepare("INSERT INTO customer_login_attempts (email_hash,attempts,last_at) VALUES (?,?,?) ON DUPLICATE KEY UPDATE attempts=?,last_at=?")
+            ->execute([$ordHash, $ordRow['attempts'] + 1, $now, $ordRow['attempts'] + 1, $now]);
+    }
+
+    // Reclaim stock from stale unpaid orders (2h+) so repeated abandoned-order creation can't
+    // permanently drain inventory — same restore-stock logic used for failed/canceled payments
+    // in verify_payment.php and customers.php:cancel_order.
+    try {
+        $staleCutoff = date('Y-m-d H:i:s', time() - 7200);
+        $stale = $pdo->prepare("SELECT id FROM orders WHERE status='Awaiting Payment' AND order_date < ?");
+        $stale->execute([$staleCutoff]);
+        foreach ($stale->fetchAll(PDO::FETCH_COLUMN) as $staleId) {
+            $itemRows = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ? AND product_id != '_ship'");
+            $itemRows->execute([$staleId]);
+            $restoreStmt = $pdo->prepare("UPDATE products SET stock = stock + ? WHERE id = ?");
+            foreach ($itemRows->fetchAll(PDO::FETCH_ASSOC) as $it) {
+                $restoreStmt->execute([(int)$it['quantity'], $it['product_id']]);
+            }
+            $pdo->prepare("UPDATE orders SET status='Cancelled' WHERE id = ? AND status='Awaiting Payment'")->execute([$staleId]);
+        }
+    } catch (Exception $e) {}
     // Storefront in-person cash/check sales are paid on the spot, so they keep their 'Paid' status
     // and get a confirmation emailed + logged. Keyed on the storefront 'source' marker (not on the
     // admin token) so it still works when an admin places a test order while logged into the panel.
@@ -132,27 +172,32 @@ if ($method === 'POST') { dbg('orders','POST new order body='.substr(file_get_co
             $iStmt2->execute([$d['id'], $shipping]);
         }
 
-        // Insert line items
+        // Insert line items. For guests, price/name are looked up from the real product
+        // record and the client-supplied price is ignored entirely, so an order can't be
+        // paid for below the actual catalog price. Admins are trusted and keep the ability
+        // to override price per line (e.g. phone-order discounts via the Manual Order form),
+        // same trust boundary already used for order status above.
         if (!empty($d['items'])) {
-            $iStmt = $pdo->prepare("
+            $iStmt   = $pdo->prepare("
                 INSERT INTO order_items (order_id, product_id, product_name, price, quantity)
                 VALUES (?, ?, ?, ?, ?)
             ");
+            $lookup  = $pdo->prepare("SELECT name, price FROM products WHERE id = ? LIMIT 1");
+            $stStmt  = $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?");
             foreach ($d['items'] as $item) {
-                $iStmt->execute([$d['id'], $item['id'] ?? '', $item['name'] ?? '', (float)($item['price'] ?? 0), (int)($item['q'] ?? 1)]);
-            }
-        }
-
-        // Decrement stock atomically — WHERE stock >= qty prevents overselling
-        if (!empty($d['items'])) {
-            $stStmt = $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ? AND id != '_ship' AND stock >= ?");
-            foreach ($d['items'] as $item) {
-                if (!empty($item['id']) && $item['id'] !== '_ship') {
-                    $qty = (int)($item['q'] ?? 1);
-                    $stStmt->execute([$qty, $item['id'], $qty]);
-                    if ($stStmt->rowCount() === 0) {
-                        throw new Exception('Item is out of stock: ' . ($item['name'] ?? $item['id']));
-                    }
+                $pid = $item['id'] ?? '';
+                if ($pid === '' || $pid === '_ship') continue;
+                $qty = (int)($item['q'] ?? 1);
+                $lookup->execute([$pid]);
+                $prod = $lookup->fetch();
+                if (!$prod) throw new Exception('Unknown product: ' . $pid);
+                $name  = $prod['name'];
+                $price = $isAdmin ? (float)($item['price'] ?? $prod['price']) : (float)$prod['price'];
+                $iStmt->execute([$d['id'], $pid, $name, $price, $qty]);
+                // Decrement stock atomically — WHERE stock >= qty prevents overselling
+                $stStmt->execute([$qty, $pid, $qty]);
+                if ($stStmt->rowCount() === 0) {
+                    throw new Exception('Item is out of stock: ' . $name);
                 }
             }
         }

@@ -18,6 +18,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
+// Admin-only: this endpoint builds a Square payment link straight from a client-supplied
+// amount with no order-total cross-check. The live storefront checkout uses
+// api/process_payment.php (which recomputes the charge from server-side product prices)
+// instead — this file is kept for admin/manual use only, gated to remove it as an
+// unauthenticated fraud vector.
+require_once __DIR__ . '/api/config.php';
+requireAdmin();
+
 // ── Square credentials ──
 require_once dirname(__DIR__) . '/secrets.php'; // outside public_html
 
