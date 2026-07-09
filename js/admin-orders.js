@@ -200,8 +200,30 @@ function validateShippingTracking(oid){
     statusEl.style.color='#c62828';
     statusEl.textContent='⚠ Doesn\'t match the expected '+carrier+' format: '+bad.join(', ');
   }
+  if(carrier==='USPS')uspsLiveValidate(nums,statusEl);
   refreshShippingPreview(oid);
   return allOk;
+}
+// USPS-only: confirms the number(s) actually exist in USPS's system (not just format).
+// Upgrades the status message once the live lookup resolves; silently no-ops if USPS
+// API credentials aren't configured yet (falls back to the format check above).
+function uspsLiveValidate(nums,statusEl){
+  statusEl.innerHTML=statusEl.textContent+' <span style="color:#6b6040">— checking with USPS…</span>';
+  apiFetch('validate_tracking.php','POST',{carrier:'USPS',numbers:nums}).then(function(d){
+    if(!d||!d.success||d.configured===false)return; // not configured yet — leave format-only message as-is
+    var results=d.results||[];
+    var allFound=results.length>0&&results.every(function(r){return r.ok&&r.found;});
+    var errored=results.some(function(r){return!r.ok;});
+    if(errored)return; // network/auth hiccup — don't overwrite the format check with a false negative
+    if(allFound){
+      statusEl.style.color='#2e7d32';
+      statusEl.textContent='✓ '+(results.length>1?'All '+results.length+' numbers confirmed by USPS.':'Confirmed by USPS'+(results[0].status?': '+results[0].status:'.'));
+    }else{
+      var notFound=results.filter(function(r){return r.ok&&!r.found;}).map(function(r){return r.number;});
+      statusEl.style.color='#c62828';
+      statusEl.textContent='⚠ USPS doesn\'t recognize: '+notFound.join(', ');
+    }
+  }).catch(function(){});
 }
 // Re-fetches the shipping preview with the modal's current carrier/tracking/comment values
 function refreshShippingPreview(oid){

@@ -3097,6 +3097,30 @@ try{
 }catch(Exception $e){t('shipping email comment + tracking validation checks',false,$e->getMessage());}
 
 try{
+    // USPS Tracking API v3 — real (non-format-only) validation for USPS numbers
+    $uspsPhp=file_exists($root.'/api/usps.php')?file_get_contents($root.'/api/usps.php'):'';
+    $vtPhp=file_exists($root.'/api/validate_tracking.php')?file_get_contents($root.'/api/validate_tracking.php'):'';
+    $aojsUsps=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
+    $aojs=$aojsUsps;
+    t('api/usps.php exists',$uspsPhp!=='');
+    t('usps.php defines usps_configured/usps_token/usps_track_number',strpos($uspsPhp,'function usps_configured(')!==false&&strpos($uspsPhp,'function usps_token(')!==false&&strpos($uspsPhp,'function usps_track_number(')!==false);
+    t('usps.php calls the real USPS API (no fake sandbox host)',strpos($uspsPhp,"'https://apis.usps.com'")!==false);
+    t('usps.php OAuth2 token request uses client_credentials grant',strpos($uspsPhp,"'grant_type'    => 'client_credentials'")!==false);
+    t('usps.php tracking lookup requests DETAIL (correct case)',strpos($uspsPhp,'?expand=DETAIL')!==false);
+    t('usps.php credentials support the _HERE placeholder-bail pattern',strpos($uspsPhp,"strpos(\$key, '_HERE')")!==false);
+    t('api/validate_tracking.php exists',$vtPhp!=='');
+    t('validate_tracking.php requires admin',strpos($vtPhp,'requireAdmin()')!==false);
+    t('validate_tracking.php only allows USPS (format-only covers other carriers)',strpos($vtPhp,"if (\$carrier !== 'USPS')")!==false);
+    t('validate_tracking.php caps numbers per request',strpos($vtPhp,'array_slice($numbers, 0, 10)')!==false);
+    t('validate_tracking.php degrades gracefully when not configured',strpos($vtPhp,"'configured' => false")!==false);
+    t('JS:uspsLiveValidate function exists',strpos($aojs,'function uspsLiveValidate(')!==false);
+    t('JS:live validation only triggers for USPS carrier',strpos($aojs,"if(carrier==='USPS')uspsLiveValidate(")!==false);
+    t('JS:calls validate_tracking.php via apiFetch',strpos($aojs,"apiFetch('validate_tracking.php','POST'")!==false);
+    t('JS:live check silently falls back to format check when not configured',strpos($aojs,'d.configured===false')!==false);
+    t('JS:doesn\'t overwrite format check on a network/auth error',strpos($aojs,'if(errored)return')!==false);
+}catch(Exception $e){t('USPS Tracking API integration checks',false,$e->getMessage());}
+
+try{
     // PayPal Payments admin screen: lazy-column defensive fix + refunds shown separately
     $pppPhp=file_get_contents($root.'/api/paypal_payments.php');
     $aojsPp=isset($aojs)?$aojs:file_get_contents($root.'/js/admin-orders.js');
