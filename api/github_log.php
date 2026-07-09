@@ -9,8 +9,16 @@ requireAdmin();
 // getSetting defined in config.php
 
 $token  = getSetting($pdo, 'github_token') ?: '';
+// GitHub Repo is admin-editable (Developer > Settings > Environment card), stored as "owner/repo"
 $owner   = 'BWERepo';
 $repo    = 'HDBS';
+$devEnvRaw = getSetting($pdo, 'dev_env');
+if ($devEnvRaw) {
+    $devEnv = json_decode($devEnvRaw, true);
+    if (!empty($devEnv['github_repo']) && strpos($devEnv['github_repo'], '/') !== false) {
+        list($owner, $repo) = explode('/', $devEnv['github_repo'], 2);
+    }
+}
 $perPage = 100;
 
 $cacheFile = sys_get_temp_dir() . '/hdbs_github_log.json';

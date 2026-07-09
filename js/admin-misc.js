@@ -1413,6 +1413,70 @@ window.addEventListener('load', function(){
       if(st)  st.textContent = (d && d.value) ? 'Token saved.' : 'No token set — using unauthenticated access.';
     }).catch(function(){});
 
+    // ── Production/Staging Database + FTP reference cards (read-only) ──
+    // Intentionally NO password fields — DB passwords live only in secrets.php/secrets.staging.php
+    // (outside webroot) and the FTP password lives only in the local .ftp-credentials file, which
+    // never touches the server. These are read-only because they're just documentation of values
+    // set elsewhere (api/config.php, .ftp-credentials) — editing them here couldn't actually change
+    // the live DB connection or deploy.ps1, so an editable field would be misleading.
+    function mkInfoCard(id,icon,title,rows){
+      var existing=document.getElementById(id);
+      if(existing)existing.remove();
+      var c=document.createElement('div');
+      c.id=id;
+      c.style.cssText='background:#fff;border-radius:10px;border:1px solid #e8e0b8;padding:1.2rem;margin-bottom:1.2rem;max-width:420px';
+      c.innerHTML=
+        '<div style="font-weight:700;margin-bottom:.9rem">'+icon+' '+title+'</div>'+
+        '<div style="font-size:.85rem;line-height:2.1">'+
+          rows.map(function(r){return '<div><span style="color:#6b6040">'+r[0]+':</span> '+r[1]+'</div>';}).join('')+
+        '</div>';
+      return c;
+    }
+    // ── Environment card — GitHub Repo is editable because it's genuinely wired (github_log.php /
+    // repo_stats.php read it); the other three are just static text, so they stay read-only.
+    var existingEnv=document.getElementById('env-card');
+    if(existingEnv)existingEnv.remove();
+    var cardEnv=document.createElement('div');
+    cardEnv.id='env-card';
+    cardEnv.style.cssText='background:#fff;border-radius:10px;border:1px solid #e8e0b8;padding:1.2rem;margin-bottom:1.2rem;max-width:420px';
+    cardEnv.innerHTML=
+      '<div style="font-weight:700;margin-bottom:.9rem">&#x1F310; Environment</div>'+
+      '<div style="font-size:.85rem;line-height:2.1;margin-bottom:.6rem">'+
+        '<div><span style="color:#6b6040">Production URL:</span> <a href="https://handmadedesignsbysuzi.com" target="_blank" rel="noopener" style="color:#a07810">handmadedesignsbysuzi.com</a></div>'+
+        '<div><span style="color:#6b6040">Staging URL:</span> <a href="https://staging.handmadedesignsbysuzi.com" target="_blank" rel="noopener" style="color:#a07810">staging.handmadedesignsbysuzi.com</a></div>'+
+        '<div><span style="color:#6b6040">Website hosted at:</span> Hostinger (LiteSpeed)</div>'+
+      '</div>'+
+      '<label class="fl">GitHub Repo</label>'+
+      '<div style="display:flex;gap:.5rem;align-items:center">'+
+        '<input class="afi" id="env-repo-input" style="flex:1;margin-bottom:0" value="BWERepo/HDBS">'+
+        '<button class="bp" onclick="saveGitHubRepo()" style="white-space:nowrap;font-size:.82rem;padding:.38rem .9rem">Save</button>'+
+      '</div>'+
+      '<div id="env-repo-status" style="font-size:.78rem;margin-top:.4rem;color:#6b6040"></div>';
+    card3.insertAdjacentElement('afterend',cardEnv);
+    apiFetch('admin.php','POST',{action:'get_setting',key:'dev_env'}).then(function(d){
+      if(!d||!d.value)return;
+      var saved={};
+      try{saved=JSON.parse(d.value)||{};}catch(e){return;}
+      var inp=document.getElementById('env-repo-input');
+      if(inp&&saved.github_repo)inp.value=saved.github_repo;
+    }).catch(function(){});
+    var cardProdDb=mkInfoCard('proddb-card','&#x1F5C4;&#xFE0F;','Production Database',[
+      ['Host','127.0.0.1'],['Database Name','u541882440_hdbs_data'],['Username','u541882440_hdbs_admin'],['Charset','utf8mb4']
+    ]);
+    cardEnv.insertAdjacentElement('afterend',cardProdDb);
+    var cardStageDb=mkInfoCard('stagedb-card','&#x1F5C4;&#xFE0F;','Staging Database',[
+      ['Host','127.0.0.1'],['Database Name','u541882440_hdbs_staging'],['Username','u541882440_hdbs_staging'],['Charset','utf8mb4']
+    ]);
+    cardProdDb.insertAdjacentElement('afterend',cardStageDb);
+    var cardProdFtp=mkInfoCard('prodftp-card','&#x1F4E1;','Production FTP',[
+      ['Host','ftp.handmadedesignsbysuzi.com'],['Username','u541882440.handmadedesignsbysuzi'],['Port','21'],['Remote Path','/ (public_html root)']
+    ]);
+    cardStageDb.insertAdjacentElement('afterend',cardProdFtp);
+    var cardStageFtp=mkInfoCard('stageftp-card','&#x1F4E1;','Staging FTP',[
+      ['Host','ftp.handmadedesignsbysuzi.com'],['Username','u541882440.handmadedesignsbysuzi'],['Port','21'],['Remote Path','/staging/']
+    ]);
+    cardProdFtp.insertAdjacentElement('afterend',cardStageFtp);
+
     // ── Version card ──
     var existingV=document.getElementById('version-card');
     if(existingV)existingV.remove();
@@ -1434,7 +1498,7 @@ window.addEventListener('load', function(){
         '<button class="bp" onclick="saveVersion()" style="font-size:.82rem">Save</button>'+
         '<span id="ver-status" style="font-size:.78rem;color:#6b6040"></span>'+
       '</div>';
-    card3.insertAdjacentElement('afterend',cardV);
+    cardStageFtp.insertAdjacentElement('afterend',cardV);
     apiFetch('admin.php','POST',{action:'get_version'}).then(function(d){
       var mj=document.getElementById('ver-major');
       var mn=document.getElementById('ver-minor');
@@ -1512,6 +1576,17 @@ function setPageLogMode(on){
   }).catch(function(){
     if(lbl) lbl.textContent = 'Save failed';
   });
+}
+
+function saveGitHubRepo(){
+  var inp=document.getElementById('env-repo-input');
+  var status=document.getElementById('env-repo-status');
+  if(!inp)return;
+  var repo=inp.value.trim();
+  if(status)status.textContent='Saving…';
+  apiFetch('admin.php','POST',{action:'save_setting',key:'dev_env',value:JSON.stringify({github_repo:repo})}).then(function(d){
+    if(status)status.textContent=(d&&(d.success||d.message==='Setting saved'))?'✓ Saved':'Save failed';
+  }).catch(function(){if(status)status.textContent='Save failed';});
 }
 
 function saveVersion(){

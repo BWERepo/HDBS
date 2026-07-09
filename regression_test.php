@@ -481,6 +481,22 @@ try{
     t('all 5 footers render the dynamic website-by credit + email (both feed the mailto link)',substr_count($ixphp,'<?php echo $bizWebsiteByHtml; ?>')===5&&substr_count($ixphp,'mailto:<?php echo $bizWebsiteByEmailAttr; ?>')===5);
     t('Profile form has footer credit fields',strpos($abjsHero,'bp-copyright')!==false&&strpos($abjsHero,'bp-website-by')!==false&&strpos($abjsHero,'bp-website-by-email')!==false);
     t('saveBizProfile persists footer credit fields',strpos($abjsHero,'copyright_statement:copyright_statement')!==false&&strpos($abjsHero,'website_by:website_by,website_by_email:website_by_email')!==false);
+    // About Page: title/header/short-text/sub-heading/story/pull-quote/picture — admin-editable,
+    // defaults must match the original hardcoded About Teaser + full About page copy.
+    t('index.php about_title defaults to "About Suzi"',strpos($ixphp,"\$bizAboutTitle = !empty(\$bz['about_title']) ? \$bz['about_title'] : 'About Suzi'")!==false);
+    t('index.php about_header defaults to "Every bag carries a story"',strpos($ixphp,"\$bizAboutHeader = !empty(\$bz['about_header']) ? \$bz['about_header'] : 'Every bag carries a story'")!==false);
+    t('index.php about_short defaults to the original teaser paragraph',strpos($ixphp,"I believe handmade pieces carry stories")!==false&&strpos($ixphp,"\$bizAboutShort = !empty(\$bz['about_short'])")!==false);
+    t('index.php about_subheading defaults to "From Quilting Frames to Embroidery Machines"',strpos($ixphp,"\$bizAboutSubheading = !empty(\$bz['about_subheading']) ? \$bz['about_subheading'] : 'From Quilting Frames to Embroidery Machines'")!==false);
+    t('index.php about_quote defaults to the original pull-quote',strpos($ixphp,"\$bizAboutQuote = !empty(\$bz['about_quote']) ? \$bz['about_quote'] : \"I know that you'll love your bag.\"")!==false);
+    t('index.php about_picture defaults to aboutsuzi.jpeg',strpos($ixphp,"\$bizAboutPicture = !empty(\$bz['about_picture']) ? \$bz['about_picture'] : 'aboutsuzi.jpeg?v=2'")!==false);
+    t('index.php story text is split into paragraphs on blank lines',strpos($ixphp,'explode("\n\n", $bizAboutStory)')!==false);
+    t('index.php About Teaser renders from PHP vars',strpos($ixphp,'<div class="at-overline"><?php echo $bizAboutTitleAttr; ?></div>')!==false&&strpos($ixphp,'<h2><?php echo $bizAboutHeaderAttr; ?></h2>')!==false&&strpos($ixphp,'<p><?php echo $bizAboutShortHtml; ?></p>')!==false);
+    t('index.php full About page renders title/subheading/story/quote/picture from PHP vars',strpos($ixphp,'<?php echo $bizAboutTitleAttr; ?></h1>')!==false&&strpos($ixphp,'<?php echo $bizAboutSubheadingAttr; ?></h2>')!==false&&strpos($ixphp,'<?php echo $bizAboutStoryHtml; ?>')!==false&&strpos($ixphp,'"<?php echo $bizAboutQuoteAttr; ?>" — Suzi')!==false);
+    t('index.php About photo (teaser + full page) both use $bizAboutPictureAttr',substr_count($ixphp,'src="<?php echo $bizAboutPictureAttr; ?>"')===2);
+    t('admin.php converts biz_profile about_picture data URI to a file',strpos($adminphpBiz,"!empty(\$biz['about_picture'])")!==false&&strpos($adminphpBiz,"dirname(__DIR__) . '/business_about/'")!==false);
+    t('Profile form has all 7 About Page fields',strpos($abjsHero,'bp-about-title')!==false&&strpos($abjsHero,'bp-about-header')!==false&&strpos($abjsHero,'bp-about-short')!==false&&strpos($abjsHero,'bp-about-subheading')!==false&&strpos($abjsHero,'bp-about-story')!==false&&strpos($abjsHero,'bp-about-quote')!==false&&strpos($abjsHero,'bp-about-file')!==false);
+    t('saveBizProfile persists all About Page fields',strpos($abjsHero,'about_title:about_title')!==false&&strpos($abjsHero,'about_header:about_header')!==false&&strpos($abjsHero,'about_subheading:about_subheading')!==false&&strpos($abjsHero,'about_story:about_story')!==false&&strpos($abjsHero,'about_quote:about_quote')!==false&&strpos($abjsHero,'about_picture:aboutData')!==false);
+    t('clearBizAboutPicture function exists and resets only the picture',strpos($abjsHero,'function clearBizAboutPicture()')!==false&&strpos($abjsHero,"about_picture:''")!==false);
     // Email templates: dynamic name/email, no stale hardcoded strings in From/subject/footer
     foreach(['send_confirm.php'=>'biz_name','send_shipping.php'=>'from_name','verify_payment.php'=>'biz_name_vp','order_confirm.php'=>'from_name','notify.php'=>'from_name'] as $ef=>$var){
         $efc=file_get_contents($root.'/'.$ef);
@@ -1386,7 +1402,9 @@ try{
     t('aboutsuzi.jpeg exists',file_exists($root.'/aboutsuzi.jpeg'));
     t('aboutsuzi.jpeg under size guard',filesize($root.'/aboutsuzi.jpeg')<400*1024,round(filesize($root.'/aboutsuzi.jpeg')/1024).'KB');
     t('aboutsuzi.jpeg in About page',strpos($ihtml,'aboutsuzi.jpeg')!==false);
-    t('About page has photo img tag',strpos($ihtml,'src="aboutsuzi.jpeg?v=2"')!==false);
+    // About picture src is now admin-editable (biz_profile.about_picture); the literal filename
+    // only appears as the PHP default value now, not in the rendered <img> tag directly.
+    t('About page has photo img tag',strpos($ihtml,'src="<?php echo $bizAboutPictureAttr; ?>"')!==false);
     t('emoji placeholder removed from About page',strpos($ihtml,'font-size:5rem;margin-bottom:1rem">👜')===false);
     t('About page grid has about-grid class',strpos($ihtml,'about-grid')!==false);
     $css=file_get_contents($root.'/css/shop.css');
@@ -1510,6 +1528,10 @@ try{
     t('github_log paginates all commits',strpos($ghphp,'per_page=$perPage&page=$page')!==false&&strpos($ghphp,'array_merge($commits')!==false);
     t('github_log returns total_commits',strpos($ghphp,'total_commits')!==false&&strpos($ghphp,'function ghTotalCommits')!==false);
     t('github_log refresh bypasses cache',strpos($ghphp,'$noCache')!==false&&strpos($ghphp,"_GET['refresh']")!==false);
+    // GitHub Repo is admin-editable (Developer > Settings > Environment card, dev_env setting) —
+    // both files fall back to BWERepo/HDBS when unset.
+    t('github_log reads dev_env.github_repo setting',strpos($ghphp,"getSetting(\$pdo, 'dev_env')")!==false&&strpos($ghphp,"explode('/', \$devEnv['github_repo']")!==false);
+    t('repo_stats reads dev_env.github_repo setting',strpos($rsphp,"getSetting(\$pdo, 'dev_env')")!==false&&strpos($rsphp,"\$devEnv['github_repo']")!==false);
     // admin-misc.js — Change History stats header, layout, refresh
     $amjs=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
     t('rGitLog accepts force (cache bypass) arg',strpos($amjs,'function rGitLog(el,force)')!==false&&strpos($amjs,"force?'?refresh=1'")!==false);
@@ -1526,6 +1548,26 @@ try{
     // deploy_log.php — minor version auto-increment, one per logical change
     $dlphp2=file_get_contents($root.'/api/deploy_log.php');
 }catch(Exception $e){t('change history stats checks',false,$e->getMessage());}
+
+// ── DEVELOPER SETTINGS: ENVIRONMENT + DATABASE/FTP REFERENCE CARDS ──
+try{
+    $amjsDev=isset($amjs)?$amjs:file_get_contents($root.'/js/admin-misc.js');
+    // Environment card — GitHub Repo is editable (genuinely wired into github_log.php/repo_stats.php);
+    // Production URL / Staging URL / Website Hosted At are read-only since they're not wired to
+    // anything real — an editable field there would silently do nothing on save.
+    t('Environment card shows Production/Staging URLs as read-only links',strpos($amjsDev,"cardEnv.id='env-card'")!==false&&strpos($amjsDev,'handmadedesignsbysuzi.com</a>')!==false&&strpos($amjsDev,'staging.handmadedesignsbysuzi.com</a>')!==false);
+    t('Environment card GitHub Repo is an editable input with Save',strpos($amjsDev,'id="env-repo-input"')!==false&&strpos($amjsDev,'onclick="saveGitHubRepo()"')!==false);
+    t('saveGitHubRepo persists to dev_env setting',strpos($amjsDev,"function saveGitHubRepo()")!==false&&strpos($amjsDev,"key:'dev_env',value:JSON.stringify({github_repo:repo})")!==false);
+    t('Environment card loads saved github_repo on render',strpos($amjsDev,"key:'dev_env'")!==false&&strpos($amjsDev,'saved.github_repo')!==false);
+    // Production/Staging Database + FTP — read-only reference cards, no password fields, no inputs
+    t('mkInfoCard helper renders read-only rows (no inputs)',strpos($amjsDev,'function mkInfoCard(id,icon,title,rows)')!==false);
+    t('Production Database card shows host/db-name/username/charset',strpos($amjsDev,"'proddb-card'")!==false&&strpos($amjsDev,'u541882440_hdbs_data')!==false&&strpos($amjsDev,'u541882440_hdbs_admin')!==false);
+    t('Staging Database card shows host/db-name/username/charset',strpos($amjsDev,"'stagedb-card'")!==false&&strpos($amjsDev,'u541882440_hdbs_staging')!==false);
+    t('Production FTP card shows host/username/port/path',strpos($amjsDev,"'prodftp-card'")!==false&&strpos($amjsDev,'ftp.handmadedesignsbysuzi.com')!==false&&strpos($amjsDev,'public_html root')!==false);
+    t('Staging FTP card shows host/username/port/path',strpos($amjsDev,"'stageftp-card'")!==false&&strpos($amjsDev,'/staging/')!==false);
+    t('DB/FTP card ids never appear with an <input> (stay read-only)',strpos($amjsDev,'id="proddb-')===false&&strpos($amjsDev,'id="stagedb-')===false&&strpos($amjsDev,'id="prodftp-')===false&&strpos($amjsDev,'id="stageftp-')===false);
+    t('Environment card GitHub Repo input is not type=password',strpos($amjsDev,'id="env-repo-input" style="flex:1;margin-bottom:0" value=')!==false&&strpos($amjsDev,'type="password" id="env-repo-input"')===false);
+}catch(Exception $e){t('developer settings dev cards checks',false,$e->getMessage());}
 
 // ── WATCH SCRIPT ──
 t('watch.ps1 not deployed to server',!file_exists($root.'/watch.ps1'));

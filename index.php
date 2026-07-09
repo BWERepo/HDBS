@@ -43,6 +43,24 @@ $bizWebsiteByEmail = !empty($bz['website_by_email']) ? $bz['website_by_email'] :
 $bizCopyrightHtml = htmlspecialchars($bizCopyright, ENT_QUOTES, 'UTF-8');
 $bizWebsiteByHtml = htmlspecialchars($bizWebsiteBy, ENT_QUOTES, 'UTF-8');
 $bizWebsiteByEmailAttr = htmlspecialchars($bizWebsiteByEmail, ENT_QUOTES, 'UTF-8');
+// About page: admin-editable title/header/short-text/story/picture (About Suzi teaser + full
+// About page). These defaults must match the BIZ_ABOUT_*_DEFAULT constants in js/admin-business.js.
+$bizAboutTitle = !empty($bz['about_title']) ? $bz['about_title'] : 'About Suzi';
+$bizAboutHeader = !empty($bz['about_header']) ? $bz['about_header'] : 'Every bag carries a story';
+$bizAboutShort = !empty($bz['about_short']) ? $bz['about_short'] : "I believe handmade pieces carry stories that mass-produced products never can. Each bag begins as a one-of-a-kind idea and an upcycled find, then becomes something you'll carry for years — sewn here in Knoxville, never repeated.";
+$bizAboutStory = !empty($bz['about_story']) ? $bz['about_story'] : "I'm a retired gal who has always had a passion for creating things. For years, quilting was my love — there's something magical about transforming fabric into something beautiful and lasting.\n\nWhen I moved to Knoxville, my quilting frame — usually about 10 feet wide — simply wouldn't fit. Rather than give up on my craft, I discovered that an embroidery machine can do quilting too, albeit in its own unique way. And I fell in love all over again.\n\nWhat started as a workaround became a whole new passion — creating one-of-a-kind bags and purses with intricate embroidered details you won't find anywhere else. Every stitch, every seam, every bag is made with care, right here in Knoxville.";
+$bizAboutPicture = !empty($bz['about_picture']) ? $bz['about_picture'] : 'aboutsuzi.jpeg?v=2';
+$bizAboutSubheading = !empty($bz['about_subheading']) ? $bz['about_subheading'] : 'From Quilting Frames to Embroidery Machines';
+$bizAboutQuote = !empty($bz['about_quote']) ? $bz['about_quote'] : "I know that you'll love your bag.";
+$bizAboutTitleAttr = htmlspecialchars($bizAboutTitle, ENT_QUOTES, 'UTF-8');
+$bizAboutHeaderAttr = htmlspecialchars($bizAboutHeader, ENT_QUOTES, 'UTF-8');
+$bizAboutShortHtml = nl2br(htmlspecialchars($bizAboutShort, ENT_QUOTES, 'UTF-8'));
+$bizAboutPictureAttr = htmlspecialchars($bizAboutPicture, ENT_QUOTES, 'UTF-8');
+$bizAboutSubheadingAttr = htmlspecialchars($bizAboutSubheading, ENT_QUOTES, 'UTF-8');
+$bizAboutQuoteAttr = htmlspecialchars($bizAboutQuote, ENT_QUOTES, 'UTF-8');
+$bizAboutStoryHtml = implode('', array_map(function ($para) {
+    return '<p style="color:#4a3f35;line-height:1.9;font-size:.95rem;margin-bottom:1.2rem">' . nl2br(htmlspecialchars(trim($para), ENT_QUOTES, 'UTF-8')) . '</p>';
+}, array_filter(array_map('trim', explode("\n\n", $bizAboutStory)), function ($p) { return $p !== ''; })));
 ?>
 <!DOCTYPE html>
 <html>
@@ -243,11 +261,11 @@ $bizWebsiteByEmailAttr = htmlspecialchars($bizWebsiteByEmail, ENT_QUOTES, 'UTF-8
 
   <!-- ABOUT TEASER -->
   <div class="about-teaser">
-    <div class="at-photo"><img src="aboutsuzi.jpeg?v=2" alt="Suzi in her studio"></div>
+    <div class="at-photo"><img src="<?php echo $bizAboutPictureAttr; ?>" alt="Suzi in her studio"></div>
     <div class="at-text">
-      <div class="at-overline">About Suzi</div>
-      <h2>Every bag carries a story</h2>
-      <p>I believe handmade pieces carry stories that mass-produced products never can. Each bag begins as a one-of-a-kind idea and an upcycled find, then becomes something you'll carry for years — sewn here in Knoxville, never repeated.</p>
+      <div class="at-overline"><?php echo $bizAboutTitleAttr; ?></div>
+      <h2><?php echo $bizAboutHeaderAttr; ?></h2>
+      <p><?php echo $bizAboutShortHtml; ?></p>
       <button class="at-link" onclick="goAbout()">Read her story →</button>
     </div>
   </div>
@@ -859,7 +877,7 @@ $bizWebsiteByEmailAttr = htmlspecialchars($bizWebsiteByEmail, ENT_QUOTES, 'UTF-8
   <!-- Hero banner -->
   <div style="background:linear-gradient(135deg,#a07810 0%,#d4a017 100%);padding:4rem 2rem 3rem;text-align:center">
     <div style="font-size:3rem;margin-bottom:.8rem">🌸</div>
-    <h1 style="color:#fff;font-size:2.2rem;font-style:italic;font-weight:700;margin-bottom:.5rem">About Suzi</h1>
+    <h1 style="color:#fff;font-size:2.2rem;font-style:italic;font-weight:700;margin-bottom:.5rem"><?php echo $bizAboutTitleAttr; ?></h1>
     <p style="color:rgba(255,255,255,.88);font-size:1rem;max-width:500px;margin:0 auto">The maker behind every bag</p>
   </div>
 
@@ -868,22 +886,14 @@ $bizWebsiteByEmailAttr = htmlspecialchars($bizWebsiteByEmail, ENT_QUOTES, 'UTF-8
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center" class="about-grid">
       <div>
         <div style="width:50px;height:3px;background:#d4a017;margin-bottom:1.2rem;border-radius:2px"></div>
-        <h2 style="font-size:1.6rem;font-style:italic;color:#2d2220;margin-bottom:1.2rem;line-height:1.3">From Quilting Frames to Embroidery Machines</h2>
-        <p style="color:#4a3f35;line-height:1.9;font-size:.95rem;margin-bottom:1.2rem">
-          I'm a retired gal who has always had a passion for creating things. For years, quilting was my love — there's something magical about transforming fabric into something beautiful and lasting.
-        </p>
-        <p style="color:#4a3f35;line-height:1.9;font-size:.95rem;margin-bottom:1.2rem">
-          When I moved to Knoxville, my quilting frame — usually about 10 feet wide — simply wouldn't fit. Rather than give up on my craft, I discovered that an embroidery machine can do quilting too, albeit in its own unique way. And I fell in love all over again.
-        </p>
-        <p style="color:#4a3f35;line-height:1.9;font-size:.95rem;margin-bottom:1.5rem">
-          What started as a workaround became a whole new passion — creating one-of-a-kind bags and purses with intricate embroidered details you won't find anywhere else. Every stitch, every seam, every bag is made with care, right here in Knoxville.
-        </p>
+        <h2 style="font-size:1.6rem;font-style:italic;color:#2d2220;margin-bottom:1.2rem;line-height:1.3"><?php echo $bizAboutSubheadingAttr; ?></h2>
+        <?php echo $bizAboutStoryHtml; ?>
         <p style="color:#a07810;font-size:1rem;font-weight:600;font-style:italic">
-          "I know that you'll love your bag." — Suzi
+          "<?php echo $bizAboutQuoteAttr; ?>" — Suzi
         </p>
       </div>
       <div style="text-align:center">
-        <img src="aboutsuzi.jpeg?v=2" alt="Suzi — the maker behind every bag" style="width:100%;max-width:340px;border-radius:20px;border:3px solid #e8e0b8;box-shadow:0 8px 30px rgba(0,0,0,.12);object-fit:cover">
+        <img src="<?php echo $bizAboutPictureAttr; ?>" alt="Suzi — the maker behind every bag" style="width:100%;max-width:340px;border-radius:20px;border:3px solid #e8e0b8;box-shadow:0 8px 30px rgba(0,0,0,.12);object-fit:cover">
       </div>
     </div>
 
@@ -1088,8 +1098,8 @@ $bizWebsiteByEmailAttr = htmlspecialchars($bizWebsiteByEmail, ENT_QUOTES, 'UTF-8
 <script src="js/admin-general.js?v=5"></script>
 <script src="js/admin-products.js?v=15"></script>
 <script src="js/admin-orders.js?v=36"></script>
-<script src="js/admin-misc.js?v=28"></script>
-<script src="js/admin-business.js?v=16"></script>
+<script src="js/admin-misc.js?v=32"></script>
+<script src="js/admin-business.js?v=19"></script>
 <script src="js/admin-studio.js?v=5"></script>
 <script src="js/table.js"></script>
 <script src="js/toolbar.js"></script>

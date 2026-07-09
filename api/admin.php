@@ -268,6 +268,32 @@ if ($method === 'POST' && ($action === 'set_setting' || $action === 'save_settin
             $biz['hero_image'] = $heroUrl . $filename2;
             $val = json_encode($biz);
         }
+        // biz_profile.about_picture works the same way — arrives as a base64 data URI, gets
+        // saved to disk, and the setting stores the fetchable URL instead.
+        if (is_array($biz) && !empty($biz['about_picture']) && preg_match('/^data:image\/(\w+);base64,(.+)$/s', $biz['about_picture'], $m3)) {
+            if (strlen($m3[2]) > 4 * 1024 * 1024 * 4 / 3) fail('About picture too large (max 4MB)', 400);
+            $bytes3 = base64_decode($m3[2], true);
+            if (!$bytes3) fail('Could not decode about picture', 400);
+            $magic3  = substr($bytes3, 0, 4);
+            $isJpeg3 = (substr($magic3, 0, 2) === "\xFF\xD8");
+            $isPng3  = ($magic3 === "\x89PNG");
+            if (!$isJpeg3 && !$isPng3) fail('Invalid about picture format — only JPEG and PNG are accepted', 400);
+            $aboutDir = dirname(__DIR__) . '/business_about/';
+            $aboutUrl = ALLOWED_ORIGIN . '/business_about/';
+            if (!is_dir($aboutDir)) mkdir($aboutDir, 0755, true);
+            $ext3      = $isPng3 ? 'png' : 'jpg';
+            $filename3 = 'about_' . time() . '.' . $ext3;
+            file_put_contents($aboutDir . $filename3, $bytes3);
+            // Remove the previous about picture file, if any, to avoid orphaning uploads
+            $oldAboutRaw = getSetting($pdo, 'biz_profile');
+            $oldAbout = $oldAboutRaw ? json_decode($oldAboutRaw, true) : null;
+            if (!empty($oldAbout['about_picture']) && strpos($oldAbout['about_picture'], $aboutUrl) === 0) {
+                $oldFile3 = $aboutDir . basename($oldAbout['about_picture']);
+                if (is_file($oldFile3)) @unlink($oldFile3);
+            }
+            $biz['about_picture'] = $aboutUrl . $filename3;
+            $val = json_encode($biz);
+        }
     }
     setSetting($pdo, $key, $val);
     // Track when the version actually last changed, so the footer can show that instead of

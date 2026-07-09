@@ -11,6 +11,14 @@ $root     = dirname(__DIR__); // public_html — the deployment root
 $codeExt  = ['php', 'js', 'css', 'html'];
 $skipDirs = ['.git', 'node_modules'];
 
+// GitHub Repo is admin-editable (Developer > Settings > Environment card), stored as "owner/repo"
+$repoName = 'BWERepo/HDBS';
+$devEnvRaw = getSetting($pdo, 'dev_env');
+if ($devEnvRaw) {
+    $devEnv = json_decode($devEnvRaw, true);
+    if (!empty($devEnv['github_repo'])) $repoName = $devEnv['github_repo'];
+}
+
 $totalFiles = 0;
 $codeFiles  = 0;
 $loc        = 0;
@@ -39,7 +47,7 @@ try {
 }
 
 ok([
-    'repo'          => 'BWERepo/HDBS',
+    'repo'          => $repoName,
     'path'          => $root,
     'total_files'   => $totalFiles,
     'code_files'    => $codeFiles,

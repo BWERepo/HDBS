@@ -12,6 +12,13 @@ function bizCopyrightDefault(){
   var n=document.getElementById('bp-name');
   return '© 2026 '+((n&&n.value.trim())||'Handmade Designs By Suzi')+' · Knoxville, TN';
 }
+// Must match the fallback strings rendered server-side in index.php ($bizAboutTitle/Header/Short/Story)
+var BIZ_ABOUT_TITLE_DEFAULT='About Suzi';
+var BIZ_ABOUT_HEADER_DEFAULT='Every bag carries a story';
+var BIZ_ABOUT_SHORT_DEFAULT="I believe handmade pieces carry stories that mass-produced products never can. Each bag begins as a one-of-a-kind idea and an upcycled find, then becomes something you'll carry for years — sewn here in Knoxville, never repeated.";
+var BIZ_ABOUT_STORY_DEFAULT="I'm a retired gal who has always had a passion for creating things. For years, quilting was my love — there's something magical about transforming fabric into something beautiful and lasting.\n\nWhen I moved to Knoxville, my quilting frame — usually about 10 feet wide — simply wouldn't fit. Rather than give up on my craft, I discovered that an embroidery machine can do quilting too, albeit in its own unique way. And I fell in love all over again.\n\nWhat started as a workaround became a whole new passion — creating one-of-a-kind bags and purses with intricate embroidered details you won't find anywhere else. Every stitch, every seam, every bag is made with care, right here in Knoxville.";
+var BIZ_ABOUT_SUBHEADING_DEFAULT='From Quilting Frames to Embroidery Machines';
+var BIZ_ABOUT_QUOTE_DEFAULT="I know that you'll love your bag.";
 
 // Same formatting as fmtPhone() in store.js, but for a stored string rather than a live input
 function bizFmtPhone(s){
@@ -115,6 +122,40 @@ function rBizProfile(el){
         '<input class="afi" id="bp-website-by-email" value="'+ceEsc(p.website_by_email||BIZ_WEBSITE_BY_EMAIL_DEFAULT)+'" placeholder="info@businesswebexpress.com">'+
         '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-website-by-email\',BIZ_WEBSITE_BY_EMAIL_DEFAULT)">↺ Reset to Default</button></div>'+
       '</div>'+
+      '<div style="background:#fff;border:1px solid #e8e0b8;border-radius:10px;padding:1.4rem;margin-bottom:1rem">'+
+        '<div style="font-weight:700;font-size:.88rem;text-transform:uppercase;letter-spacing:.06em;color:#a07810;margin-bottom:.9rem">📖 About Page</div>'+
+        '<label class="fl">Title</label>'+
+        '<input class="afi" id="bp-about-title" value="'+ceEsc(p.about_title||BIZ_ABOUT_TITLE_DEFAULT)+'">'+
+        '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-about-title\',BIZ_ABOUT_TITLE_DEFAULT)">↺ Reset to Default</button></div>'+
+        '<label class="fl">About Header</label>'+
+        '<input class="afi" id="bp-about-header" value="'+ceEsc(p.about_header||BIZ_ABOUT_HEADER_DEFAULT)+'">'+
+        '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-about-header\',BIZ_ABOUT_HEADER_DEFAULT)">↺ Reset to Default</button></div>'+
+        '<label class="fl">About Short Text</label>'+
+        '<textarea class="afi" id="bp-about-short" rows="3" style="resize:vertical;font-family:inherit">'+ceEsc(p.about_short||BIZ_ABOUT_SHORT_DEFAULT)+'</textarea>'+
+        '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-about-short\',BIZ_ABOUT_SHORT_DEFAULT)">↺ Reset to Default</button></div>'+
+        '<label class="fl">Story Sub-heading</label>'+
+        '<input class="afi" id="bp-about-subheading" value="'+ceEsc(p.about_subheading||BIZ_ABOUT_SUBHEADING_DEFAULT)+'">'+
+        '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-about-subheading\',BIZ_ABOUT_SUBHEADING_DEFAULT)">↺ Reset to Default</button></div>'+
+        '<label class="fl">Story (blank line = new paragraph)</label>'+
+        '<textarea class="afi" id="bp-about-story" rows="8" style="resize:vertical;font-family:inherit">'+ceEsc(p.about_story||BIZ_ABOUT_STORY_DEFAULT)+'</textarea>'+
+        '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-about-story\',BIZ_ABOUT_STORY_DEFAULT)">↺ Reset to Default</button></div>'+
+        '<label class="fl">Pull-quote</label>'+
+        '<input class="afi" id="bp-about-quote" value="'+ceEsc(p.about_quote||BIZ_ABOUT_QUOTE_DEFAULT)+'">'+
+        '<div style="text-align:right;margin:-.5rem 0 .9rem"><button type="button" class="bd" style="font-size:.7rem;padding:.15rem .5rem" onclick="bizResetHeroText(\'bp-about-quote\',BIZ_ABOUT_QUOTE_DEFAULT)">↺ Reset to Default</button></div>'+
+        '<div style="margin-bottom:.8rem">'+
+          '<img id="bp-about-preview" data-custom="'+(p.about_picture?'1':'0')+'" src="'+(p.about_picture||'aboutsuzi.jpeg?v=2')+'" onclick="bizLogoZoom(this)" style="max-width:220px;max-height:220px;border-radius:8px;border:1px solid #e8e0b8;display:block;cursor:zoom-in;object-fit:cover" title="Click to enlarge">'+
+          '<div style="display:flex;align-items:center;gap:.6rem;margin-top:.5rem">'+
+            '<span style="font-size:.72rem;color:#6b6040">'+(p.about_picture?'Click image to enlarge':'Using default about picture')+'</span>'+
+            (p.about_picture?'<button class="bd" style="font-size:.72rem;padding:.2rem .6rem" onclick="clearBizAboutPicture()">✕ Reset to Default</button>':'')+
+          '</div>'+
+        '</div>'+
+        '<label class="fl">Upload Picture (JPG/PNG)</label>'+
+        '<input type="file" id="bp-about-file" accept="image/jpeg,image/png" style="margin-bottom:.8rem;font-size:.83rem" onchange="bizPreviewAboutPicture(this)">'+
+        '<div id="bp-about-new" style="display:none;margin-bottom:.8rem">'+
+          '<div style="font-size:.72rem;color:#a07810;font-weight:600;margin-bottom:.3rem">New picture (not yet saved):</div>'+
+          '<img id="bp-about-new-src" style="max-width:220px;max-height:220px;border-radius:8px;border:2px dashed #d4a017;display:block;cursor:zoom-in;object-fit:cover" onclick="bizLogoZoom(this)">'+
+        '</div>'+
+      '</div>'+
       '<button class="bp" onclick="saveBizProfile()">💾 Save Business Profile</button>'+
       '</div>';
   }).catch(function(){
@@ -144,10 +185,17 @@ function saveBizProfile(){
   var website_by_email=document.getElementById('bp-website-by-email').value.trim();
   var hero_headline=document.getElementById('bp-hero-headline').value.trim();
   var hero_copy=document.getElementById('bp-hero-copy').value.trim();
+  var about_title=document.getElementById('bp-about-title').value.trim();
+  var about_header=document.getElementById('bp-about-header').value.trim();
+  var about_short=document.getElementById('bp-about-short').value.trim();
+  var about_subheading=document.getElementById('bp-about-subheading').value.trim();
+  var about_story=document.getElementById('bp-about-story').value.trim();
+  var about_quote=document.getElementById('bp-about-quote').value.trim();
   var fileInput=document.getElementById('bp-logo-file');
   var heroFileInput=document.getElementById('bp-hero-file');
+  var aboutFileInput=document.getElementById('bp-about-file');
 
-  function doSave(imgData,heroData){
+  function doSave(imgData,heroData,aboutData){
     if(!imgData){
       var existing=document.getElementById('bp-logo-preview');
       imgData=existing?existing.src:'';
@@ -156,7 +204,11 @@ function saveBizProfile(){
       var existingHero=document.getElementById('bp-hero-preview');
       heroData=(existingHero&&existingHero.getAttribute('data-custom')==='1')?existingHero.src:'';
     }
-    var profile={name:name,short_name:short_name,mailing_street:mailing_street,mailing_city:mailing_city,mailing_state:mailing_state,mailing_zip:mailing_zip,contact_street:contact_street,contact_city:contact_city,contact_state:contact_state,contact_zip:contact_zip,phone:phone,email:email,logo:imgData,hero_image:heroData,hero_headline:hero_headline,hero_copy:hero_copy,hero_overline:hero_overline,copyright_statement:copyright_statement,website_by:website_by,website_by_email:website_by_email};
+    if(aboutData===undefined){
+      var existingAbout=document.getElementById('bp-about-preview');
+      aboutData=(existingAbout&&existingAbout.getAttribute('data-custom')==='1')?existingAbout.src:'';
+    }
+    var profile={name:name,short_name:short_name,mailing_street:mailing_street,mailing_city:mailing_city,mailing_state:mailing_state,mailing_zip:mailing_zip,contact_street:contact_street,contact_city:contact_city,contact_state:contact_state,contact_zip:contact_zip,phone:phone,email:email,logo:imgData,hero_image:heroData,hero_headline:hero_headline,hero_copy:hero_copy,hero_overline:hero_overline,copyright_statement:copyright_statement,website_by:website_by,website_by_email:website_by_email,about_title:about_title,about_header:about_header,about_short:about_short,about_subheading:about_subheading,about_story:about_story,about_quote:about_quote,about_picture:aboutData};
     apiFetch('admin.php','POST',{action:'save_setting',key:'biz_profile',value:JSON.stringify(profile)})
     .then(function(d){
       if(d.message==='Setting saved'||d.success){
@@ -188,7 +240,9 @@ function saveBizProfile(){
 
   readFileIfAny(fileInput,2,'Logo image',function(imgData){
     readFileIfAny(heroFileInput,4,'Hero image',function(heroData){
-      doSave(imgData===undefined?null:imgData,heroData);
+      readFileIfAny(aboutFileInput,4,'About picture',function(aboutData){
+        doSave(imgData===undefined?null:imgData,heroData,aboutData);
+      });
     });
   });
 }
@@ -214,7 +268,15 @@ function clearBizLogo(){
   var website_by_email=document.getElementById('bp-website-by-email').value.trim();
   var hero_headline=document.getElementById('bp-hero-headline').value.trim();
   var hero_copy=document.getElementById('bp-hero-copy').value.trim();
-  var profile={name:name,short_name:short_name,mailing_street:mailing_street,mailing_city:mailing_city,mailing_state:mailing_state,mailing_zip:mailing_zip,contact_street:contact_street,contact_city:contact_city,contact_state:contact_state,contact_zip:contact_zip,phone:phone,email:email,logo:'',hero_image:hero_image,hero_headline:hero_headline,hero_copy:hero_copy,hero_overline:hero_overline,copyright_statement:copyright_statement,website_by:website_by,website_by_email:website_by_email};
+  var existingAbout=document.getElementById('bp-about-preview');
+  var about_picture=(existingAbout&&existingAbout.getAttribute('data-custom')==='1')?existingAbout.src:'';
+  var about_title=document.getElementById('bp-about-title').value.trim();
+  var about_header=document.getElementById('bp-about-header').value.trim();
+  var about_short=document.getElementById('bp-about-short').value.trim();
+  var about_subheading=document.getElementById('bp-about-subheading').value.trim();
+  var about_story=document.getElementById('bp-about-story').value.trim();
+  var about_quote=document.getElementById('bp-about-quote').value.trim();
+  var profile={name:name,short_name:short_name,mailing_street:mailing_street,mailing_city:mailing_city,mailing_state:mailing_state,mailing_zip:mailing_zip,contact_street:contact_street,contact_city:contact_city,contact_state:contact_state,contact_zip:contact_zip,phone:phone,email:email,logo:'',hero_image:hero_image,hero_headline:hero_headline,hero_copy:hero_copy,hero_overline:hero_overline,copyright_statement:copyright_statement,website_by:website_by,website_by_email:website_by_email,about_title:about_title,about_header:about_header,about_short:about_short,about_subheading:about_subheading,about_story:about_story,about_quote:about_quote,about_picture:about_picture};
   apiFetch('admin.php','POST',{action:'save_setting',key:'biz_profile',value:JSON.stringify(profile)})
   .then(function(d){
     if(d.message==='Setting saved'||d.success)rBizProfile(document.getElementById('acnt'));
@@ -242,7 +304,51 @@ function clearBizHero(){
   var website_by_email=document.getElementById('bp-website-by-email').value.trim();
   var hero_headline=document.getElementById('bp-hero-headline').value.trim();
   var hero_copy=document.getElementById('bp-hero-copy').value.trim();
-  var profile={name:name,short_name:short_name,mailing_street:mailing_street,mailing_city:mailing_city,mailing_state:mailing_state,mailing_zip:mailing_zip,contact_street:contact_street,contact_city:contact_city,contact_state:contact_state,contact_zip:contact_zip,phone:phone,email:email,logo:logo,hero_image:'',hero_headline:hero_headline,hero_copy:hero_copy,hero_overline:hero_overline,copyright_statement:copyright_statement,website_by:website_by,website_by_email:website_by_email};
+  var existingAbout=document.getElementById('bp-about-preview');
+  var about_picture=(existingAbout&&existingAbout.getAttribute('data-custom')==='1')?existingAbout.src:'';
+  var about_title=document.getElementById('bp-about-title').value.trim();
+  var about_header=document.getElementById('bp-about-header').value.trim();
+  var about_short=document.getElementById('bp-about-short').value.trim();
+  var about_subheading=document.getElementById('bp-about-subheading').value.trim();
+  var about_story=document.getElementById('bp-about-story').value.trim();
+  var about_quote=document.getElementById('bp-about-quote').value.trim();
+  var profile={name:name,short_name:short_name,mailing_street:mailing_street,mailing_city:mailing_city,mailing_state:mailing_state,mailing_zip:mailing_zip,contact_street:contact_street,contact_city:contact_city,contact_state:contact_state,contact_zip:contact_zip,phone:phone,email:email,logo:logo,hero_image:'',hero_headline:hero_headline,hero_copy:hero_copy,hero_overline:hero_overline,copyright_statement:copyright_statement,website_by:website_by,website_by_email:website_by_email,about_title:about_title,about_header:about_header,about_short:about_short,about_subheading:about_subheading,about_story:about_story,about_quote:about_quote,about_picture:about_picture};
+  apiFetch('admin.php','POST',{action:'save_setting',key:'biz_profile',value:JSON.stringify(profile)})
+  .then(function(d){
+    if(d.message==='Setting saved'||d.success)rBizProfile(document.getElementById('acnt'));
+  }).catch(function(){alert('Network error.');});
+}
+function clearBizAboutPicture(){
+  if(!confirm('Reset the About picture to the default?'))return;
+  var name=document.getElementById('bp-name').value.trim();
+  var short_name=document.getElementById('bp-short-name').value.trim();
+  var mailing_street=document.getElementById('bp-mail-street').value.trim();
+  var mailing_city=document.getElementById('bp-mail-city').value.trim();
+  var mailing_state=document.getElementById('bp-mail-state').value.trim();
+  var mailing_zip=document.getElementById('bp-mail-zip').value.trim();
+  var contact_street=document.getElementById('bp-cont-street').value.trim();
+  var contact_city=document.getElementById('bp-cont-city').value.trim();
+  var contact_state=document.getElementById('bp-cont-state').value.trim();
+  var contact_zip=document.getElementById('bp-cont-zip').value.trim();
+  var phone=document.getElementById('bp-phone').value.trim();
+  var email=document.getElementById('bp-email').value.trim();
+  var existingLogo=document.getElementById('bp-logo-preview');
+  var logo=existingLogo?existingLogo.src:'';
+  var existingHero=document.getElementById('bp-hero-preview');
+  var hero_image=(existingHero&&existingHero.getAttribute('data-custom')==='1')?existingHero.src:'';
+  var hero_overline=document.getElementById('bp-hero-overline').value.trim();
+  var hero_headline=document.getElementById('bp-hero-headline').value.trim();
+  var hero_copy=document.getElementById('bp-hero-copy').value.trim();
+  var copyright_statement=document.getElementById('bp-copyright').value.trim();
+  var website_by=document.getElementById('bp-website-by').value.trim();
+  var website_by_email=document.getElementById('bp-website-by-email').value.trim();
+  var about_title=document.getElementById('bp-about-title').value.trim();
+  var about_header=document.getElementById('bp-about-header').value.trim();
+  var about_short=document.getElementById('bp-about-short').value.trim();
+  var about_subheading=document.getElementById('bp-about-subheading').value.trim();
+  var about_story=document.getElementById('bp-about-story').value.trim();
+  var about_quote=document.getElementById('bp-about-quote').value.trim();
+  var profile={name:name,short_name:short_name,mailing_street:mailing_street,mailing_city:mailing_city,mailing_state:mailing_state,mailing_zip:mailing_zip,contact_street:contact_street,contact_city:contact_city,contact_state:contact_state,contact_zip:contact_zip,phone:phone,email:email,logo:logo,hero_image:hero_image,hero_headline:hero_headline,hero_copy:hero_copy,hero_overline:hero_overline,copyright_statement:copyright_statement,website_by:website_by,website_by_email:website_by_email,about_title:about_title,about_header:about_header,about_short:about_short,about_subheading:about_subheading,about_story:about_story,about_quote:about_quote,about_picture:''};
   apiFetch('admin.php','POST',{action:'save_setting',key:'biz_profile',value:JSON.stringify(profile)})
   .then(function(d){
     if(d.message==='Setting saved'||d.success)rBizProfile(document.getElementById('acnt'));
@@ -268,6 +374,16 @@ function bizPreviewHero(input){
   reader.onload=function(e){
     var div=document.getElementById('bp-hero-new');
     var img=document.getElementById('bp-hero-new-src');
+    if(div&&img){img.src=e.target.result;div.style.display='block';}
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+function bizPreviewAboutPicture(input){
+  if(!input.files||!input.files[0])return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var div=document.getElementById('bp-about-new');
+    var img=document.getElementById('bp-about-new-src');
     if(div&&img){img.src=e.target.result;div.style.display='block';}
   };
   reader.readAsDataURL(input.files[0]);
