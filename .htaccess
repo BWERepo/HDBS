@@ -25,6 +25,11 @@ RewriteRule ^index\.html$ / [R=301,L]
     Deny from all
 </FilesMatch>
 
+# Block git repo metadata (.git/, .gitignore, .gitattributes, etc.) — should never be
+# reachable over HTTP even if a stray .git folder or dotfile ends up in the webroot
+RewriteCond %{REQUEST_URI} (^|/)\.git
+RewriteRule .* - [F,L]
+
 # Block log and text files
 <FilesMatch "\.(log|txt)$">
     Order Allow,Deny

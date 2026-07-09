@@ -28,7 +28,7 @@ if ($Environment -eq 'staging') {
     $apiBase      = 'https://handmadedesignsbysuzi.com/api'
 }
 
-$exclude = @(".git",".ftp-credentials","deploy.ps1","watch.ps1","CLAUDE.md","README.md","node_modules","product_images","business_logo","secrets.php","secrets.staging.php","debug.php","debug.flag","drop_tn_tax.php","fix_tax.php","sq_test.php","run_tests.html","reset_nav.php","default.php","get_products.php")
+$exclude = @(".git",".gitignore",".gitattributes",".ftp-credentials","deploy.ps1","watch.ps1","CLAUDE.md","README.md","node_modules","product_images","business_logo","secrets.php","secrets.staging.php","debug.php","debug.flag","drop_tn_tax.php","fix_tax.php","sq_test.php","run_tests.html","reset_nav.php","default.php","get_products.php")
 # Staging keeps its own .htaccess (Basic Auth + noindex) — never overwrite it from a deploy
 if ($Environment -eq 'staging') { $exclude += '.htaccess' }
 
