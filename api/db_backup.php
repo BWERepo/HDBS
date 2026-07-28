@@ -50,6 +50,24 @@ foreach ($tables as $table) {
 }
 $sql .= "SET FOREIGN_KEY_CHECKS=1;\n";
 
+// Local-tooling path: return the raw dump as a downloadable response instead
+// of emailing it. Added for /BWEHDBSBackup (modeled on BWEBackup, which pulls
+// a local .sql file straight from pg_dump) — this project has no direct DB
+// host exposed to run mysqldump from outside Hostinger, so this endpoint is
+// the only way to get the dump text at all. Kept separate from the cron path
+// below: the daily cron never passes this flag, so the inbox backup keeps
+// flowing exactly as before, and an on-demand ?download=1 run doesn't also
+// fire off an extra email every time someone pulls a local copy.
+if (($_GET['download'] ?? '') === '1') {
+    $date = date('Y-m-d');
+    header('Content-Type: application/sql; charset=utf-8');
+    header('Content-Disposition: attachment; filename="hdbs-backup-' . $date . '.sql"');
+    header('Content-Length: ' . strlen($sql));
+    echo $sql;
+    dbg('db_backup', 'Backup downloaded directly (no email sent), ' . strlen($sql) . ' bytes');
+    exit();
+}
+
 // Email the backup
 require_once dirname(__DIR__) . '/mailer.php';
 $date     = date('Y-m-d');
