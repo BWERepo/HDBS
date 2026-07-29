@@ -1,0 +1,27 @@
+{
+  "name": "hdbs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy:staging": "wrangler deploy --env staging",
+    "sync:assets": "node scripts/sync-assets.mjs",
+    "predev": "npm run sync:assets",
+    "predeploy:staging": "npm run sync:assets",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "check:secrets": "bash scripts/check-secret-parity.sh"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.5",
+    "bcryptjs": "^2.4.3",
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260722.1",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0",
+    "wrangler": "^4.0.0"
+  }
+}

@@ -28,17 +28,11 @@ if ($Environment -eq 'staging') {
     $apiBase      = 'https://handmadedesignsbysuzi.com/api'
 }
 
-$exclude = @(".git",".gitignore",".gitattributes",".ftp-credentials","deploy.ps1","watch.ps1","CLAUDE.md","README.md","node_modules","product_images","business_logo","secrets.php","secrets.staging.php","debug.php","debug.flag","drop_tn_tax.php","fix_tax.php","sq_test.php","run_tests.html","reset_nav.php","default.php","get_products.php")
+# Exclusions and Should-Exclude live in one shared file so deploy.ps1 and watch.ps1 cannot drift.
+. "$PSScriptRoot\scripts\deploy-exclude.ps1"
+
 # Staging keeps its own .htaccess (Basic Auth + noindex) — never overwrite it from a deploy
 if ($Environment -eq 'staging') { $exclude += '.htaccess' }
-
-function Should-Exclude($path) {
-    foreach ($ex in $exclude) {
-        if ((Split-Path $path -Leaf) -like $ex) { return $true }
-        if ($path -like "*\$ex\*") { return $true }
-    }
-    return $false
-}
 
 function Deploy-File($rel) {
     $localPath = Join-Path $local $rel

@@ -1,5 +1,36 @@
 ﻿This project uses standard prompts stored in "Z:\Backup\Websites\Claude\StandardPrompts.md"
 
+---
+
+# 🛑 PRODUCTION IS FROZEN — Cloudflare migration in progress (since 2026-07-29)
+
+**Do not deploy anything to production. Do not run `.\deploy.ps1` without `-staging`.**
+
+This project is migrating from Hostinger PHP/MySQL to Cloudflare Workers + Supabase. The live site
+must keep being served by the existing PHP until a deliberate cutover. Read
+`docs/production-isolation.md` before touching deploy tooling, and `PROJECT_STATUS.md` for where
+the migration stands.
+
+**The "Deploy" and "Workflow Triggers" sections below are SUSPENDED for the duration.** In
+particular, "a change is made to local disk → deploy that file immediately" would push to
+production while the current branch is `main`. It does not apply. Specifically:
+
+- The PHP site is **not** being modified. New work is TypeScript under `src/`, and it is excluded
+  from FTP by `scripts/deploy-exclude.ps1`.
+- `watch.ps1` now defaults to **staging**; `-Prod` requires typing a confirmation.
+- The production Worker has **no routes** — `routes` stays commented out in `wrangler.jsonc` until
+  cutover. Uncommenting it *is* the cutover.
+- Version numbers now come from `version.json`, not the `major_version`/`minor_version` settings
+  rows.
+
+Remove this banner only after Hostinger is retired (Phase 10).
+
+Also note, independent of the migration: `Claude.md:57` below contains a live production token in
+plaintext and **should be rotated**, and `staging-login.html:61` hardcodes the staging Basic Auth
+credentials in a tracked, deployed file.
+
+---
+
 # Project: Handmade Designs By Suzi
 
 ## Stack
