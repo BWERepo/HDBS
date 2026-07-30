@@ -14,7 +14,43 @@ migration has touched it.
 **Active work: migrating to Cloudflare Workers + Supabase Postgres.**
 Approved plan: `C:\Users\Admin\.claude\plans\z-backup-websites-handmadedesignsbysuzi-frolicking-reef.md`
 
-**Phase: 0 (Foundations & rescue) — partially complete.**
+**Phase: 0 complete except for user-account setup. Phase 1 schema written, not yet applied.**
+
+All work is on branch **`cloudflare-migration`** (pushed). `main` and `dev` remain at `394f87c`,
+untouched. A useful side effect: `Claude.md`'s branch rule is `dev` → staging and `main` → prod, so
+on this branch the deploy tooling has **no defined target at all** — a third guard alongside the
+exclude list and the freeze banner.
+
+### Phase 1 — migrations written and grammar-validated
+
+`supabase/migrations/0001`–`0009`, 72 statements, converted by hand from
+`docs/schema-live-prod.sql`. **Not yet applied to anything** — that needs the Supabase projects.
+
+Validated with `npm run validate:migrations`, which runs the real PostgreSQL parser
+(libpg_query compiled to WASM) so migrations can be checked without Docker or a live project. It
+also greps for leftover MySQL-isms (backticks, `AUTO_INCREMENT`, `TINYINT`, `DATETIME`,
+`ON DUPLICATE KEY`, `ENGINE=`, `MODIFY COLUMN`). All 9 files pass.
+
+Coverage cross-checked against the live schema: 20 tables in, 20 out, all with RLS enabled, and
+exactly the two intended deltas — `prompt_log` dropped (orphaned), `order_lookup_requests` added
+(never existed in prod; created anyway since it is three columns and unblocks either decision).
+
+Conversion decisions worth knowing:
+- `citext` on every email column, restoring MySQL's case-insensitive collation. On
+  `customers.email` and `subscribers.email` this is load-bearing: without it the `UNIQUE` constraint
+  changes meaning and `Alice@x.com` becomes a second account.
+- The three boolean columns became real `boolean`. **The API layer must coerce them back to `1`/`0`
+  in JSON responses** — one place, reversible, zero JS changes.
+- `order_items → orders ON DELETE CASCADE` preserved — the only FK in the original schema.
+- One deliberate strengthening: `studio_project_notes.project_id` gains an FK to
+  `studio_inquiries` (both tables are empty, so it cannot fail on existing data).
+- `reviews.status` enum → `text` + `CHECK`, so widening it later is one `ALTER`.
+- `set_updated_at()` trigger replaces MySQL's `ON UPDATE current_timestamp()`, which Postgres has
+  no column-level equivalent for.
+- `0009` normalises the absolute image URLs to root-relative and is idempotent. It must run
+  **after** the data load, not against an empty schema.
+
+Still to write for Phase 1: the idempotent data-migration script.
 
 ### Done
 
