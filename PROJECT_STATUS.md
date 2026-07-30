@@ -50,7 +50,32 @@ Conversion decisions worth knowing:
 - `0009` normalises the absolute image URLs to root-relative and is idempotent. It must run
   **after** the data load, not against an empty schema.
 
-Still to write for Phase 1: the idempotent data-migration script.
+Still to write for Phase 1: the idempotent data-migration script (blocked on the Supabase
+projects existing).
+
+### Phase 2 — storefront shell, rendering real data
+
+`index.php` lines 1-67 were the entire server-rendered surface (56 PHP echo sites, 19 distinct
+values, 3 escaping contexts). Converted with a generator
+(`scripts/generate-shell.mjs`) rather than by hand, because it **throws on any PHP expression it
+doesn't recognise** — so the conversion is provably complete, not just eyeballed. Produced
+`public/index.html` (25/25 tokens mapped, zero PHP left) plus `src/shell.ts` /
+`src/lib/biz-profile.ts` to render it. 30/30 tests, tsc clean.
+
+**Two bugs found only by actually running the Worker and curling it — not by the unit tests or
+the dry-run build:**
+
+1. Workers Static Assets serves `/` → `index.html` directly, bypassing the Worker entirely,
+   unless `assets.run_worker_first: true` is set. The shell's own logic was correct; it just never
+   ran. Fixed in `wrangler.jsonc`.
+2. A `Response` from `env.ASSETS.fetch()` has **immutable headers** — `securityHeaders` mutating
+   them directly threw on every real static asset (500, no logged exception), while every dynamic
+   route was unaffected. That's why only `/js/*`, `/css/*`, and images broke. Fixed by rebuilding
+   the response before setting headers.
+
+Take the lesson forward: **`wrangler dev` + `curl`, diffed byte-for-byte against the source, is
+now the standard verification step for any route work** — a dry-run build proves the config
+resolves, not that the runtime behaves as assumed.
 
 ### Done
 
