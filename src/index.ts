@@ -13,6 +13,8 @@
 import { Hono } from "hono";
 import type { Env } from "./types";
 import { securityHeaders, redirectWwwToApex } from "./lib/security-headers";
+import { renderStorefront } from "./shell";
+import version from "../version.json";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -34,24 +36,43 @@ app.get("/api/health", (c) =>
 
 // ── SPA catch-all ──
 // The admin back office routes client-side on the #/admin hash, so a deep link or a refresh can
-// arrive at any path and must still receive the shell. Static assets are tried first; anything
-// that isn't a real file falls through to index.html.
+// arrive at any path and must still receive the rendered shell, not the raw static file.
 //
-// In Phase 2 this is replaced by src/shell.ts, which additionally substitutes the {{BIZ_*}}
-// tokens (business name, email, OG image, JSON-LD) that index.php lines 1-67 render today.
+// ⚠️ index.html must NEVER be served directly by the ASSETS binding. Static Assets resolves "/"
+// (and "/index.html") straight to the file with a 200, which means a naive "try ASSETS first,
+// fall back to the shell on 404" check — the first version of this route — never reaches the
+// renderer for the one file that actually needs rendering. The token substitution silently never
+// ran and every {{BIZ_*}} placeholder shipped to the browser verbatim. Caught by an actual local
+// request, not by the unit tests, which only exercised renderShell() in isolation and had no way
+// to notice it was never being called.
+//
+// So: any path that would resolve to index.html (the document routes, "/" and "/index.html",
+// PLUS every path with no file extension, since that is what the SPA's hash router expects for
+// deep links like /admin or /store) is rendered explicitly and unconditionally. Everything else
+// goes through ASSETS first and only falls back to the shell on a genuine 404.
+function wantsShell(pathname: string): boolean {
+  if (pathname === "/" || pathname === "/index.html") return true;
+  const lastSegment = pathname.split("/").pop() ?? "";
+  return !lastSegment.includes(".");
+}
+
 app.all("*", async (c) => {
-  const res = await c.env.ASSETS.fetch(c.req.raw);
+  const load = async () => null; // TODO(Phase 3): read the biz_profile row via src/db.ts
+
+  if (wantsShell(new URL(c.req.url).pathname)) {
+    const shell = await renderStorefront(c.env, c.req.raw, load, version.version);
+    if (shell) return shell;
+  }
+
+  // A fresh GET request is built rather than forwarding c.req.raw as-is: with run_worker_first
+  // enabled, re-fetching the ASSETS binding with the exact incoming Request object 500'd in local
+  // dev (`wrangler dev`) with no logged error — a plain GET avoids whatever that request carries
+  // that the local asset server chokes on. Confirmed against a real request, not assumed.
+  const res = await c.env.ASSETS.fetch(new Request(c.req.url, { method: "GET" }));
   if (res.status !== 404) return res;
 
-  const shellUrl = new URL(c.req.url);
-  shellUrl.pathname = "/index.html";
-  const shell = await c.env.ASSETS.fetch(new Request(shellUrl, { method: "GET" }));
-  if (shell.status === 404) return c.text("Not found", 404);
-
-  return new Response(shell.body, {
-    status: 200,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
+  const shell = await renderStorefront(c.env, c.req.raw, load, version.version);
+  return shell ?? c.text("Not found", 404);
 });
 
 export default app;

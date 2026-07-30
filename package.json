@@ -6,6 +6,7 @@
     "dev": "wrangler dev",
     "deploy:staging": "wrangler deploy --env staging",
     "sync:assets": "node scripts/sync-assets.mjs",
+    "generate:shell": "node scripts/generate-shell.mjs",
     "predev": "npm run sync:assets",
     "predeploy:staging": "npm run sync:assets",
     "validate:migrations": "node scripts/validate-migrations.mjs",

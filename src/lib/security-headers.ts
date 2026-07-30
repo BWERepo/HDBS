@@ -24,6 +24,16 @@ const NO_STORE = /\.(js|css|html)$/i;
 export const securityHeaders = createMiddleware<{ Bindings: Env }>(async (c, next) => {
   await next();
 
+  // ⚠️ A Response returned from a binding fetch (env.ASSETS.fetch(), and R2 in later phases) has
+  // IMMUTABLE headers in the Workers runtime. Calling .set() directly on c.res.headers threw an
+  // unhandled TypeError for every real static asset (js/css/images) — every dynamic route built
+  // its own Response and was unaffected, so the bug only showed up on real files, not on /api/*
+  // or the rendered shell, and workerd's generic "Internal Server Error" body gave no clue why.
+  // Caught by requesting an actual asset through a running Worker, not by a unit test — nothing
+  // in this file's own logic was wrong, only its assumption about the Response it was mutating.
+  // c.res = new Response(...) rebuilds the response with a fresh, mutable Headers object.
+  c.res = new Response(c.res.body, c.res);
+
   const h = c.res.headers;
   h.set("Content-Security-Policy", CSP);
   h.set("X-Frame-Options", "SAMEORIGIN");

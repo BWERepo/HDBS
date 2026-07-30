@@ -15,7 +15,14 @@
 
   "assets": {
     "directory": "./public",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    // Without this, Workers Static Assets serves a request that matches a real file (notably
+    // "/" -> index.html) DIRECTLY, bypassing src/index.ts entirely — the Worker's fetch handler
+    // never runs. That silently shipped every {{BIZ_*}} token unrendered to the browser: the
+    // catch-all route's own logic was correct, it just was never being invoked for "/". Caught by
+    // an actual local request (curl against `wrangler dev`), not by the unit tests, which only
+    // exercised renderShell() directly and had no way to notice the platform was skipping it.
+    "run_worker_first": true
   },
 
   "r2_buckets": [

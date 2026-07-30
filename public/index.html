@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{BIZ_NAME}} — Handcrafted Bags &amp; Purses | Knoxville, TN</title>
+<meta name="description" content="{{BIZ_NAME}} — one-of-a-kind handmade tote bags and purses crafted with love in Knoxville, TN. Unique Corvette and car show themed bags, embroidered designs, and custom gifts for car enthusiasts.">
+<meta name="keywords" content="handmade bags, handmade purses, tote bags, Corvette tote bag, car show gifts, ETCC tote bag, Knoxville Tennessee, embroidered bags, handcrafted purses, one of a kind bags, Corvette show merchandise, car enthusiast gifts">
+<meta name="author" content="{{BIZ_NAME}}">
+<meta name="robots" content="index, follow">
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://handmadedesignsbysuzi.com">
+<meta property="og:title" content="{{BIZ_NAME}} — One-of-a-Kind Bags &amp; Purses">
+<meta property="og:description" content="{{BIZ_NAME}} — every bag one of a kind, handcrafted with love in Knoxville, TN. Shop tote bags, purses &amp; clutches.">
+<meta property="og:image" content="{{BIZ_LOGO}}">
+<meta property="og:image:width" content="{{BIZ_LOGO_WIDTH}}">
+<meta property="og:image:height" content="{{BIZ_LOGO_HEIGHT}}">
+<meta property="og:image:type" content="{{BIZ_LOGO_MIME}}">
+<meta property="og:site_name" content="{{BIZ_NAME}}">
+<meta property="og:locale" content="en_US">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{BIZ_NAME}} — One-of-a-Kind Bags &amp; Purses">
+<meta name="twitter:description" content="{{BIZ_NAME}} — every bag one of a kind, handcrafted with love in Knoxville, TN. Shop tote bags, purses &amp; clutches.">
+<meta name="twitter:image" content="{{BIZ_LOGO}}">
+
+<!-- Canonical URL -->
+<link rel="canonical" href="https://handmadedesignsbysuzi.com">
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="shortcut icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="{{BIZ_LOGO}}">
+<!-- Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0ELY03XGRE"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-0ELY03XGRE');
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/shop.css?v=16">
+<link rel="stylesheet" href="css/table.css">
+<link rel="stylesheet" href="css/toolbar.css">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  "name": {{BIZ_NAME_JSON}},
+  "description": "One-of-a-kind handmade tote bags and purses, including Corvette and car show themed designs, crafted with love in Knoxville, TN.",
+  "url": "https://handmadedesignsbysuzi.com",
+  "email": {{BIZ_EMAIL_JSON}},
+  "address": {
+    "@type": "PostalAddress",
+    "addressLocality": "Knoxville",
+    "addressRegion": "TN",
+    "addressCountry": "US"
+  },
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": 35.9606,
+    "longitude": -83.9207
+  },
+  "logo": {{BIZ_LOGO_JSON}},
+  "image": {{BIZ_LOGO_JSON}},
+  "priceRange": "$35–$200",
+  "openingHours": "Mo-Su 00:00-23:59",
+  "sameAs": [
+    "https://handmadedesignsbysuzi.com"
+  ]
+}
+</script>
+<script>window.BIZ_NAME={{BIZ_NAME_JSON}};window.BIZ_SHORT_NAME={{BIZ_SHORT_NAME_JSON}};window.BIZ_EMAIL={{BIZ_EMAIL_JSON}};</script>
+</head>
+<body>
+
+  <!-- Staging-only DEVELOPMENT banner shown on EVERY screen. Gated on the staging hostname, so it
+       can NEVER render in production (handmadedesignsbysuzi.com has no "staging" in the host).
+       Sits above all SPA page sections. -->
+  <div id="dev-banner" style="display:none;background:#c62828;color:#fff;text-align:center;font-weight:700;letter-spacing:.12em;padding:.4rem 1rem;font-size:.85rem">&#9888; DEVELOPMENT &mdash; staging environment</div>
+  <script>if(location.hostname.indexOf('staging')!==-1){var _db=document.getElementById('dev-banner');if(_db)_db.style.display='block';}</script>
+
+  <!-- SIDE MENU OVERLAY -->
+  <div class="menu-overlay" id="menu-overlay" onclick="closeMenu()"></div>
+
+  <!-- SIDE MENU PANEL -->
+  <div class="side-menu" id="side-menu">
+    <div class="side-menu-header">
+      <div class="side-menu-logo"><img src="{{BIZ_LOGO}}" alt="{{BIZ_NAME}}" style="height:80px;width:80px;object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,.3)"></div>
+      <button class="side-menu-close" onclick="closeMenu()">×</button>
+    </div>
+    <div class="side-menu-nav">
+      <button class="smitem" onclick="closeMenu();goStore()">
+        <span class="smi-icon">🏠</span> Shop
+      </button>
+      <button class="smitem" onclick="closeMenu();goGallery()">
+        <span class="smi-icon">🖼️</span> Gallery
+      </button>
+      <button class="smitem" onclick="closeMenu();goAbout()">
+        <span class="smi-icon">🌸</span> About Suzi
+      </button>
+      <button class="smitem" onclick="closeMenu();goStudio()">
+        <span class="smi-icon">🎨</span> Design Studio
+      </button>
+      <button class="smitem" onclick="closeMenu();goFAQ()">
+        <span class="smi-icon">❓</span> FAQ
+      </button>
+      <button class="smitem" onclick="closeMenu();goContact()">
+        <span class="smi-icon">✉️</span> Contact Us
+      </button>
+      <div class="side-menu-divider"></div>
+      <button class="smitem" id="sm-signin" onclick="closeMenu();goAuth('si')">
+        <span class="smi-icon">👤</span> Sign In / Register
+      </button>
+      <button class="smitem" id="sm-account" style="display:none" onclick="closeMenu();goAuth('account')">
+        <span class="smi-icon">👤</span> My Account
+      </button>
+      <button class="smitem" id="sm-signout" style="display:none" onclick="closeMenu();doSignOut()">
+        <span class="smi-icon">🚪</span> Sign Out
+      </button>
+      <button class="smitem" onclick="openMyOrders()">
+        <span class="smi-icon">📦</span> My Orders
+      </button>
+      <div class="side-menu-divider"></div>
+      <button class="smitem" onclick="closeMenu();goAdminLogin()">
+        <span class="smi-icon">🔧</span> Back Office
+      </button>
+    </div>
+    <div class="side-menu-footer">
+      <p>Handmade with love in<br>Knoxville, TN 🌸</p>
+    </div>
+  </div>
+
+<!-- STORE -->
+<div id="store">
+
+  <nav>
+    <div style="display:flex;align-items:center;gap:.3rem">
+      <button class="menu-btn" id="menu-toggle" onclick="openMenu()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <a href="#" onclick="showPage('store');return false;" style="display:inline-flex;align-items:center"><img src="{{BIZ_LOGO}}" alt="{{BIZ_NAME}}" style="height:80px;width:80px;object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,.3)"></a>
+    </div>
+    <div class="nav-r">
+      <span id="greeting" style="color:rgba(255,255,255,.78);font-size:.81rem"></span>
+      <button class="nb" onclick="openMyOrders()">📦 My Orders</button>
+      <button class="nb" id="auth-btn" onclick="goAuth('si')">Sign In</button>
+      <button class="nb" id="acct-btn" style="display:none" onclick="goAuth('account')">My Account</button>
+      <button class="nb" id="so-btn" style="display:none" onclick="doSignOut()">Sign Out</button>
+      <button class="nb cart-nb" onclick="openCart()">🛍 Cart <span id="cart-count">0</span></button>
+    </div>
+  </nav>
+  <div class="hero" id="hero-section">
+    <div class="hero-bg" id="hero-bg" style="background-image:url('{{BIZ_HERO}}')"></div>
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <div class="hero-overline">{{BIZ_HERO_OVERLINE_HTML}}</div>
+      <h1>{{BIZ_HERO_HEADLINE_HTML}}</h1>
+      <p>{{BIZ_HERO_COPY_HTML}}</p>
+      <div class="hero-btns">
+        <button class="hbtn hbtn-primary" onclick="document.getElementById('ps').scrollIntoView({behavior:'smooth'})">Shop the collection</button>
+        <button class="hbtn hbtn-secondary" onclick="goStudio()">Visit the Design Studio</button>
+      </div>
+    </div>
+  </div>
+  <div style="background:#2B2B2B;padding:.6rem 1.5rem;text-align:center"><p style="color:#e7cfa3;font-size:.92rem;font-weight:500;letter-spacing:.04em;margin:0">Every bag is one of a kind — handcrafted, never repeated. Once it's gone, it's gone.</p></div>
+  <!-- FEATURED COLLECTIONS -->
+  <div class="featured" id="featured">
+    <div class="sh"><h2>Shop by collection</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">Find your one of a kind</p></div>
+    <div class="fc-grid" id="featured-cards"></div>
+  </div>
+
+  <!-- COMING SOON -->
+  <div id="coming-soon" style="display:none">
+    <div class="cs-eyebrow">First look</div>
+    <div class="sh"><h2>Coming Soon</h2><div class="shd"></div><p style="color:rgba(248,246,242,.72);font-size:.9rem;margin-top:.4rem">Something beautiful is being crafted — be the first to know.</p></div>
+    <div class="grid" id="cs-grid"></div>
+  </div>
+
+  <!-- GALLERY -->
+  <div class="gallery-sec" id="gallery">
+    <div class="sh"><h2>From my studio</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">A look at the work</p></div>
+    <div class="masonry" id="gallery-grid"></div>
+  </div>
+
+  <div class="sh" id="ps"><h2>Our Collection</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">Each bag handcrafted with premium materials</p></div>
+  <div id="cat-filter" style="padding:.7rem 1.5rem .2rem;display:flex;gap:.5rem;flex-wrap:wrap;max-width:1000px;margin:0 auto"></div>
+  <div class="grid" id="pgrid"></div>
+
+  <!-- ABOUT TEASER -->
+  <div class="about-teaser">
+    <div class="at-photo"><img src="{{BIZ_ABOUT_PICTURE}}" alt="Suzi in her studio"></div>
+    <div class="at-text">
+      <div class="at-overline">{{BIZ_ABOUT_TITLE}}</div>
+      <h2>{{BIZ_ABOUT_HEADER}}</h2>
+      <p>{{BIZ_ABOUT_SHORT_HTML}}</p>
+      <button class="at-link" onclick="goAbout()">Read her story →</button>
+    </div>
+  </div>
+
+  <!-- NEWSLETTER -->
+  <div class="newsletter">
+    <h2>🌸 Stay in the Loop</h2>
+    <p>Be the first to know about new designs, special offers, and behind-the-scenes peeks at Suzi's creative process.</p>
+    <div class="nl-form">
+      <input class="nl-input" id="nl-email" type="email" placeholder="Enter your email address">
+      <button class="nl-btn" onclick="nlSubscribe()">Subscribe</button>
+    </div>
+    <div class="nl-err" id="nl-err"></div>
+    <div class="nl-ok" id="nl-ok">✓ You're subscribed! Thank you for joining our community 🌸</div>
+  </div>
+
+  <!-- REVIEWS SECTION -->
+  <div class="reviews-section" id="reviews-section">
+    <h2>What Our Customers Say</h2>
+    <div class="shd" style="margin:.4rem auto .3rem"></div>
+    <p style="text-align:center;color:#6b6040;font-size:.85rem">Real bags. Real customers. Real love.</p>
+    <div class="reviews-grid" id="reviews-grid"><div style="text-align:center;padding:2rem;color:#6b6040;font-size:.88rem">Loading reviews…</div></div>
+    <button class="reviews-submit-btn" onclick="toggleReviewForm()">✍️ Write a Review</button>
+    <div class="review-form-wrap" id="review-form-wrap">
+      <div style="font-weight:700;margin-bottom:.9rem;color:#2d2220">Share Your Experience</div>
+      <div class="merr" id="rv-err"></div>
+      <label class="fl">Your Name *</label>
+      <input class="fi" id="rv-name" placeholder="Jane S.">
+      <label class="fl">Product *</label>
+      <input class="fi" id="rv-prod" placeholder="e.g. Corvette Tote Bag">
+      <label class="fl">Rating *</label>
+      <div class="star-pick" id="star-pick">
+        <button onclick="setStars(1)">★</button>
+        <button onclick="setStars(2)">★</button>
+        <button onclick="setStars(3)">★</button>
+        <button onclick="setStars(4)">★</button>
+        <button onclick="setStars(5)">★</button>
+      </div>
+      <label class="fl">Your Review *</label>
+      <textarea class="fi" id="rv-text" rows="3" placeholder="Tell us about your bag…" style="resize:vertical"></textarea>
+      <button class="mbtn" style="margin-top:.5rem" onclick="submitReview()">Submit Review</button>
+      <p style="font-size:.75rem;color:#6b6040;margin-top:.5rem;text-align:center">Reviews are approved before publishing.</p>
+    </div>
+  </div>
+
+  <!-- PAYMENT TRUST -->
+  <div style="max-width:600px;margin:0 auto;padding:1.8rem 1.5rem 0;text-align:center">
+    <div style="font-size:.75rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#a07810;margin-bottom:.7rem">We Accept</div>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:.4rem .9rem;font-size:.85rem;color:#2d2220;font-weight:600;margin-bottom:1rem">
+      <span>💳 Visa</span><span>Mastercard</span><span>American Express</span><span>Discover</span>
+      <span style="color:#e8e0b8">|</span>
+      <span>🍎 Apple Pay</span><span>🅖 Google Pay</span>
+      <span style="color:#e8e0b8">|</span>
+      <span>🅿️ PayPal</span><span>Venmo</span>
+    </div>
+    <div style="font-size:.78rem;color:#6b6040;line-height:1.6;max-width:460px;margin:0 auto">
+      🔒 Payments are processed securely by Square (cards, Apple Pay, Google Pay) and PayPal (PayPal, Venmo). Your card details are encrypted and never stored on our servers.
+    </div>
+  </div>
+
+  <footer style="background:#2d2220;padding:1.5rem;text-align:center">
+    <div style="color:rgba(255,255,255,.5);font-size:.82rem">{{BIZ_COPYRIGHT}} · <a href="mailto:{{BIZ_EMAIL}}" style="color:rgba(255,255,255,.5)">{{BIZ_EMAIL}}</a></div>
+    <div style="margin-top:.55rem"><a href="#" onclick="event.preventDefault();openMyOrders()" style="color:#d4a017;font-size:.8rem;text-decoration:underline;cursor:pointer">📦 Track / View My Orders</a></div>
+    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem">{{BIZ_WEBSITE_BY}} &middot; <a href="mailto:{{BIZ_WEBSITE_BY_EMAIL}}" style="color:rgba(255,255,255,.5);text-decoration:underline">{{BIZ_WEBSITE_BY_EMAIL}}</a></div>
+    <div class="site-version-line" style="color:rgba(255,255,255,.5);font-size:.6rem;margin-top:.5rem"></div>
+    <div style="margin-top:1rem">
+      <img src="https://handmadedesignsbysuzi.com/QRCode.png" alt="Scan to visit handmadedesignsbysuzi.com" style="width:90px;height:90px;border-radius:6px;opacity:.85">
+      <div style="color:rgba(255,255,255,.35);font-size:.65rem;margin-top:.3rem">Scan to shop</div>
+    </div>
+  </footer>
+</div>
+
+<!-- IMAGE LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">×</button>
+  <button class="lightbox-prev" onclick="event.stopPropagation();lightboxNav(-1)">‹</button>
+  <img id="lightbox-img" src="" alt="">
+  <button class="lightbox-next" onclick="event.stopPropagation();lightboxNav(1)">›</button>
+  <div class="lightbox-counter" id="lightbox-counter"></div>
+</div>
+
+<!-- PRODUCT DETAIL MODAL -->
+<div id="pd-page"><div id="pd-content"></div></div>
+
+<!-- THANK YOU MODAL -->
+<div class="modal-ov" id="ty-modal" style="z-index:300">
+  <div class="modal-box" style="max-width:480px;text-align:center;padding:0;overflow:hidden">
+    <div style="background:linear-gradient(135deg,#a07810,#d4a017);padding:2.5rem 2rem 1.8rem">
+      <div style="font-size:3.5rem;margin-bottom:.5rem">🎉</div>
+      <h2 style="color:#fff;font-size:1.6rem;font-style:italic;margin-bottom:.3rem">Thank You!</h2>
+      <div style="color:rgba(255,255,255,.88);font-size:.95rem">Your payment was received</div>
+    </div>
+    <div style="padding:1.8rem 2rem">
+      <div id="ty-order-id" style="font-family:monospace;font-size:.82rem;color:#a07810;background:#fffdf0;border:1px solid #e8e0b8;border-radius:6px;padding:.5rem .9rem;display:inline-block;margin-bottom:1.2rem"></div>
+      <p style="font-size:.92rem;color:#2d2220;line-height:1.7;margin-bottom:1rem">
+        Your order has been placed and your payment confirmed.<br>
+        We'll get your beautiful bag ready and ship it your way soon! 🌸
+      </p>
+      <p style="font-size:.82rem;color:#6b6040;margin-bottom:1.5rem;line-height:1.6">
+        A confirmation has been sent to your email.<br>
+        Questions? Contact us at <strong>{{BIZ_EMAIL}}</strong>
+      </p>
+      <button class="mbtn" style="max-width:260px;margin:0 auto" onclick="closeModal('ty-modal')">Continue Shopping</button>
+    </div>
+  </div>
+</div>
+
+<!-- MY ORDERS MODAL -->
+<div class="modal-ov" id="myorders-modal" style="z-index:300">
+  <div class="modal-box" style="max-width:640px;width:95%;max-height:90vh;overflow:auto;padding:0">
+    <div style="background:linear-gradient(135deg,#a07810,#d4a017);padding:1.3rem 1.6rem;display:flex;justify-content:space-between;align-items:center">
+      <h2 style="color:#fff;font-size:1.3rem;font-style:italic;margin:0">📦 My Orders</h2>
+      <button class="modal-close" style="background:rgba(255,255,255,.2);color:#fff" onclick="closeModal('myorders-modal')">×</button>
+    </div>
+    <div style="padding:1.5rem 1.6rem">
+      <div id="mo-form">
+        <p style="font-size:.9rem;color:#2d2220;line-height:1.6;margin-top:0">Enter the email you used at checkout and we'll send you a secure link to view your orders.</p>
+        <input class="fi" id="mo-email" type="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">
+        <div id="mo-msg" style="display:none;font-size:.85rem;padding:.6rem .8rem;border-radius:7px;margin-bottom:.6rem;line-height:1.5"></div>
+        <button class="mbtn" style="width:100%" id="mo-send-btn" onclick="requestOrderLink()">Email me a link to my orders</button>
+      </div>
+      <div id="mo-list" style="display:none">
+        <div id="mo-list-body"></div>
+        <button class="mbtn" style="width:100%;margin-top:.4rem" onclick="closeModal('myorders-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CART DRAWER -->
+<div class="cart-ov" id="cart-ov" onclick="closeCart()"></div>
+<div class="cart-drawer" id="cart-drawer">
+  <div class="cart-head"><h3>🛍 Your Cart</h3><button class="cart-close" onclick="closeCart()">×</button></div>
+  <div class="cart-items" id="cart-items"></div>
+  <div class="cart-foot">
+    <div class="cart-total-row"><span>Subtotal</span><span class="cart-total-amt" id="cart-subtotal">$0.00</span></div>
+    <button class="cart-chk-btn" onclick="openCheckout()">Proceed to Checkout →</button>
+  </div>
+</div>
+
+<!-- CHECKOUT MODAL -->
+<div class="modal-ov" id="co-modal">
+  <div class="co-modal-box">
+    <button class="modal-close" style="background:rgba(0,0,0,.12);color:#2d2220" onclick="closeModal('co-modal')">×</button>
+    <div id="co-form">
+      <h2 style="font-size:1.2rem;font-weight:700;margin-bottom:.2rem;color:#2d2220">Checkout</h2>
+      <div style="font-size:.82rem;color:#6b6040;margin-bottom:1.2rem">Complete your purchase below.</div>
+      <div class="fsec">Contact</div>
+      <div class="fr"><div><label class="fl">First Name</label><input class="fi" id="co-fn" placeholder="Jane"></div><div><label class="fl">Last Name</label><input class="fi" id="co-ln" placeholder="Smith"></div></div>
+      <label class="fl">Email</label><input class="fi" id="co-em" type="email" placeholder="you@email.com">
+      <label class="fl">Phone</label><input class="fi" id="co-ph" placeholder="(555) 000-0000" oninput="fmtPhone(this)">
+      <div class="fsec">Shipping</div>
+      <label class="fl">Street</label><input class="fi" id="co-ad" placeholder="123 Main St">
+      <div class="fr"><div><label class="fl">City</label><input class="fi" id="co-ci" placeholder="Nashville"></div><div><label class="fl">State / ZIP</label><input class="fi" id="co-sz" placeholder="TN 37201" oninput="updateShippingDisplay()"></div></div>
+      <div class="order-summary">
+        <div class="os-row"><span>Subtotal</span><span id="oc-sub">$0.00</span></div>
+        <div class="os-row"><span>Shipping <span id="oc-zone" style="font-size:.74rem;color:#a07810"></span></span><span id="oc-ship">$0.00</span></div>
+        <div class="os-row" style="font-style:italic;color:#6b6040"><span id="oc-tax-label">Sales Tax</span><span id="oc-tax" style="font-size:.78rem">Calc. by Square</span></div>
+        <div class="os-total"><span>Est. Total</span><span id="oc-tot">$0.00</span></div>
+      </div>
+      <!-- InPerson payment options (shown only when store is in InPerson mode) -->
+      <div id="co-inperson" style="display:none">
+        <div class="fsec">Payment</div>
+        <label class="fl">Payment Method</label>
+        <select class="fi" id="co-paymethod" onchange="updateInPersonUI()">
+          <option>Cash</option>
+          <option>Check</option>
+          <option>Credit Card</option>
+        </select>
+        <div id="co-checknum-wrap" style="display:none">
+          <label class="fl">Check Number</label>
+          <input class="fi" id="co-checknum" placeholder="Check number">
+        </div>
+        <label style="display:flex;align-items:center;gap:.5rem;margin:.5rem 0 .9rem;font-size:.85rem;color:#2d2220;cursor:pointer">
+          <input type="checkbox" id="co-ship-req" checked onchange="updateShippingDisplay()">
+          <span>Add shipping charge</span>
+        </label>
+      </div>
+      <div id="co-secure-note" style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.8rem 1rem;font-size:.8rem;color:#6b6040;margin-bottom:.9rem;line-height:1.6">
+        💳 Visa · Mastercard · American Express · Discover · 🍎 Apple Pay · 🅖 Google Pay · 🅿️ PayPal · Venmo<br>
+        🔒 Processed securely by Square &amp; PayPal. Card details are never stored on our site.
+      </div>
+      <button class="mbtn" id="co-submit-btn" onclick="placeOrder()">Review &amp; Pay →</button>
+    </div>
+    <!-- STEP 2: Embedded card payment -->
+    <div id="co-payment" style="display:none;padding:1.5rem">
+      <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1.2rem">
+        <button onclick="backToCheckoutForm()" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:#6b6040;padding:.2rem .5rem;border-radius:6px;line-height:1">←</button>
+        <span style="font-weight:700;font-size:1.1rem;color:#2d2220">Secure Payment</span>
+        <span style="margin-left:auto;font-size:.75rem;color:#2e7d32;white-space:nowrap">🔒 Powered by Square</span>
+      </div>
+      <div id="co-pay-summary" style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem;color:#6b6040"></div>
+      <button id="apple-pay-button" type="button" style="display:none;-webkit-appearance:-apple-pay-button;-apple-pay-button-type:plain;-apple-pay-button-style:black;width:100%;height:44px;border-radius:6px;margin-bottom:.6rem;cursor:pointer;border:none"></button>
+      <div id="google-pay-button" style="display:none;margin-bottom:.6rem"></div>
+      <div id="paypal-button-container" style="display:none;margin-bottom:.4rem"></div>
+      <div id="paypal-fee-note" style="display:none;font-size:.78rem;color:#6b6040;background:#fffdf0;border:1px solid #e8e0b8;border-radius:6px;padding:.5rem .7rem;margin-bottom:.6rem;line-height:1.5;text-align:center"></div>
+      <div id="wallet-divider" style="display:none;text-align:center;color:#aaa;font-size:.78rem;margin:.2rem 0 1rem;position:relative">
+        <span style="background:#fff;padding:0 .6rem;position:relative;z-index:1">or pay with card</span>
+        <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:#e8e0b8;z-index:0"></div>
+      </div>
+      <div id="card-loading" style="text-align:center;padding:1.2rem;color:#6b6040;font-size:.85rem">Loading payment form…</div>
+      <div id="card-container"></div>
+      <div id="card-error" style="display:none;color:#c0392b;font-size:.82rem;margin:.6rem 0;padding:.6rem .8rem;background:#fde8e8;border-radius:6px;line-height:1.5"></div>
+      <button id="pay-btn" class="mbtn" onclick="submitPayment()" style="margin-top:1rem;width:100%">Pay $0.00</button>
+      <div style="text-align:center;margin-top:.8rem">
+        <button id="co-cancel-btn" onclick="cancelPendingOrder()" style="background:none;border:none;color:#aaa;font-size:.78rem;cursor:pointer;text-decoration:underline;padding:.3rem">Cancel order</button>
+      </div>
+    </div>
+    <!-- STEP 3: Processing spinner -->
+    <div id="co-processing" style="display:none;text-align:center;padding:2.5rem 1.5rem">
+      <div style="margin:0 auto 1.2rem;width:52px;height:52px;position:relative">
+        <div style="position:absolute;inset:0;border-radius:50%;border:4px solid #f0e8d0"></div>
+        <div style="position:absolute;inset:0;border-radius:50%;border:4px solid transparent;border-top-color:#d4a017;animation:spin .8s linear infinite"></div>
+      </div>
+      <div style="font-weight:700;font-size:1.1rem;color:#2d2220;margin-bottom:.4rem">Processing payment…</div>
+      <div style="font-size:.85rem;color:#6b6040">Please wait, do not close this window.</div>
+    </div>
+    <!-- STEP 4: Result -->
+    <div id="co-result" style="display:none;text-align:center;padding:2rem 1.5rem">
+      <div style="font-size:3rem;margin-bottom:.6rem">✅</div>
+      <div style="font-weight:700;font-size:1.2rem;color:#2d2220;margin-bottom:.4rem">Payment Successful!</div>
+      <div id="co-result-body" style="font-size:.85rem;color:#6b6040;margin-bottom:1.5rem;line-height:1.6"></div>
+      <button class="mbtn" onclick="closeModal('co-modal')" style="max-width:220px;margin:0 auto">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONTACT PAGE -->
+<div id="contactpage" style="display:none;min-height:100vh;background:#fdfbf0">
+  <nav>
+    <div style="display:flex;align-items:center;gap:.3rem">
+      <button class="menu-btn" onclick="openMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+      <a href="#" onclick="showPage('store');return false;" style="display:inline-flex;align-items:center"><img src="{{BIZ_LOGO}}" alt="{{BIZ_NAME}}" style="height:80px;width:80px;object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,.3)"></a>
+    </div>
+    <div class="nav-r"><button class="nb" onclick="goStore()">← Back to Shop</button></div>
+  </nav>
+  <div style="max-width:580px;margin:3rem auto;padding:0 1.5rem">
+    <h2 style="color:#a07810;text-align:center;margin-bottom:.5rem">Contact Us</h2>
+    <p style="text-align:center;color:#6b6040;margin-bottom:2rem">We'd love to hear from you — questions, custom orders, or just to say hi!</p>
+    <div style="background:#fff;border:1px solid #e8e0b8;border-radius:14px;padding:2rem">
+      <div class="g2" style="margin-bottom:1rem">
+        <div><label class="fl">First Name</label><input class="fi" id="ctc-fn" placeholder="Susan"></div>
+        <div><label class="fl">Last Name</label><input class="fi" id="ctc-ln" placeholder="Smith"></div>
+      </div>
+      <label class="fl">Email *</label><input class="fi" id="ctc-em" type="email" placeholder="you@email.com" style="margin-bottom:1rem">
+      <label class="fl">Message *</label><textarea class="fi" id="ctc-msg" rows="5" placeholder="Tell us what's on your mind…" style="margin-bottom:1rem;resize:vertical"></textarea>
+      <div id="ctc-ok" style="display:none;text-align:center;padding:.7rem;background:#e8f5e9;color:#2e7d32;border-radius:8px;margin-bottom:.8rem;font-size:.88rem">✓ Message sent! We'll be in touch soon.</div>
+      <div id="ctc-err" style="display:none;text-align:center;padding:.7rem;background:#fdecea;color:#c62828;border-radius:8px;margin-bottom:.8rem;font-size:.88rem"></div>
+      <button class="bp" style="width:100%" onclick="submitContact()">Send Message ✉️</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUTH PAGE -->
+<!-- CUSTOM ORDERS PAGE -->
+<div id="custompg" style="display:none;min-height:100vh;background:#fdfbf0">
+  <nav>
+    <div style="display:flex;align-items:center;gap:.3rem">
+      <button class="menu-btn" onclick="openMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+      <a href="#" onclick="showPage('store');return false;" style="display:inline-flex;align-items:center"><img src="{{BIZ_LOGO}}" alt="{{BIZ_NAME}}" style="height:80px;width:80px;object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,.3)"></a>
+    </div>
+    <div class="nav-r"><button class="nb" onclick="goStore()">← Back to Shop</button></div>
+  </nav>
+
+  <!-- Hero -->
+  <div style="background:linear-gradient(135deg,#a07810 0%,#d4a017 100%);padding:3.5rem 2rem;text-align:center">
+    <div style="font-size:2.8rem;margin-bottom:.7rem">🧵</div>
+    <h1 style="color:#fff;font-size:2rem;font-style:italic;font-weight:700;margin-bottom:.5rem">Custom Handmade Orders</h1>
+    <p style="color:rgba(255,255,255,.9);font-size:1rem;max-width:560px;margin:0 auto;line-height:1.7">
+      Got something special in mind? Suzi can bring your vision to life — one stitch at a time.
+    </p>
+  </div>
+
+  <div style="max-width:860px;margin:0 auto;padding:3rem 2rem">
+
+    <!-- Intro -->
+    <div style="text-align:center;margin-bottom:2.8rem">
+      <div style="width:50px;height:3px;background:#d4a017;margin:0 auto 1.2rem;border-radius:2px"></div>
+      <p style="font-size:1.05rem;color:#4a3f35;line-height:1.9;max-width:640px;margin:0 auto">
+        Every bag in my collection is already one of a kind — but sometimes you want something
+        <em>truly</em> personal. Whether you have a fabric that means something special to you,
+        a memory you want to carry with you every day, or just a vision in your head,
+        I'd love to help make it real.
+      </p>
+    </div>
+
+    <!-- Ideas grid -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1.2rem;margin-bottom:3rem">
+
+      <div style="background:#fff;border:1px solid #e8e0b8;border-radius:14px;padding:1.5rem;text-align:center">
+        <div style="font-size:2.2rem;margin-bottom:.7rem">👕</div>
+        <div style="font-weight:700;color:#2d2220;margin-bottom:.5rem">Repurpose a Keepsake</div>
+        <div style="font-size:.85rem;color:#6b6040;line-height:1.7">
+          Have a beloved t-shirt, a worn-out denim jacket, or a vintage fabric you can't bear
+          to throw away? Send it to Suzi and she'll transform it into a beautiful bag you'll
+          carry forever.
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #e8e0b8;border-radius:14px;padding:1.5rem;text-align:center">
+        <div style="font-size:2.2rem;margin-bottom:.7rem">🎨</div>
+        <div style="font-weight:700;color:#2d2220;margin-bottom:.5rem">Choose Your Style</div>
+        <div style="font-size:.85rem;color:#6b6040;line-height:1.7">
+          Pick your colors, size, and style. Want a tote with your name embroidered on it?
+          A purse in your favorite color combination? A clutch for a special occasion?
+          Just ask — if Suzi can stitch it, she will.
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #e8e0b8;border-radius:14px;padding:1.5rem;text-align:center">
+        <div style="font-size:2.2rem;margin-bottom:.7rem">🎁</div>
+        <div style="font-weight:700;color:#2d2220;margin-bottom:.5rem">Perfect Gifts</div>
+        <div style="font-size:.85rem;color:#6b6040;line-height:1.7">
+          A custom bag makes an unforgettable gift. Birthdays, anniversaries, Mother's Day,
+          graduations — imagine giving someone a bag made from fabric that tells their story.
+          There's nothing like it.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- How it works -->
+    <div style="background:#fff;border:1px solid #e8e0b8;border-radius:14px;padding:2rem;margin-bottom:2.5rem">
+      <h2 style="font-size:1.3rem;font-style:italic;color:#2d2220;margin-bottom:1.3rem;text-align:center">How It Works</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1.2rem;text-align:center">
+        <div>
+          <div style="width:40px;height:40px;background:#d4a017;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem;margin:0 auto .7rem">1</div>
+          <div style="font-weight:700;color:#2d2220;margin-bottom:.3rem">Reach Out</div>
+          <div style="font-size:.8rem;color:#6b6040;line-height:1.6">Fill in the form below and tell Suzi what you have in mind</div>
+        </div>
+        <div>
+          <div style="width:40px;height:40px;background:#d4a017;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem;margin:0 auto .7rem">2</div>
+          <div style="font-weight:700;color:#2d2220;margin-bottom:.3rem">Chat with Suzi</div>
+          <div style="font-size:.8rem;color:#6b6040;line-height:1.6">She'll get back to you personally to discuss your idea and agree on details</div>
+        </div>
+        <div>
+          <div style="width:40px;height:40px;background:#d4a017;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem;margin:0 auto .7rem">3</div>
+          <div style="font-weight:700;color:#2d2220;margin-bottom:.3rem">She Gets to Work</div>
+          <div style="font-size:.8rem;color:#6b6040;line-height:1.6">Sit back while Suzi crafts your one-of-a-kind piece with care and love</div>
+        </div>
+        <div>
+          <div style="width:40px;height:40px;background:#d4a017;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem;margin:0 auto .7rem">4</div>
+          <div style="font-weight:700;color:#2d2220;margin-bottom:.3rem">It Arrives at Your Door</div>
+          <div style="font-size:.8rem;color:#6b6040;line-height:1.6">Your custom bag is carefully packed and shipped straight to you</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Request form -->
+    <div style="background:#fff;border:2px solid #e8e0b8;border-radius:14px;padding:2rem;margin-bottom:2rem">
+      <h2 style="font-size:1.3rem;font-style:italic;color:#2d2220;margin-bottom:.3rem;text-align:center">Tell Suzi About Your Idea</h2>
+      <p style="text-align:center;font-size:.85rem;color:#6b6040;margin-bottom:1.5rem">No commitment required — just start the conversation!</p>
+
+      <div class="merr" id="custom-err"></div>
+      <div class="contact-ok" id="custom-ok" style="display:none;text-align:center;padding:.7rem;background:#e8f5e9;color:#2e7d32;border-radius:8px;margin-bottom:.8rem;font-size:.88rem">
+        ✓ Request sent! Suzi will be in touch soon. 🌸
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem">
+        <div><label class="fl">Your Name *</label><input class="fi" id="cust-name" placeholder="Jane Smith"></div>
+        <div><label class="fl">Email *</label><input class="fi" id="cust-email" type="email" placeholder="you@email.com"></div>
+      </div>
+      <label class="fl">Phone (optional)</label>
+      <input class="fi" id="cust-phone" placeholder="(555) 000-0000" oninput="fmtPhone(this)">
+      <label class="fl">What type of bag are you thinking? *</label>
+      <select class="fi" id="cust-type">
+        <option value="">— Select a type —</option>
+        <option>Tote Bag</option>
+        <option>Purse / Handbag</option>
+        <option>Crossbody Bag</option>
+        <option>Clutch</option>
+        <option>Mini Bag</option>
+        <option>I have my own fabric to repurpose</option>
+        <option>Not sure — open to suggestions</option>
+      </select>
+      <label class="fl">Tell Suzi about your idea *</label>
+      <textarea class="fi" id="cust-idea" rows="4" placeholder="Describe what you have in mind — colors, size, occasion, or if you have a special fabric like a t-shirt or quilt piece you'd like turned into a bag…" style="resize:vertical"></textarea>
+      <label class="fl">Budget range (optional)</label>
+      <select class="fi" id="cust-budget">
+        <option value="">— Select a range —</option>
+        <option>Under $50</option>
+        <option>$50 – $100</option>
+        <option>$100 – $150</option>
+        <option>$150+</option>
+        <option>Flexible — depends on the design</option>
+      </select>
+      <button class="mbtn" style="margin-top:.5rem" onclick="submitCustomRequest()">Send My Request 🧵</button>
+    </div>
+
+    <p style="text-align:center;font-size:.82rem;color:#6b6040;line-height:1.7">
+      Suzi reads every message personally and will reply within 1–2 business days.<br>
+      You can also reach her at <a href="mailto:{{BIZ_EMAIL}}" style="color:#a07810">{{BIZ_EMAIL}}</a>
+    </p>
+    <p style="text-align:center;font-size:.85rem;color:#6b6040;margin-top:1.2rem">
+      Looking for custom artwork, portraits, logos, photography, or jewelry?
+      <button class="at-link" onclick="goStudio()">Visit the Design Studio →</button>
+    </p>
+  </div>
+
+  <footer style="background:#2d2220;padding:1.5rem;text-align:center">
+    <div style="color:rgba(255,255,255,.5);font-size:.82rem">{{BIZ_COPYRIGHT}}</div>
+    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem">{{BIZ_WEBSITE_BY}} &middot; <a href="mailto:{{BIZ_WEBSITE_BY_EMAIL}}" style="color:rgba(255,255,255,.5);text-decoration:underline">{{BIZ_WEBSITE_BY_EMAIL}}</a></div>
+  </footer>
+</div>
+
+<!-- DESIGN STUDIO -->
+<div id="studio-page" style="display:none;min-height:100vh">
+  <nav>
+    <div style="display:flex;align-items:center;gap:.3rem">
+      <button class="menu-btn" onclick="openMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+      <a href="#" onclick="showPage('store');return false;" style="display:inline-flex;align-items:center"><img src="{{BIZ_LOGO}}" alt="{{BIZ_NAME}}" style="height:80px;width:80px;object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,.3)"></a>
+    </div>
+    <div class="nav-r"><button class="nb" onclick="goStore()">← Back to Shop</button></div>
+  </nav>
+
+  <!-- Hero -->
+  <div class="ds-hero">
+    <div class="ds-hero-bg" id="ds-hero-bg"></div>
+    <div class="ds-hero-content">
+      <div class="ds-overline">The Design Studio</div>
+      <h1 id="ds-hero-headline">Let's create something that's only yours</h1>
+      <p id="ds-hero-sub">Custom tote bags, crossbody bags, quilts, embroidery, memory keepsakes, sewing projects and more — designed with you, made by hand in Knoxville.</p>
+      <div class="hero-btns">
+        <button class="hbtn hbtn-primary" id="ds-hero-cta" onclick="dsScrollTo('ds-inquire')">Start Your Project</button>
+        <button class="hbtn hbtn-secondary" onclick="dsScrollToWork()">See the work</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- What We Create -->
+  <div class="ds-sec" id="ds-services-sec">
+    <div class="sh"><h2>What We Create</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">Every project is a collaboration — here's where most of them begin</p></div>
+    <div class="ds-cards" id="ds-services"></div>
+  </div>
+
+  <!-- How the Design Studio Works -->
+  <div class="ds-sec-dark" id="ds-process">
+    <div class="sh"><h2>How the Design Studio Works</h2><div class="shd"></div><p style="font-size:.88rem;margin-top:.4rem">From first hello to final delivery — five simple steps</p></div>
+    <div class="ds-steps">
+      <div class="ds-step ds-fade"><div class="ds-step-icon" id="ds-step-i-1">💬</div><div class="ds-step-num">STEP 1</div><div class="ds-step-t" id="ds-step-t-1">Share Your Vision</div><div class="ds-step-c" id="ds-step-c-1">Tell Suzi what you're dreaming of — a few sentences is plenty to start.</div></div>
+      <div class="ds-step ds-fade"><div class="ds-step-icon" id="ds-step-i-2">🤝</div><div class="ds-step-num">STEP 2</div><div class="ds-step-t" id="ds-step-t-2">Creative Consultation</div><div class="ds-step-c" id="ds-step-c-2">A friendly conversation about ideas, budget, and timeline. No commitment yet.</div></div>
+      <div class="ds-step ds-fade"><div class="ds-step-icon" id="ds-step-i-3">✏️</div><div class="ds-step-num">STEP 3</div><div class="ds-step-t" id="ds-step-t-3">Concept Development</div><div class="ds-step-c" id="ds-step-c-3">Suzi sketches and shapes a concept made just for you.</div></div>
+      <div class="ds-step ds-fade"><div class="ds-step-icon" id="ds-step-i-4">🔍</div><div class="ds-step-num">STEP 4</div><div class="ds-step-t" id="ds-step-t-4">Refinement</div><div class="ds-step-c" id="ds-step-c-4">You review the work in progress and fine-tune the details together.</div></div>
+      <div class="ds-step ds-fade"><div class="ds-step-icon" id="ds-step-i-5">🎁</div><div class="ds-step-num">STEP 5</div><div class="ds-step-t" id="ds-step-t-5">Final Delivery</div><div class="ds-step-c" id="ds-step-c-5">Your finished piece is carefully packed and delivered to your door.</div></div>
+    </div>
+  </div>
+
+  <!-- Start With Inspiration (hidden until gallery content exists) -->
+  <div class="ds-sec" id="ds-inspo" style="display:none">
+    <div class="sh"><h2>Start With Inspiration</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">Browse past work — tap the ♥ on anything you love and it travels with your inquiry</p></div>
+    <div id="ds-groups"></div>
+    <div class="masonry" id="ds-gallery"></div>
+  </div>
+
+  <!-- Recent Custom Projects (hidden until content exists) -->
+  <div class="ds-sec" id="ds-projects-sec" style="display:none">
+    <div class="sh"><h2>Recent Custom Projects</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">Real commissions, from first idea to finished piece</p></div>
+    <div class="ds-cards" id="ds-projects"></div>
+  </div>
+
+  <!-- Why Work With Suzi -->
+  <div class="ds-sec" id="ds-why">
+    <div class="sh"><h2>Why Work With Suzi</h2><div class="shd"></div></div>
+    <div class="ds-why-grid">
+      <div class="ds-why-item ds-fade"><div class="ds-why-icon" id="ds-why-i-1">🤲</div><div><div class="ds-why-t" id="ds-why-t-1">Handcrafted</div><div class="ds-why-c" id="ds-why-c-1">Every piece is made by hand, start to finish.</div></div></div>
+      <div class="ds-why-item ds-fade"><div class="ds-why-icon" id="ds-why-i-2">🤝</div><div><div class="ds-why-t" id="ds-why-t-2">One-on-one collaboration</div><div class="ds-why-c" id="ds-why-c-2">You work directly with the artist — no middlemen.</div></div></div>
+      <div class="ds-why-item ds-fade"><div class="ds-why-icon" id="ds-why-i-3">🚫</div><div><div class="ds-why-t" id="ds-why-t-3">No mass production</div><div class="ds-why-c" id="ds-why-c-3">Nothing is batch-made. Your piece exists once.</div></div></div>
+      <div class="ds-why-item ds-fade"><div class="ds-why-icon" id="ds-why-i-4">🎨</div><div><div class="ds-why-t" id="ds-why-t-4">Original artwork</div><div class="ds-why-c" id="ds-why-c-4">Designed from scratch around your story.</div></div></div>
+      <div class="ds-why-item ds-fade"><div class="ds-why-icon" id="ds-why-i-5">🔎</div><div><div class="ds-why-t" id="ds-why-t-5">Attention to detail</div><div class="ds-why-c" id="ds-why-c-5">The little things are the whole point.</div></div></div>
+      <div class="ds-why-item ds-fade"><div class="ds-why-icon" id="ds-why-i-6">🌿</div><div><div class="ds-why-t" id="ds-why-t-6">Creative flexibility</div><div class="ds-why-c" id="ds-why-c-6">Changed your mind mid-project? Let's talk it through.</div></div></div>
+    </div>
+  </div>
+
+  <!-- Testimonials (hidden until content exists) -->
+  <div class="ds-sec" id="ds-testi-sec" style="display:none;padding-top:0">
+    <div class="sh"><h2>Kind Words</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">From people who trusted Suzi with their ideas</p></div>
+    <div class="ds-testi" id="ds-testi"></div>
+  </div>
+
+  <!-- FAQ -->
+  <div class="ds-sec" id="ds-faq-sec">
+    <div class="sh"><h2>Questions, Answered</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">Everything you might be wondering before you reach out</p></div>
+    <div id="ds-faq"></div>
+  </div>
+
+  <!-- Inquiry form -->
+  <div class="ds-sec" id="ds-inquire" style="padding-top:1rem">
+    <div class="sh"><h2>Start Your Project</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">No commitment — just tell Suzi what you're imagining</p></div>
+    <div class="ds-form-card">
+      <div id="ds-form-wrap">
+        <div class="merr" id="ds-err"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem">
+          <div><label class="fl">Your Name *</label><input class="fi" id="ds-name" placeholder="Jane Smith"></div>
+          <div><label class="fl">Email *</label><input class="fi" id="ds-email" type="email" placeholder="you@email.com"></div>
+        </div>
+        <label class="fl">Phone (optional)</label>
+        <input class="fi" id="ds-phone" placeholder="(555) 000-0000" oninput="fmtPhone(this)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem">
+          <div><label class="fl">Project type</label>
+            <select class="fi" id="ds-type"><option value="">— What kind of project? —</option></select></div>
+          <div><label class="fl">Budget range (optional)</label>
+            <select class="fi" id="ds-budget">
+              <option value="">— Select a range —</option>
+              <option>Under $100</option>
+              <option>$100 – $250</option>
+              <option>$250 – $500</option>
+              <option>$500+</option>
+              <option>Flexible — depends on the design</option>
+            </select></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem">
+          <div><label class="fl">Timeline (optional)</label>
+            <select class="fi" id="ds-timeline">
+              <option value="">— No firm deadline —</option>
+              <option>No rush</option>
+              <option>Within a month</option>
+              <option>Within two weeks</option>
+              <option>I have a specific date (mentioned below)</option>
+            </select></div>
+          <div><label class="fl">How should Suzi reach you?</label>
+            <select class="fi" id="ds-pref">
+              <option>Email</option>
+              <option>Phone call</option>
+              <option>Text</option>
+            </select></div>
+        </div>
+        <label class="fl">Tell Suzi about your project *</label>
+        <textarea class="fi" id="ds-desc" rows="4" style="resize:vertical" placeholder="What are you imagining? Who is it for? Colors, sizes, moods, memories — anything helps…"></textarea>
+        <label class="fl">My inspiration</label>
+        <div class="ds-picks-row" id="ds-picks"><span class="ds-picks-hint">Tap the ♥ on any inspiration photo above and it will appear here with your message.</span></div>
+        <label class="fl">Inspiration links (optional)</label>
+        <input class="fi" id="ds-links" placeholder="Paste links to anything that inspires you — Pinterest, photos, websites…">
+        <button class="mbtn" id="ds-submit" onclick="submitStudioInquiry()">Send My Project Inquiry</button>
+      </div>
+      <div id="ds-ok" style="display:none;text-align:center;padding:1.5rem .5rem">
+        <div style="font-size:2.2rem;margin-bottom:.6rem">🌸</div>
+        <div style="font-family:var(--font-head);font-size:1.3rem;color:#2d2220;margin-bottom:.6rem">Your inquiry is on its way!</div>
+        <p style="font-size:.88rem;color:#6b6040;line-height:1.8;max-width:420px;margin:0 auto">
+          Here's what happens next: Suzi reads every message personally and will reach out within
+          1–2 business days to set up your creative consultation — a friendly, no-commitment
+          conversation about your idea, budget, and timeline.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Final CTA -->
+  <div class="ds-final">
+    <h2 id="ds-final-h">Your story, handmade</h2>
+    <p id="ds-final-sub">Every commission starts with a simple hello. Tell Suzi what you're imagining — she'll take it from there.</p>
+    <button class="hbtn hbtn-primary" id="ds-final-cta" onclick="dsScrollTo('ds-inquire')">Begin the collaboration</button>
+  </div>
+
+  <footer style="background:#2d2220;padding:1.5rem;text-align:center">
+    <div style="color:rgba(255,255,255,.5);font-size:.82rem">{{BIZ_COPYRIGHT}}</div>
+    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem">{{BIZ_WEBSITE_BY}} &middot; <a href="mailto:{{BIZ_WEBSITE_BY_EMAIL}}" style="color:rgba(255,255,255,.5);text-decoration:underline">{{BIZ_WEBSITE_BY_EMAIL}}</a></div>
+  </footer>
+
+  <!-- Sticky mobile CTA (shown after scrolling past the hero) -->
+  <button id="ds-sticky-cta" onclick="dsScrollTo('ds-inquire')">Start Your Project</button>
+
+  <!-- Project story modal -->
+  <div class="modal-ov" id="ds-proj-modal" onclick="if(event.target===this)closeModal('ds-proj-modal')">
+    <div class="modal-box" style="padding:1.8rem">
+      <button onclick="closeModal('ds-proj-modal')" aria-label="Close" style="position:absolute;top:.7rem;right:.9rem;background:none;border:none;font-size:1.5rem;cursor:pointer;color:#6b6040;line-height:1">×</button>
+      <div id="ds-proj-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- FAQ PAGE -->
+<div id="faqpage" style="display:none;min-height:100vh;background:#fdfbf0">
+  <nav>
+    <div style="display:flex;align-items:center;gap:.3rem">
+      <button class="menu-btn" onclick="openMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+      <a href="#" onclick="showPage('store');return false;" style="display:inline-flex;align-items:center"><img src="{{BIZ_LOGO}}" alt="{{BIZ_NAME}}" style="height:80px;width:80px;object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,.3)"></a>
+    </div>
+    <div class="nav-r"><button class="nb" onclick="goStore()">← Back to Shop</button></div>
+  </nav>
+  <div style="background:linear-gradient(135deg,#a07810,#d4a017);padding:3rem 2rem;text-align:center">
+    <div style="font-size:2.5rem;margin-bottom:.6rem">❓</div>
+    <h1 style="color:#fff;font-size:2rem;font-style:italic;font-weight:700;margin-bottom:.4rem">Frequently Asked Questions</h1>
+    <p style="color:rgba(255,255,255,.88);font-size:.95rem">Everything you need to know about ordering from Suzi</p>
+  </div>
+  <div style="max-width:720px;margin:0 auto;padding:2.5rem 2rem" id="faq-list-wrap">
+    <div id="faq-list"><div style="text-align:center;padding:3rem;color:#6b6040">Loading FAQs…</div></div>
+    <div style="text-align:center;margin-top:2.5rem;padding:2rem;background:#fff;border:1px solid #e8e0b8;border-radius:12px">
+      <div style="font-size:1.1rem;font-weight:700;color:#2d2220;margin-bottom:.4rem">Still have questions?</div>
+      <p style="font-size:.88rem;color:#6b6040;margin-bottom:1rem">I'd love to hear from you — reach out any time!</p>
+      <button class="mbtn" style="max-width:200px;margin:0 auto" onclick="goContact()">Contact Me →</button>
+    </div>
+  </div>
+  <footer style="background:#2d2220;padding:1.5rem;text-align:center">
+    <div style="color:rgba(255,255,255,.5);font-size:.82rem">{{BIZ_COPYRIGHT}}</div>
+    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem">{{BIZ_WEBSITE_BY}} &middot; <a href="mailto:{{BIZ_WEBSITE_BY_EMAIL}}" style="color:rgba(255,255,255,.5);text-decoration:underline">{{BIZ_WEBSITE_BY_EMAIL}}</a></div>
+  </footer>
+</div>
+
+<!-- ABOUT PAGE -->
+<div id="aboutpage" style="display:none;min-height:100vh;background:#fdfbf0">
+  <nav>
+    <div style="display:flex;align-items:center;gap:.3rem">
+      <button class="menu-btn" onclick="openMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+      <a href="#" onclick="showPage('store');return false;" style="display:inline-flex;align-items:center"><img src="{{BIZ_LOGO}}" alt="{{BIZ_NAME}}" style="height:80px;width:80px;object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,.3)"></a>
+    </div>
+    <div class="nav-r"><button class="nb" onclick="goStore()">← Back to Shop</button></div>
+  </nav>
+
+  <!-- Hero banner -->
+  <div style="background:linear-gradient(135deg,#a07810 0%,#d4a017 100%);padding:4rem 2rem 3rem;text-align:center">
+    <div style="font-size:3rem;margin-bottom:.8rem">🌸</div>
+    <h1 style="color:#fff;font-size:2.2rem;font-style:italic;font-weight:700;margin-bottom:.5rem">{{BIZ_ABOUT_TITLE}}</h1>
+    <p style="color:rgba(255,255,255,.88);font-size:1rem;max-width:500px;margin:0 auto">The maker behind every bag</p>
+  </div>
+
+  <!-- Story section -->
+  <div style="max-width:780px;margin:0 auto;padding:3rem 2rem">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center" class="about-grid">
+      <div>
+        <div style="width:50px;height:3px;background:#d4a017;margin-bottom:1.2rem;border-radius:2px"></div>
+        <h2 style="font-size:1.6rem;font-style:italic;color:#2d2220;margin-bottom:1.2rem;line-height:1.3">{{BIZ_ABOUT_SUBHEADING}}</h2>
+        {{BIZ_ABOUT_STORY_HTML}}
+        <p style="color:#a07810;font-size:1rem;font-weight:600;font-style:italic">
+          "{{BIZ_ABOUT_QUOTE}}" — Suzi
+        </p>
+      </div>
+      <div style="text-align:center">
+        <img src="{{BIZ_ABOUT_PICTURE}}" alt="Suzi — the maker behind every bag" style="width:100%;max-width:340px;border-radius:20px;border:3px solid #e8e0b8;box-shadow:0 8px 30px rgba(0,0,0,.12);object-fit:cover">
+      </div>
+    </div>
+
+    <!-- Values strip -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:3rem;text-align:center">
+      <div style="background:#fff;border:1px solid #e8e0b8;border-radius:12px;padding:1.5rem">
+        <div style="font-size:2rem;margin-bottom:.5rem">🎨</div>
+        <div style="font-weight:700;color:#2d2220;margin-bottom:.3rem">Original Designs</div>
+        <div style="font-size:.8rem;color:#6b6040;line-height:1.6">No two bags are ever exactly alike — each one is a unique creation</div>
+      </div>
+      <div style="background:#fff;border:1px solid #e8e0b8;border-radius:12px;padding:1.5rem">
+        <div style="font-size:2rem;margin-bottom:.5rem">🧵</div>
+        <div style="font-weight:700;color:#2d2220;margin-bottom:.3rem">Crafted with Care</div>
+        <div style="font-size:.8rem;color:#6b6040;line-height:1.6">Every stitch placed with attention to quality and detail</div>
+      </div>
+      <div style="background:#fff;border:1px solid #e8e0b8;border-radius:12px;padding:1.5rem">
+        <div style="font-size:2rem;margin-bottom:.5rem">💛</div>
+        <div style="font-weight:700;color:#2d2220;margin-bottom:.3rem">Made with Love</div>
+        <div style="font-size:.8rem;color:#6b6040;line-height:1.6">Retirement didn't slow me down — it gave me time to do what I love</div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div style="text-align:center;margin-top:3rem;padding:2.5rem;background:linear-gradient(135deg,#a07810,#d4a017);border-radius:16px">
+      <div style="color:#fff;font-size:1.4rem;font-style:italic;font-weight:700;margin-bottom:.6rem">Ready to find your perfect bag?</div>
+      <div style="color:rgba(255,255,255,.88);font-size:.9rem;margin-bottom:1.2rem">Browse the collection — each one is waiting for the right owner.</div>
+      <button class="mbtn" style="max-width:220px;margin:0 auto;background:#fff;color:#a07810" onclick="goStore()">Shop the Collection →</button>
+    </div>
+  </div>
+
+  <footer style="background:#2d2220;padding:1.5rem;text-align:center">
+    <div style="color:rgba(255,255,255,.5);font-size:.82rem">{{BIZ_COPYRIGHT}} · <a href="mailto:{{BIZ_EMAIL}}" style="color:rgba(255,255,255,.5)">{{BIZ_EMAIL}}</a></div>
+    <div style="margin-top:.55rem"><a href="#" onclick="event.preventDefault();openMyOrders()" style="color:#d4a017;font-size:.8rem;text-decoration:underline;cursor:pointer">📦 Track / View My Orders</a></div>
+    <div style="color:rgba(255,255,255,.5);font-size:.68rem;margin-top:.4rem">{{BIZ_WEBSITE_BY}} &middot; <a href="mailto:{{BIZ_WEBSITE_BY_EMAIL}}" style="color:rgba(255,255,255,.5);text-decoration:underline">{{BIZ_WEBSITE_BY_EMAIL}}</a></div>
+    <div class="site-version-line" style="color:rgba(255,255,255,.5);font-size:.6rem;margin-top:.5rem"></div>
+  </footer>
+</div>
+
+<div id="authpage" style="display:none">
+  <nav>
+    <div style="display:flex;align-items:center;gap:.3rem">
+      <button class="menu-btn" onclick="openMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+      <a href="#" onclick="showPage('store');return false;" style="display:inline-flex;align-items:center"><img src="{{BIZ_LOGO}}" alt="{{BIZ_NAME}}" style="height:80px;width:80px;object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,.3)"></a>
+    </div>
+    <div class="nav-r"><button class="nb" onclick="goStore()">← Back to Shop</button></div>
+  </nav>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:2rem">
+    <div class="abox">
+    <div style="font-size:1.5rem;text-align:center;margin-bottom:.4rem">🌸</div>
+    <h2>{{BIZ_NAME}}</h2><p class="sub">Your account</p>
+    <div class="tabs" id="auth-tabs">
+      <div class="tab on" id="tab-si" onclick="switchTab('si')">Sign In</div>
+      <div class="tab" id="tab-su" onclick="switchTab('su')">Create Account</div>
+    </div>
+    <div class="sv on" id="sv-si">
+      <div class="merr" id="si-err"></div>
+      <label class="fl">Email</label><input class="fi" id="si-em" type="email" placeholder="you@email.com">
+      <label class="fl">Password</label><input class="fi" id="si-pw" type="password" placeholder="••••••••">
+      <button class="mbtn" onclick="doSignIn()">Sign In</button>
+      <button class="lbk" onclick="switchTab('fp')">Forgot Password?</button>
+      <button class="lbk" onclick="goStore()">← Back to Store</button>
+    </div>
+
+    <!-- CUSTOMER FORGOT PASSWORD -->
+    <div class="sv" id="sv-fp">
+      <!-- Step 1: enter email -->
+      <div id="cfp-s1">
+        <div style="font-size:.9rem;font-weight:600;color:#2d2220;margin-bottom:.3rem">🔑 Reset Password</div>
+        <div style="font-size:.8rem;color:#6b6040;margin-bottom:.9rem">Enter your account email and we'll ask your security question.</div>
+        <div class="merr" id="cfp-err1"></div>
+        <label class="fl">Email Address</label>
+        <input class="fi" id="cfp-em" type="email" placeholder="you@email.com">
+        <button class="mbtn" onclick="cfpStep1()">Continue →</button>
+        <button class="lbk" onclick="switchTab('si')">← Back to Sign In</button>
+      </div>
+      <!-- Step 2: answer security question -->
+      <div id="cfp-s2" style="display:none">
+        <div style="font-size:.9rem;font-weight:600;color:#2d2220;margin-bottom:.5rem">🔑 Security Question</div>
+        <div id="cfp-question" style="font-size:.82rem;color:#6b6040;background:#fffdf0;border:1px solid #e8e0b8;border-radius:7px;padding:.6rem .8rem;margin-bottom:.7rem;line-height:1.5"></div>
+        <div class="merr" id="cfp-err2"></div>
+        <label class="fl">Your Answer</label>
+        <input class="fi" id="cfp-ans" type="text" placeholder="Your answer">
+        <button class="mbtn" onclick="cfpStep2()">Verify Answer →</button>
+        <button class="lbk" onclick="cfpBack1()">← Back</button>
+      </div>
+      <!-- Step 3: set new password -->
+      <div id="cfp-s3" style="display:none">
+        <div style="font-size:.9rem;font-weight:600;color:#2d2220;margin-bottom:.5rem">✅ Set New Password</div>
+        <div style="font-size:.8rem;color:#6b6040;margin-bottom:.9rem">Choose a new password for your account.</div>
+        <div class="merr" id="cfp-err3"></div>
+        <label class="fl">New Password</label>
+        <input class="fi" id="cfp-pw1" type="password" placeholder="Min 6 characters">
+        <label class="fl">Confirm Password</label>
+        <input class="fi" id="cfp-pw2" type="password" placeholder="Repeat password">
+        <button class="mbtn" onclick="cfpStep3()">Reset Password</button>
+      </div>
+    </div>
+    <div class="sv" id="sv-su">
+      <div class="merr" id="su-err"></div>
+      <div class="fr"><div><label class="fl">First Name</label><input class="fi" id="su-fn" placeholder="Jane"></div><div><label class="fl">Last Name</label><input class="fi" id="su-ln" placeholder="Smith"></div></div>
+      <label class="fl">Email</label><input class="fi" id="su-em" type="email" placeholder="you@email.com">
+      <label class="fl">Password</label><input class="fi" id="su-pw" type="password" placeholder="Min 6 characters">
+      <label class="fl">Confirm Password</label><input class="fi" id="su-pw2" type="password" placeholder="Repeat password">
+      <label class="fl">Phone (optional)</label><input class="fi" id="su-ph" placeholder="(555) 000-0000" oninput="fmtPhone(this)">
+      <div style="border-top:1px solid #e8e0b8;margin:.8rem 0 .9rem;padding-top:.9rem">
+        <div style="font-size:.78rem;font-weight:700;color:#2d2220;margin-bottom:.2rem">🛡️ Security Question</div>
+        <div style="font-size:.75rem;color:#6b6040;margin-bottom:.7rem">Used to verify your identity if you ever forget your password.</div>
+        <label class="fl">Choose a question</label>
+        <select class="fi" id="su-sq"><option value="">— Select a question —</option><option>What is the name of your first pet?</option><option>What city were you born in?</option><option>What is your mother's maiden name?</option><option>What was the name of your first school?</option><option>What was the make of your first car?</option><option>What street did you grow up on?</option><option>What is your oldest sibling's middle name?</option><option>What was the name of your childhood best friend?</option></select>
+        <label class="fl">Your answer</label>
+        <input class="fi" id="su-sa" type="text" placeholder="Your answer (case-insensitive)">
+        <label class="fl">Confirm answer</label>
+        <input class="fi" id="su-sa2" type="text" placeholder="Repeat your answer">
+      </div>
+      <button class="mbtn" onclick="doSignUp()">Create My Account</button>
+      <button class="lbk" onclick="goStore()">← Back to Store</button>
+    </div>
+    <div class="sv" id="sv-ac">
+      <div id="acct-content"></div>
+      <button class="mbtn" style="background:#2d2220;margin-top:.5rem" onclick="doSignOut()">Sign Out</button>
+      <button class="lbk" onclick="goStore()">← Back to Store</button>
+    </div>
+  </div>
+  </div>
+</div>
+
+<!-- ADMIN LOGIN -->
+
+<div id="alog" style="display:none">
+  <nav>
+    <div style="display:flex;align-items:center;gap:.3rem">
+      <button class="menu-btn" onclick="openMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+      <a href="#" onclick="showPage('store');return false;" style="display:inline-flex;align-items:center"><img src="{{BIZ_LOGO}}" alt="{{BIZ_NAME}}" style="height:80px;width:80px;object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,.3)"></a>
+    </div>
+    <div class="nav-r"><button class="nb" onclick="goStore()">← Back to Shop</button></div>
+  </nav>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:2rem">
+  <div class="lbox">
+    <div style="font-size:1.6rem;margin-bottom:.3rem">🌸</div>
+    <h2>{{BIZ_NAME}}</h2>
+    <div class="lsub">Back Office</div>
+    <div class="lerr" id="lerr">Incorrect password. Please try again.</div>
+    <input type="password" id="lpw" placeholder="Enter password" autocomplete="off">
+    <button class="mbtn" onclick="doLogin()">Enter Back Office</button>
+    <button class="lbk2" onclick="showForgot()">Forgot Password?</button>
+    <button class="lbk2" onclick="goStore()">← Back to Store</button>
+
+    <!-- FORGOT PASSWORD PANEL: step 1 — show question -->
+    <div id="fp-step1" style="display:none;margin-top:1rem;border-top:1px solid #e8e0b8;padding-top:1rem">
+      <div style="font-size:.88rem;font-weight:600;color:#2d2220;margin-bottom:.5rem">🔑 Reset Password</div>
+      <div id="fp-question" style="font-size:.82rem;color:#6b6040;background:#fffdf0;border:1px solid #e8e0b8;border-radius:7px;padding:.6rem .8rem;margin-bottom:.6rem"></div>
+      <input class="fi" id="fp-answer" type="text" placeholder="Your answer" style="width:100%;margin-bottom:.6rem">
+      <div class="lerr" id="fp-err1" style="display:none">Incorrect answer. Please try again.</div>
+      <button class="mbtn" onclick="checkSecAnswer()" style="margin-top:0">Verify Answer</button>
+      <button class="lbk2" onclick="hideForgot()">← Back to Login</button>
+    </div>
+
+    <!-- FORGOT PASSWORD PANEL: step 2 — set new password -->
+    <div id="fp-step2" style="display:none;margin-top:1rem;border-top:1px solid #e8e0b8;padding-top:1rem">
+      <div style="font-size:.88rem;font-weight:600;color:#2d2220;margin-bottom:.6rem">✅ Answer correct! Set a new password:</div>
+      <input class="fi" id="fp-new" type="password" placeholder="New password" style="width:100%;margin-bottom:.6rem">
+      <input class="fi" id="fp-new2" type="password" placeholder="Confirm new password" style="width:100%;margin-bottom:.6rem">
+      <div class="lerr" id="fp-err2" style="display:none"></div>
+      <button class="mbtn" onclick="doResetPw()" style="margin-top:0">Set New Password</button>
+      <button class="lbk2" onclick="hideForgot()">← Cancel</button>
+    </div>
+  </div>
+  </div>
+</div>
+
+<!-- SCROLL TO TOP / BOTTOM -->
+<div id="scroll-nav" style="position:fixed;right:1rem;bottom:1rem;z-index:150;display:flex;flex-direction:column;gap:.5rem">
+  <button id="scroll-top-btn" onclick="scrollToTop()" title="Scroll to top" aria-label="Scroll to top" style="display:none;width:42px;height:42px;border-radius:50%;border:1px solid #e8e0b8;background:#fff;color:#a07810;font-size:1.2rem;line-height:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.15);align-items:center;justify-content:center">▲</button>
+  <button id="scroll-bottom-btn" onclick="scrollToBottom()" title="Scroll to bottom" aria-label="Scroll to bottom" style="width:42px;height:42px;border-radius:50%;border:none;background:#d4a017;color:#fff;font-size:1.2rem;line-height:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.2);align-items:center;justify-content:center">▼</button>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="apanel" style="display:none">
+  <div class="aside">
+    <div class="alogo">{{BIZ_NAME}}<br>{{BIZ_SHORT_NAME}}<span class="asub">Back Office</span></div>
+    <button class="sbk" onclick="goStore()">← Back to Store</button>
+        <div id="admin-nav"></div>
+  </div>
+  <div class="amain">
+    <div class="atop"><span id="aptitle">Dashboard</span><button class="bp" id="addbtn" style="display:none" onclick="showPF(null)">+ Add Product</button></div>
+    <div class="acnt" id="acnt"></div>
+  </div>
+</div>
+
+<!-- hidden file input for camera slot uploads -->
+<input type="file" id="slot-file-input" accept="image/*" style="display:none">
+<video id="cam-video" style="display:none" autoplay playsinline></video>
+
+<script src="js/api.js?v=9"></script>
+<script src="js/config.js?v=18"></script>
+<script src="js/data.js?v=5"></script>
+<script src="js/store.js?v=23"></script>
+<script src="js/studio.js?v=2"></script>
+<script src="js/auth.js?v=6"></script>
+<script src="js/ui.js?v=11"></script>
+<script src="js/admin-nav.js?v=14"></script>
+<script src="js/admin-general.js?v=5"></script>
+<script src="js/admin-products.js?v=16"></script>
+<script src="js/admin-orders.js?v=38"></script>
+<script src="js/admin-misc.js?v=34"></script>
+<script src="js/admin-business.js?v=19"></script>
+<script src="js/admin-studio.js?v=5"></script>
+<script src="js/table.js"></script>
+<script src="js/toolbar.js"></script>
+<script>document.addEventListener('DOMContentLoaded', function(){ TableKit.initAll(); });</script>
+<script>
+(function(){
+  function fmtDate(d){return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});}
+  fetch('/api/admin.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'get_version'})})
+  .then(function(r){return r.json();})
+  .then(function(d){
+    // Show when the version was actually last changed, not the current page-load time
+    var ds=d.updated_at?fmtDate(new Date(d.updated_at)):'unknown';
+    var txt='Version: '+(d.version||'1.0')+'   Date: '+ds;
+    document.querySelectorAll('.site-version-line').forEach(function(el){el.textContent=txt;});
+  }).catch(function(){});
+})();
+</script>
+</body>
+</html>
