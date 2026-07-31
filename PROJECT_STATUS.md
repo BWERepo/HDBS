@@ -5,6 +5,44 @@
 
 ---
 
+## Current state — 2026-07-30
+
+**Supabase projects, R2 buckets, and Resend domain still do not exist** (confirmed with the user
+this session) — that remains the blocker for Phase 1's data-migration script and for wiring
+`src/db.ts` to anything real. Until then, Phase 3 business logic is being written test-first
+against small store interfaces (the same pattern `src/shell.ts` used for `biz_profile`), so it's
+fully unit-tested today and becomes real via a one-line adapter the moment `db.ts` exists.
+
+**`src/auth.ts` + `src/lib/password.ts` written** (admin login/logout/change-password/security-
+question reset, bcrypt→PBKDF2 transparent rehash, `AdminAuthStore` interface + in-memory fake).
+Ported from `api/admin.php`'s login/logout/change_password/get_sec_question/verify_sec_answer/
+reset_password/save_sec_question and `api/config.php`'s validAdminToken()/requireAdmin(), minus
+the legacy settings-table token fallback (dropped on purpose — see the plan's Auth section).
+Found and fixed one bug this session: `recordFailure()` calls in `login()` and
+`verifySecurityAnswer()` were missing the `now` argument, shifting every later parameter over so
+`attemptMessage` was `undefined` — caught by 5 failing tests, not by a type error.
+
+**`src/settings.ts` written** — ports `api/admin.php`'s `get_setting`/`set_setting`/`save_setting`
+(public-key allowlist, sensitive-key blocklist, boolean/token/version auto-defaulting), same
+store-interface + fake pattern. Deliberately deferred: `biz_profile`'s base64 logo/hero_image/
+about_picture upload handling (`admin.php:216-291`) — that's disk-write logic with no Worker
+equivalent and needs rewriting against R2, not porting verbatim, once R2 buckets exist.
+
+`npm test`: 93/93 passing. `tsc --noEmit`: clean (also added the missing `@types/bcryptjs` dev
+dependency this session).
+
+Also untracked and not yet committed: `USER_MANUAL.md`, `backup_hdbs.ps1` (standalone Windows
+Task Scheduler version of the `/BWEHDBSBackup` skill, for automated daily backups independent of
+a Claude Code subscription).
+
+**Next up, still without needing live Supabase:** more Phase 3 business logic against store
+interfaces — `products.ts` (read-only catalog) is the natural next module per the plan's
+dependency order (`db.ts`/cors/fail/applog → auth.ts → settings.ts → shell.ts + assets →
+products.ts → …). `src/lib/cors.ts` (Hono CORS middleware) is cheap and has no store dependency,
+also unblocked.
+
+---
+
 ## Current state — 2026-07-29
 
 **Live production is unchanged and unaffected.** `handmadedesignsbysuzi.com` is still the PHP site
