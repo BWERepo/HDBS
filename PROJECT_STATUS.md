@@ -28,18 +28,26 @@ store-interface + fake pattern. Deliberately deferred: `biz_profile`'s base64 lo
 about_picture upload handling (`admin.php:216-291`) — that's disk-write logic with no Worker
 equivalent and needs rewriting against R2, not porting verbatim, once R2 buckets exist.
 
-`npm test`: 93/93 passing. `tsc --noEmit`: clean (also added the missing `@types/bcryptjs` dev
+**`src/products.ts` written** — ports `api/products.php`'s `GET` action (public/admin shared
+catalog read): the row→DTO mapping, the admin-only `cogm` gate, and — per finding 4 in this
+file — coercing the two real Postgres booleans (`sell`, `coming_soon`) back to `1`/`0` in the
+response layer rather than touching the ~9,900 lines of loose JS comparisons. `POST`/`DELETE`
+(create/update/delete) deliberately deferred: they carry the base64 product-image upload logic,
+which needs rewriting against R2 rather than porting the disk-write code verbatim — same reasoning
+as `settings.ts`'s deferred `biz_profile` image handling.
+
+`npm test`: 101/101 passing. `tsc --noEmit`: clean (also added the missing `@types/bcryptjs` dev
 dependency this session).
 
-Also untracked and not yet committed: `USER_MANUAL.md`, `backup_hdbs.ps1` (standalone Windows
-Task Scheduler version of the `/BWEHDBSBackup` skill, for automated daily backups independent of
-a Claude Code subscription).
+Also committed: `USER_MANUAL.md`, `backup_hdbs.ps1` (standalone Windows Task Scheduler version of
+the `/BWEHDBSBackup` skill, for automated daily backups independent of a Claude Code subscription).
 
-**Next up, still without needing live Supabase:** more Phase 3 business logic against store
-interfaces — `products.ts` (read-only catalog) is the natural next module per the plan's
-dependency order (`db.ts`/cors/fail/applog → auth.ts → settings.ts → shell.ts + assets →
-products.ts → …). `src/lib/cors.ts` (Hono CORS middleware) is cheap and has no store dependency,
-also unblocked.
+**Next up, still without needing live Supabase:** `src/lib/cors.ts` (Hono CORS middleware, no
+store dependency, cheap) is the remaining Phase 3 piece with zero Supabase dependency. After that,
+everything left in the plan's dependency order (`customers.ts`/`orders.ts`, `tax.ts`/`shipping.ts`,
+`email.ts`, payments) needs either a live store to test meaningfully or R2/Resend to exist —
+worth revisiting with the user once Supabase/R2/Resend are provisioned, since `db.ts` itself and
+the actual wiring-up of these modules is the next real unblock.
 
 ---
 
