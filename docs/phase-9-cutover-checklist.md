@@ -342,12 +342,17 @@ sustained double-serving problem.
 
 Only after every item above is confirmed:
 
-- 👤 **Phase A** (do this first, starts the 48h clock, zero customer-visible effect):
-  - Re-run `scripts/pull-media.ps1` against live Hostinger once more, then
-    `node scripts/push-media-to-r2.mjs --write` to catch anything uploaded since the last sync.
-  - Lower `handmadedesignsbysuzi.com`'s DNS TTL to 300s (per
-    `docs/production-isolation.md`'s one-way-doors section — this is what makes the nameserver
-    change a minutes-long rollback instead of a slow one). **Wait a full 48h before phase B.**
+- ✅ **Phase A — DONE 2026-08-01.**
+  - Re-ran `scripts/pull-media.ps1` against live Hostinger: identical counts to the last sync (159
+    product images + 1 logo, no zero-byte files) — confirmed Suzi hasn't uploaded anything new.
+    Re-ran `node scripts/push-media-to-r2.mjs --write` anyway (idempotent): 160/160 uploaded, 0
+    failed, against production's `hdbs-public`.
+  - **Lowered `handmadedesignsbysuzi.com`'s DNS TTL to 300s** on the root `A` and `AAAA` records
+    (the `www` CNAME was already at 300; MX/SPF/DMARC/Brevo/Hostinger-mail records deliberately
+    untouched). Verified independently, not just from the hPanel UI — a live `dns.resolve4()`
+    lookup confirmed the real resolver is already serving `ttl: 300`.
+  - **The 48h clock starts now (2026-08-01).** Per `docs/production-isolation.md`'s one-way-doors
+    section, phase B should wait until this has propagated fully before proceeding.
   - Add the zone to Cloudflare (safe only while the registrar still points at Hostinger — adding a
     zone doesn't move traffic, changing nameservers does).
 - 👤 **Phase B** (after the 48h wait, during a deliberately low-traffic window, per the decision
@@ -391,7 +396,9 @@ Only after every item above is confirmed:
 - [x] Cutover plan decided (2026-08-01): no maintenance-mode build, accept a brief
       dual-availability window at 300s TTL, do phase B during low-traffic hours; rollback plan and
       triggers agreed in advance
-- [ ] Media re-synced, TTL lowered 48h+, Cloudflare zone added (phase A)
+- [x] Media re-synced (done 2026-08-01, 160/160, confirmed no new uploads); TTL lowered to 300s
+      and independently verified live (done 2026-08-01 — 48h clock now running)
+- [ ] Cloudflare zone added (phase A, still outstanding)
 - [ ] `routes` uncommented, nameservers repointed, Square webhook URL updated, propagation
       monitored for the agreed rollback triggers (phase B)
 
