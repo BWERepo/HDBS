@@ -36,18 +36,28 @@ response layer rather than touching the ~9,900 lines of loose JS comparisons. `P
 which needs rewriting against R2 rather than porting the disk-write code verbatim — same reasoning
 as `settings.ts`'s deferred `biz_profile` image handling.
 
-`npm test`: 101/101 passing. `tsc --noEmit`: clean (also added the missing `@types/bcryptjs` dev
+**`src/lib/cors.ts` written** — ports `api/config.php`'s `cors()`: allow-origin per environment
+(mirroring `ALLOWED_ORIGIN`), the standard methods/headers allowlist, and an OPTIONS
+short-circuit. Tested by mounting the middleware on a throwaway Hono app and exercising it with
+`app.request()` (the pattern for any future Hono-middleware test — `security-headers.ts` has no
+test file yet and could use the same treatment). Noted in the file: this is far less load-bearing
+than it was on Hostinger, since same-origin `/api/` calls (Phase 2) never trigger a browser
+preflight for the app's own requests — it now exists to keep OTHER origins out, not to let this
+one in.
+
+`npm test`: 109/109 passing. `tsc --noEmit`: clean (also added the missing `@types/bcryptjs` dev
 dependency this session).
 
 Also committed: `USER_MANUAL.md`, `backup_hdbs.ps1` (standalone Windows Task Scheduler version of
 the `/BWEHDBSBackup` skill, for automated daily backups independent of a Claude Code subscription).
 
-**Next up, still without needing live Supabase:** `src/lib/cors.ts` (Hono CORS middleware, no
-store dependency, cheap) is the remaining Phase 3 piece with zero Supabase dependency. After that,
-everything left in the plan's dependency order (`customers.ts`/`orders.ts`, `tax.ts`/`shipping.ts`,
-`email.ts`, payments) needs either a live store to test meaningfully or R2/Resend to exist —
-worth revisiting with the user once Supabase/R2/Resend are provisioned, since `db.ts` itself and
-the actual wiring-up of these modules is the next real unblock.
+**That closes out every Phase 3 piece writable without a live Supabase project.** Everything left
+in the plan's dependency order (`db.ts` itself, then wiring `auth.ts`/`settings.ts`/`products.ts`
+into real Hono routes, then `customers.ts`/`orders.ts`, `tax.ts`/`shipping.ts`, `email.ts`,
+payments) needs either a live store to test meaningfully or R2/Resend to exist. Confirmed with the
+user (2026-07-30) that Supabase projects, R2 buckets, and the Resend domain are still not
+provisioned — that is the next real unblock, and worth raising with the user directly rather than
+continuing to find adjacent unblocked work.
 
 ---
 
