@@ -17,7 +17,7 @@ confirmed, per `docs/production-isolation.md`'s one-way-door warning.
 | | Staging | Production |
 |---|---|---|
 | Last code deploy | Continuous, every session | **2026-08-01T12:31:33 — Phase 0 scaffold, never since** |
-| R2 buckets | `hdbs-public-staging`, `hdbs-private-staging` exist | ✅ `hdbs-public`/`hdbs-private` created 2026-08-01, both private; still **empty** (media not migrated, step 4) |
+| R2 buckets | Created, private, real product/logo media loaded (159+1 files) | ✅ Same — created 2026-08-01, private, 159 product images + 1 logo loaded and verified |
 | Supabase schema | migrations `0001`-`0011` | ✅ `0001`-`0011`, all applied and confirmed live 2026-08-01 |
 | Supabase data | Real prod snapshot loaded (`scripts/migrate-data.mjs`, Phase 1) | ✅ Real snapshot loaded 2026-08-01, verified row-for-row against all 12 tables |
 | Secrets present | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` | **Only `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`** |
@@ -83,23 +83,50 @@ Confirmed neither is publicly accessible: `npx wrangler r2 bucket dev-url get <n
 `hdbs-public` is only ever served *through* the Worker (so the existing `/product_images/...` URL
 shape survives) and `hdbs-private` stays admin-gated.
 
-Buckets are currently **empty** — see step 4.
+Buckets were empty until step 4 — see below.
 
 ---
 
-## 4. 👤 Migrate real media into production R2
+## 4. ✅ Migrate real media into production R2 — DONE for what's rescuable
 
-Product images, business logo/hero/about, and studio gallery images currently exist **only on
-Hostinger's disk** (per `docs/phase-0-checklist.md`'s media-rescue section) and in
-`media-mirror/` locally. Staging's R2 buckets got populated by this session's live admin-UI uploads
-during testing — a handful of real images, not the full catalog.
+**Completed 2026-08-01.** Built `scripts/push-media-to-r2.mjs` — walks `media-mirror/`'s
+subdirectories and shells out to `wrangler r2 object put --remote` per file, matching the exact
+bucket/prefix layout `src/routes/media.ts` and `src/business.ts` already expect
+(`product_images/`, `business_logo/`, `business_hero/`, `business_about/`, `studio_images/` →
+public bucket; `capital_equipment_receipts/`, `business_documents/` → private bucket). Supports
+`--staging` to target the `-staging` buckets and a dry-run-by-default / `--write` gate, same
+pattern as `migrate-data.mjs`.
 
-- 👤🤖 Re-run `scripts/pull-media.ps1` against the *current* live Hostinger site first (catches
-  anything Suzi has uploaded since Phase 0 — the phase-0 checklist already flags this as a
-  pre-cutover step).
-- 🤖 Upload the full `media-mirror/` contents into production's `hdbs-public`/`hdbs-private` R2
-  buckets — this needs a small script (doesn't exist yet) since `migrate-data.mjs` only handles
-  Postgres rows, not binary files. Building this is in scope for this checklist, not yet done.
+One real bug caught before trusting it at scale: the first full run used
+`execFileSync(..., { shell: true })` with an argument array, which Node flags as a genuine
+injection-risk pattern (args aren't escaped in that combination) — surfaced as a deprecation
+warning, not a functional failure that run. Fixed by switching to `execSync` with one manually
+quoted command string (the injection risk doesn't actually apply here, since every argument comes
+from this script's own fixed bucket names or `fs.readdirSync()` over `media-mirror/`, never user
+input — but using the tool built for that pattern is still the right call). Verified the fix with
+a full re-run before trusting the original run's result.
+
+**Result: 159 product images + 1 business logo uploaded to BOTH `hdbs-public` (production) and
+`hdbs-public-staging`** (staging's bucket previously only had a handful of images from this
+session's live admin-UI testing — now has the full real catalog too), spot-checked byte-for-byte
+identical to the local file via `wrangler r2 object get`. Zero failures on either run.
+
+**What's still not migrated, because it was never rescued from Hostinger in the first place**
+(this is `docs/phase-0-checklist.md`'s own long-standing gap, not something this step introduced):
+`business_hero/`, `business_about/`, `studio_images/` (confirmed empty/unreferenced in production
+per Phase 0), and — the real gap — `capital_equipment_receipts/` (13 real receipt files) and
+`business_documents/` (resale certificate, business license), which Phase 0's own checklist
+flagged as needing a manual hPanel File Manager download (FTP couldn't reach above the webroot).
+**Still worth doing before cutover** if those documents matter for tax/compliance records, but it's
+a manual step for the account owner, not something this script can close.
+
+- 👤 Re-run `scripts/pull-media.ps1` against the *current* live Hostinger site once more, close to
+  cutover, to catch anything Suzi has uploaded since Phase 0 (idempotent, safe to repeat) — then
+  re-run `node scripts/push-media-to-r2.mjs --write` to sync any new files.
+- 👤 If the capital-equipment receipts / business documents matter: pull them via hPanel File
+  Manager (per `docs/phase-0-checklist.md` step 1's remaining-gap section), drop them into
+  `media-mirror/capital_equipment_receipts/` and `media-mirror/business_documents/`, then run this
+  script again — it will pick them up automatically once those directories exist.
 
 ---
 
@@ -190,7 +217,9 @@ Only after every item above is confirmed:
 - [x] Production Supabase has the real, current data snapshot, `0009` normalized (done 2026-08-01,
       independently re-verified row-for-row and by absolute-URL count)
 - [x] `hdbs-public`/`hdbs-private` R2 buckets exist, neither public (done 2026-08-01)
-- [ ] Full media migrated into those buckets (step 4 — still empty)
+- [x] Real media migrated (159 product images + 1 logo, done 2026-08-01, byte-verified); studio/
+      hero/about images and capital-equipment receipts/business docs remain a manual pull from
+      Hostinger (never rescued in Phase 0 — optional, owner's call before cutover)
 - [ ] All 13 secrets set on production with **live** (not sandbox) payment values;
       `npm run check:secrets` passes
 - [ ] `npx wrangler deploy` (production) succeeds; a full browser walkthrough against the

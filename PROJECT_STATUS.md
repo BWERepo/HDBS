@@ -5,6 +5,39 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 9 checklist step 4 done: real media migrated to R2)
+
+**New script `scripts/push-media-to-r2.mjs`** — the piece `migrate-data.mjs` deliberately never
+covered (Postgres rows only, no binary files). Walks `media-mirror/`'s subdirectories, shells out to
+`wrangler r2 object put --remote` per file, matching `src/routes/media.ts`/`src/business.ts`'s
+exact bucket/prefix expectations. `--staging` flag to target either environment, dry-run-by-default
+like `migrate-data.mjs`.
+
+**One real bug caught before trusting it at scale**: the first version combined
+`execFileSync(..., {shell:true})` with an argument array — a genuine Node-flagged injection-risk
+pattern, even though every arg here is fixed/trusted (bucket names, `media-mirror/` file listings,
+never user input). Switched to `execSync` with a single manually-quoted command string, the
+pattern actually built for that combination. Re-ran the full batch to confirm the fix before
+trusting the first run's "160 uploaded, 0 failed" result.
+
+**Result, verified not just trusted**: 159 product images + 1 business logo uploaded to BOTH
+`hdbs-public` (production) and `hdbs-public-staging`, spot-checked byte-for-byte identical to the
+local file via `wrangler r2 object get`. Staging's bucket previously only had a handful of images
+from this session's live admin-UI testing — now has the full real catalog too, as a useful side
+effect of building this for production.
+
+**What's still missing, not new**: `business_hero`/`business_about`/`studio_images` (confirmed
+empty/unreferenced in production, per Phase 0) and — the real gap — 13 capital-equipment receipts
+and the business license/resale-certificate docs, which Phase 0's checklist already flagged as
+needing a manual hPanel File Manager pull (FTP can't reach above the webroot). Still the account
+owner's call whether that matters before cutover; the script will pick them up automatically once
+`media-mirror/capital_equipment_receipts/`/`business_documents/` exist.
+
+`npm test`: 497/497 (unaffected — this is an ops script, not application code). `tsc --noEmit`:
+clean.
+
+---
+
 ## Current state — 2026-08-01 (Phase 9 checklist step 3 done: production R2 buckets created)
 
 `npx wrangler r2 bucket create hdbs-public`/`hdbs-private` — both didn't exist before this (per the
