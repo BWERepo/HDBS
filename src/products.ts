@@ -89,6 +89,9 @@ export interface ProductsStore {
   /** No R2 cleanup on delete — matches api/products.php's DELETE, which never removed image files. */
   deleteProduct(id: string): Promise<void>;
   putProductImage(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
+  /** Ports products_csv.php's `mode=replace` import: `DELETE FROM products` with no R2 cleanup,
+   *  same reasoning as deleteProduct above. */
+  deleteAllProducts(): Promise<void>;
 }
 
 export interface ProductResult<T = Record<string, never>> {
@@ -311,6 +314,9 @@ export class ProductsStoreFake implements ProductsStore {
   }
   async deleteProduct(id: string): Promise<void> {
     this.rows = this.rows.filter((r) => r.id !== id);
+  }
+  async deleteAllProducts(): Promise<void> {
+    this.rows = [];
   }
   async putProductImage(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
     this.images.set(key, { bytes, contentType });

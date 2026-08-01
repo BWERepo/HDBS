@@ -3,7 +3,9 @@
 // in-person-paid confirmation (via a curl to send_confirm.php in the PHP) — NOT
 // api/order_confirm_email.php's sendOrderConfirmation(), which is a separate, simpler template
 // used only by the Square/PayPal payment processors. That second template is ported further down
-// this file (buildPaymentReceivedEmailHtml/sendPaymentReceivedEmail) now that payments.ts exists.
+// this file (buildPaymentReceivedEmailHtml/sendPaymentReceivedEmail) now that payments.ts exists,
+// alongside a third (buildRefundEmailHtml/sendRefundEmail, porting refund.php's inline template)
+// now that src/refunds.ts exists.
 //
 // notify.php (internal "New Order Received" alert to Suzi) and order_confirm.php (a third,
 // client-triggered variant) are still deferred — both are secondary to the customer-facing
@@ -312,4 +314,103 @@ export async function sendPaymentReceivedEmail(
     status: result.status,
     body: result.html,
   });
+}
+
+// ── Refund confirmation (api/refund.php's sendRefundEmail) ──
+// Unlike the two templates above, this one is skipped entirely (no email at all, not even to the
+// admin) when the order has no customer email — matches refund.php's `if (!$customerEmail) return
+// false;` exactly, since a refund with nobody to notify has nothing useful to send.
+
+export interface RefundOrderSummary {
+  id: string;
+  customer_name: string | null;
+  customer_email: string | null;
+}
+
+const REFUND_ADMIN_INBOX = "handmadedesignsbysuzi@yahoo.com";
+const REFUND_BIZ_URL = "https://handmadedesignsbysuzi.com";
+
+/** Ports refund.php's sendRefundEmail() inline HTML template. `payMethod` drives the "how this
+ *  was refunded" line: original card for Square, the PayPal/Venmo account for those, else a
+ *  generic "via <method>" for Cash/Check. */
+export function buildRefundEmailHtml(
+  bizName: string,
+  bizEmail: string,
+  order: RefundOrderSummary,
+  amount: number,
+  reason: string,
+  payMethod: string,
+  refundId: string | null,
+  remaining: number
+): string {
+  const bizUrlDisplay = REFUND_BIZ_URL.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const firstName = (order.customer_name ?? "").trim().split(" ")[0] ?? "";
+
+  let viaLine: string;
+  if (payMethod === "Credit Card" || payMethod === "Square") {
+    viaLine = `Refunded to your original card${refundId ? ` (Square ref: ${refundId})` : ""}`;
+  } else if (payMethod === "PayPal" || payMethod === "Venmo") {
+    viaLine = `Refunded to your ${payMethod} account${refundId ? ` (${payMethod} ref: ${refundId})` : ""}`;
+  } else {
+    viaLine = `Refunded via ${payMethod}`;
+  }
+  const balanceLine =
+    remaining > 0.004
+      ? `<div style='margin-top:6px;color:#6b6040;font-size:.85rem'>Remaining order balance: $${remaining.toFixed(2)}</div>`
+      : `<div style='margin-top:6px;color:#2e7d32;font-size:.85rem'>This completes the refund for this order.</div>`;
+
+  return `<!DOCTYPE html><html><head><meta charset='UTF-8'></head>
+<body style='margin:0;padding:20px;background:#fffdf0;font-family:Arial,sans-serif'>
+<div style='max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e8e0b8'>
+  <div style='background:#a07810;padding:28px;text-align:center'>
+    <h1 style='color:#fff;margin:0;font-size:1.4rem'>${bizName}</h1>
+    <p style='color:#fdf3d0;margin:.4rem 0 0;font-size:.9rem'>Refund Confirmation</p>
+  </div>
+  <div style='padding:28px'>
+    <p>Hi ${firstName},</p>
+    <p>We've processed a refund for your order.</p>
+    <div style='background:#fffdf0;border-radius:8px;padding:16px;margin:20px 0;border:1px solid #e8e0b8'>
+      <div style='font-size:.7rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:6px'>Order</div>
+      <div style='margin-bottom:14px'><strong>#${order.id}</strong></div>
+      <div style='font-size:.7rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:6px'>Refund Amount</div>
+      <div style='margin-bottom:14px;font-size:1.3rem;font-weight:700;color:#a07810'>$${amount.toFixed(2)}</div>
+      <div style='font-size:.7rem;font-weight:700;text-transform:uppercase;color:#a07810;margin-bottom:6px'>Reason</div>
+      <div style='margin-bottom:14px'>${reason}</div>
+      <div style='font-size:.85rem;color:#2d2220'>${viaLine}</div>
+      ${balanceLine}
+    </div>
+    <p style='color:#6b6040'>If you have any questions about this refund, just reply to this email.</p>
+    <p><em style='color:#a07810'>— Susan &#127864;</em></p>
+    <div style='margin-top:20px;padding-top:16px;border-top:1px solid #e8e0b8;font-size:.8rem;color:#6b6040;text-align:center'>
+      <div>Website: <a href='${REFUND_BIZ_URL}' style='color:#a07810;text-decoration:underline'>${bizUrlDisplay}</a></div>
+      <div>Email: <a href='mailto:${bizEmail}' style='color:#a07810;text-decoration:underline'>${bizEmail}</a></div>
+    </div>
+  </div>
+</div></body></html>`;
+}
+
+/** Ports refund.php's sendRefundEmail(): builds + sends + logs, or silently does nothing if the
+ *  order has no customer email. Never throws — a refund that already happened must not be undone
+ *  by an email hiccup. Returns whether an email was actually sent, matching the PHP's `$email_sent`
+ *  response field. */
+export async function sendRefundEmail(
+  store: Pick<EmailOrderStore, "logEmail">,
+  sender: EmailSender,
+  bizName: string,
+  bizEmail: string,
+  order: RefundOrderSummary,
+  amount: number,
+  reason: string,
+  payMethod: string,
+  refundId: string | null,
+  remaining: number
+): Promise<boolean> {
+  const customerEmail = (order.customer_email ?? "").trim();
+  if (!customerEmail) return false;
+
+  const html = buildRefundEmailHtml(bizName, bizEmail, order, amount, reason, payMethod, refundId, remaining);
+  const subject = `Refund Processed — Order #${order.id}`;
+  const result = await sender.send([customerEmail, REFUND_ADMIN_INBOX], subject, html);
+  await store.logEmail({ emailType: "Refund Notification", sentTo: customerEmail, orderId: order.id, subject, status: result.status, body: result.html });
+  return result.sent;
 }

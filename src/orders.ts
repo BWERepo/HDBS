@@ -125,6 +125,14 @@ export interface OrdersStore {
    *  practice — see src/payments.ts's webhook section for why. */
   findOrderBySquarePaymentId(value: string): Promise<{ id: string } | null>;
 
+  /** Ports paypal_payments.php's report query: every order with a non-empty paypal_capture_id,
+   *  optionally bounded by order_date, newest first, capped at 500. */
+  listPaypalCapturedOrders(begin: string, end: string): Promise<OrderRow[]>;
+  /** Ports square_payments.php's tax/refund join: given a batch of Square payment ids (as
+   *  returned by Square's own List Payments call), the tax_amount/refunded_amount our own orders
+   *  table has on file for each — Square never itemizes tax, so our DB is authoritative for it. */
+  getTaxAndRefundBySquarePaymentIds(paymentIds: string[]): Promise<Map<string, { tax: number; refunded: number }>>;
+
   getProduct(id: string): Promise<{ name: string; price: number } | null>;
   /** Atomic: true if stock was available and decremented, false if insufficient (no-op on false). */
   decrementStock(id: string, qty: number): Promise<boolean>;
@@ -222,6 +230,7 @@ export type OrderUpdatableFields = Pick<
   | "paypal_capture_id"
   | "paypal_surcharge"
   | "confirm_sent_at"
+  | "refunded_amount"
 >;
 
 export interface OrdersResult<T = Record<string, never>> {
@@ -495,6 +504,23 @@ export class OrdersStoreFake implements OrdersStore {
   async findOrderBySquarePaymentId(value: string): Promise<{ id: string } | null> {
     const match = this.orders.find((o) => o.square_payment_id === value);
     return match ? { id: match.id } : null;
+  }
+  async listPaypalCapturedOrders(begin: string, end: string): Promise<OrderRow[]> {
+    return this.orders
+      .filter((o) => !!o.paypal_capture_id)
+      .filter((o) => !begin || (o.order_date ?? "") >= begin)
+      .filter((o) => !end || (o.order_date ?? "") <= end)
+      .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
+      .slice(0, 500);
+  }
+  async getTaxAndRefundBySquarePaymentIds(paymentIds: string[]): Promise<Map<string, { tax: number; refunded: number }>> {
+    const map = new Map<string, { tax: number; refunded: number }>();
+    for (const o of this.orders) {
+      if (o.square_payment_id && paymentIds.includes(o.square_payment_id)) {
+        map.set(o.square_payment_id, { tax: Number(o.tax_amount ?? 0), refunded: Number(o.refunded_amount ?? 0) });
+      }
+    }
+    return map;
   }
 
   async getProduct(id: string): Promise<{ name: string; price: number } | null> {

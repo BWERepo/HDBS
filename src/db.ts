@@ -28,6 +28,8 @@ import type { StudioStore, StudioItemRow, StudioInquiryRow, StudioNoteRow } from
 import type { CapitalEquipmentStore, CapitalEquipmentRow, BusinessDocsFileStore } from "./business";
 import type { EmailLogStore, EmailLogRow } from "./ops";
 import type { EmailOrderStore, OrderForConfirmation, OrderItemForConfirmation } from "./email";
+import type { RefundsStore, RefundRow } from "./refunds";
+import type { DbBackupStore } from "./db-backup";
 
 export function createDb(env: Env): SupabaseClient {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -154,6 +156,11 @@ export class SupabaseProductsStore implements ProductsStore {
     checkError("deleteProduct", error);
   }
 
+  async deleteAllProducts(): Promise<void> {
+    const { error } = await this.db.from("products").delete().not("id", "is", null);
+    checkError("deleteAllProducts", error);
+  }
+
   putProductImage(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
     return r2Put(this.r2, key, bytes, contentType);
   }
@@ -239,6 +246,30 @@ export class SupabaseOrdersStore implements OrdersStore {
     const { data, error } = await this.db.from("orders").select("id").eq("square_payment_id", value).maybeSingle();
     checkError("findOrderBySquarePaymentId", error);
     return data ? { id: data.id as string } : null;
+  }
+
+  async listPaypalCapturedOrders(begin: string, end: string): Promise<OrderRow[]> {
+    let query = this.db
+      .from("orders")
+      .select("id, order_date, created_at, customer_email, payment_method, total, tax_amount, transaction_fee, refunded_amount, paypal_capture_id")
+      .not("paypal_capture_id", "is", null)
+      .neq("paypal_capture_id", "");
+    if (begin) query = query.gte("order_date", begin);
+    if (end) query = query.lte("order_date", end);
+    const { data, error } = await query.order("created_at", { ascending: false }).limit(500);
+    checkError("listPaypalCapturedOrders", error);
+    return (data ?? []) as OrderRow[];
+  }
+
+  async getTaxAndRefundBySquarePaymentIds(paymentIds: string[]): Promise<Map<string, { tax: number; refunded: number }>> {
+    const map = new Map<string, { tax: number; refunded: number }>();
+    if (paymentIds.length === 0) return map;
+    const { data, error } = await this.db.from("orders").select("square_payment_id, tax_amount, refunded_amount").in("square_payment_id", paymentIds);
+    checkError("getTaxAndRefundBySquarePaymentIds", error);
+    for (const row of data ?? []) {
+      map.set(row.square_payment_id as string, { tax: Number(row.tax_amount ?? 0), refunded: Number(row.refunded_amount ?? 0) });
+    }
+    return map;
   }
 
   async getProduct(id: string): Promise<{ name: string; price: number } | null> {
@@ -331,6 +362,37 @@ export class SupabaseOrdersStore implements OrdersStore {
       .from("customer_login_attempts")
       .upsert({ email_hash: key, attempts, last_at: lastAt });
     checkError("setOrderRateLimit", error);
+  }
+}
+
+/** Wires refunds.ts's RefundsStore to the `refunds` table. */
+export class SupabaseRefundsStore implements RefundsStore {
+  constructor(private db: SupabaseClient) {}
+
+  async listRefundsForOrder(orderId: string): Promise<RefundRow[]> {
+    const { data, error } = await this.db
+      .from("refunds")
+      .select("id, order_id, amount, reason, method, square_refund_id, status, created_at")
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: false });
+    checkError("listRefundsForOrder", error);
+    return (data ?? []) as RefundRow[];
+  }
+
+  async insertRefund(row: Pick<RefundRow, "order_id" | "amount" | "reason" | "method" | "square_refund_id" | "status">): Promise<void> {
+    const { error } = await this.db.from("refunds").insert(row);
+    checkError("insertRefund", error);
+  }
+}
+
+/** Wires db-backup.ts's DbBackupStore to any of BACKUP_TABLES via a generic `select *`. */
+export class SupabaseDbBackupStore implements DbBackupStore {
+  constructor(private db: SupabaseClient) {}
+
+  async listTableRows(table: string): Promise<Record<string, unknown>[]> {
+    const { data, error } = await this.db.from(table).select("*");
+    checkError(`listTableRows(${table})`, error);
+    return (data ?? []) as Record<string, unknown>[];
   }
 }
 

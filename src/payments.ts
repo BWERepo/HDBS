@@ -191,6 +191,7 @@ export async function chargeOrderWithSquare(
 
   if (!charge.ok) {
     await store.releaseFromProcessing(orderId);
+    console.error("PAYMENT-FAIL", { orderId, locationId: squareLocationId, error: charge.message });
     return { ok: false, error: charge.message };
   }
   if (charge.status !== "COMPLETED") {
@@ -275,7 +276,10 @@ export async function createPaypalOrderForCheckout(
     description: `${bizName} order ${orderId}`,
     amounts: { subtotal: amounts.subtotal, shipping: amounts.shipping, tax: amounts.tax, surcharge, total },
   });
-  if (!created.ok) return { ok: false, error: created.message };
+  if (!created.ok) {
+    console.error("PP-CREATE-FAIL", { orderId, error: created.message });
+    return { ok: false, error: created.message };
+  }
 
   return { ok: true, data: { paypal_order_id: created.paypalOrderId, surcharge, total } };
 }
@@ -349,6 +353,7 @@ export async function capturePaypalOrderForCheckout(
   const captured = await gateway.captureOrder({ paypalOrderId, requestId: `cap-${orderId}` });
   if (!captured.ok) {
     await store.releaseFromProcessing(orderId);
+    console.error("PP-CAPTURE-FAIL", { orderId, paypalOrderId, error: captured.message });
     return { ok: false, error: captured.message };
   }
 
@@ -490,19 +495,37 @@ export async function handleSquareWebhookEvent(store: OrdersStore, event: Square
 export class FakeSquareGateway implements SquareGateway {
   calls: Parameters<SquareGateway["charge"]>[0][] = [];
   result: Awaited<ReturnType<SquareGateway["charge"]>> = { ok: true, paymentId: "sq_pay_1", status: "COMPLETED" };
+  refundCalls: Parameters<SquareGateway["refund"]>[0][] = [];
+  refundResult: Awaited<ReturnType<SquareGateway["refund"]>> = { ok: true, refundId: "sq_refund_1", status: "COMPLETED" };
+  listPaymentsResult: Awaited<ReturnType<SquareGateway["listPayments"]>> = { ok: true, payments: [], cursor: null };
   async charge(params: Parameters<SquareGateway["charge"]>[0]): ReturnType<SquareGateway["charge"]> {
     this.calls.push(params);
     return this.result;
+  }
+  async refund(params: Parameters<SquareGateway["refund"]>[0]): ReturnType<SquareGateway["refund"]> {
+    this.refundCalls.push(params);
+    return this.refundResult;
+  }
+  async listPayments(): ReturnType<SquareGateway["listPayments"]> {
+    return this.listPaymentsResult;
   }
 }
 
 export class FakePayPalGateway implements PayPalGateway {
   createResult: Awaited<ReturnType<PayPalGateway["createOrder"]>> = { ok: true, paypalOrderId: "PP-ORDER-1" };
   captureResult: Awaited<ReturnType<PayPalGateway["captureOrder"]>> = { ok: true, captureId: "PP-CAP-1", status: "COMPLETED", feeUsd: 0.5, fundingSource: "PayPal" };
+  refundResult: Awaited<ReturnType<PayPalGateway["refundCapture"]>> = { ok: true, refundId: "pp_refund_1", status: "COMPLETED" };
+  credentialsValid = true;
   async createOrder(): ReturnType<PayPalGateway["createOrder"]> {
     return this.createResult;
   }
   async captureOrder(): ReturnType<PayPalGateway["captureOrder"]> {
     return this.captureResult;
+  }
+  async refundCapture(): ReturnType<PayPalGateway["refundCapture"]> {
+    return this.refundResult;
+  }
+  async verifyCredentials(): Promise<boolean> {
+    return this.credentialsValid;
   }
 }

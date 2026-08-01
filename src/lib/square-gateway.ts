@@ -24,8 +24,43 @@ export type SquareChargeResult =
   | { ok: true; paymentId: string; status: string }
   | { ok: false; message: string };
 
+export interface SquareRefundParams {
+  paymentId: string;
+  idempotencyKey: string;
+  amountCents: number;
+  reason: string;
+}
+
+export type SquareRefundResult = { ok: true; refundId: string; status: string } | { ok: false; message: string };
+
+export interface SquareListPaymentsParams {
+  locationId: string;
+  beginTime?: string;
+  endTime?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface SquarePaymentSummary {
+  id: string;
+  createdAt: string;
+  status: string;
+  amountCents: number;
+  tipCents: number;
+  feeCents: number;
+  note: string;
+  cardBrand: string;
+  last4: string;
+  buyerEmail: string;
+}
+
+export type SquareListPaymentsResult = { ok: true; payments: SquarePaymentSummary[]; cursor: string | null } | { ok: false; message: string };
+
 export interface SquareGateway {
   charge(params: SquareChargeParams): Promise<SquareChargeResult>;
+  refund(params: SquareRefundParams): Promise<SquareRefundResult>;
+  /** Ports square_payments.php's List Payments call (also reused for its backfill_fees action). */
+  listPayments(params: SquareListPaymentsParams): Promise<SquareListPaymentsResult>;
 }
 
 /** Ports process_payment.php's $codeMap exactly, including the fallback chain (mapped message ->
@@ -80,6 +115,98 @@ export class LiveSquareGateway implements SquareGateway {
       return { ok: false, message };
     }
     return { ok: true, paymentId: payment.id, status: payment.status };
+  }
+
+  async refund(params: SquareRefundParams): Promise<SquareRefundResult> {
+    let json: Record<string, unknown> | null;
+    try {
+      const res = await fetch(`${this.baseUrl}/v2/refunds`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          "Content-Type": "application/json",
+          "Square-Version": "2024-01-18",
+        },
+        body: JSON.stringify({
+          idempotency_key: params.idempotencyKey,
+          amount_money: { amount: params.amountCents, currency: "USD" },
+          payment_id: params.paymentId,
+          reason: params.reason.slice(0, 190),
+        }),
+      });
+      json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    } catch {
+      return { ok: false, message: "Square refund failed: network error" };
+    }
+
+    const refund = json?.refund as { id?: string; status?: string } | undefined;
+    if (!json || !refund) {
+      const errors = json?.errors as { detail?: string }[] | undefined;
+      return { ok: false, message: `Square refund failed: ${errors?.[0]?.detail ?? "Unknown Square error"}` };
+    }
+    return { ok: true, refundId: refund.id ?? "", status: refund.status ?? "PENDING" };
+  }
+
+  async listPayments(params: SquareListPaymentsParams): Promise<SquareListPaymentsResult> {
+    const qs = new URLSearchParams({ location_id: params.locationId, sort_order: "DESC", limit: String(params.limit ?? 50) });
+    if (params.beginTime) qs.set("begin_time", params.beginTime);
+    if (params.endTime) qs.set("end_time", params.endTime);
+    if (params.cursor) qs.set("cursor", params.cursor);
+
+    let res: Response;
+    let json: Record<string, unknown> | null;
+    try {
+      res = await fetch(`${this.baseUrl}/v2/payments?${qs.toString()}`, {
+        headers: { Authorization: `Bearer ${this.token}`, "Square-Version": "2024-01-18" },
+      });
+      json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    } catch {
+      return { ok: false, message: "cURL error: network error" };
+    }
+
+    if (!json) return { ok: false, message: "Empty response from Square." };
+    if (res.status === 401 || res.status === 403) {
+      return {
+        ok: false,
+        message:
+          "Square authorization error — your token needs PAYMENTS_READ permission. In Square Developer Dashboard: select your app → OAuth → enable PAYMENTS_READ scope → regenerate token → update the SQUARE_TOKEN secret.",
+      };
+    }
+    if (res.status !== 200) {
+      const errors = json.errors as { detail?: string }[] | undefined;
+      return { ok: false, message: `Square error (${res.status}): ${errors?.[0]?.detail ?? `HTTP ${res.status}`}` };
+    }
+
+    type RawPayment = {
+      id?: string;
+      created_at?: string;
+      status?: string;
+      total_money?: { amount?: number };
+      tip_money?: { amount?: number };
+      processing_fee?: { amount_money?: { amount?: number } }[];
+      note?: string;
+      card_details?: { card?: { card_brand?: string; last_4?: string } };
+      buyer_email_address?: string;
+    };
+    const rawPayments = (json.payments as RawPayment[] | undefined) ?? [];
+    const payments: SquarePaymentSummary[] = rawPayments.map((p) => {
+      let feeCents = 0;
+      for (const pf of p.processing_fee ?? []) feeCents += pf.amount_money?.amount ?? 0;
+      return {
+        id: p.id ?? "",
+        createdAt: p.created_at ?? "",
+        status: p.status ?? "",
+        amountCents: p.total_money?.amount ?? 0,
+        tipCents: p.tip_money?.amount ?? 0,
+        feeCents,
+        note: p.note ?? "",
+        cardBrand: p.card_details?.card?.card_brand ?? "",
+        last4: p.card_details?.card?.last_4 ?? "",
+        buyerEmail: p.buyer_email_address ?? "",
+      };
+    });
+
+    return { ok: true, payments, cursor: (json.cursor as string | undefined) ?? null };
   }
 }
 

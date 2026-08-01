@@ -31,9 +31,22 @@ export type PayPalCaptureResult =
   | { ok: true; captureId: string; status: string; feeUsd: number; fundingSource: "PayPal" | "Venmo" }
   | { ok: false; message: string };
 
+export interface PayPalRefundParams {
+  captureId: string;
+  requestId: string;
+  amount: number;
+  noteToPayer: string;
+}
+
+export type PayPalRefundResult = { ok: true; refundId: string; status: string } | { ok: false; message: string };
+
 export interface PayPalGateway {
   createOrder(params: PayPalCreateParams): Promise<PayPalCreateResult>;
   captureOrder(params: PayPalCaptureParams): Promise<PayPalCaptureResult>;
+  refundCapture(params: PayPalRefundParams): Promise<PayPalRefundResult>;
+  /** Ports paypal_status.php's live credential check: a real OAuth2 token exchange, proving the
+   *  configured client id/secret actually work, without ever exposing their values. */
+  verifyCredentials(): Promise<boolean>;
 }
 
 function money(n: number): string {
@@ -46,6 +59,11 @@ export class LivePayPalGateway implements PayPalGateway {
     private secret: string,
     private baseUrl: string
   ) {}
+
+  async verifyCredentials(): Promise<boolean> {
+    if (!this.clientId || !this.secret) return false;
+    return (await this.token()) !== null;
+  }
 
   /** OAuth2 client-credentials token. Returns null on failure — ports pp_token()'s "missing
    *  credentials or a non-200 response both just mean no token" behavior. */
@@ -155,6 +173,40 @@ export class LivePayPalGateway implements PayPalGateway {
     const fundingSource: "PayPal" | "Venmo" = paymentSource?.venmo ? "Venmo" : "PayPal";
 
     return { ok: true, captureId: capture.id ?? "", status: capStatus, feeUsd, fundingSource };
+  }
+
+  async refundCapture(params: PayPalRefundParams): Promise<PayPalRefundResult> {
+    const token = await this.token();
+    if (!token) return { ok: false, message: "PayPal is not configured — cannot process refund." };
+
+    let json: Record<string, unknown> | null;
+    let status: number;
+    try {
+      const res = await fetch(`${this.baseUrl}/v2/payments/captures/${encodeURIComponent(params.captureId)}/refund`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "PayPal-Request-Id": params.requestId,
+        },
+        body: JSON.stringify({
+          amount: { value: money(params.amount), currency_code: "USD" },
+          note_to_payer: params.noteToPayer.slice(0, 250),
+        }),
+      });
+      status = res.status;
+      json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    } catch {
+      return { ok: false, message: "PayPal refund failed: network error" };
+    }
+
+    const refundId = json?.id as string | undefined;
+    if ((status !== 200 && status !== 201) || !refundId) {
+      const details = json?.details as { description?: string }[] | undefined;
+      const message = details?.[0]?.description ?? (json?.message as string | undefined) ?? "Unknown PayPal error";
+      return { ok: false, message: `PayPal refund failed: ${message}` };
+    }
+    return { ok: true, refundId, status: (json?.status as string | undefined) ?? "COMPLETED" };
   }
 }
 

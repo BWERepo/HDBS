@@ -28,6 +28,13 @@ import { opsRoute } from "./routes/ops";
 import { emailRoute } from "./routes/email";
 import { mediaRoute } from "./routes/media";
 import { paymentsRoute } from "./routes/payments";
+import { refundsRoute } from "./routes/refunds";
+import { paymentReportsRoute } from "./routes/payment-reports";
+import { productsCsvRoute } from "./routes/products-csv";
+import { shippingTrackingRoute } from "./routes/shipping-tracking";
+import { githubLogRoute } from "./routes/github-log";
+import { repoStatsRoute } from "./routes/repo-stats";
+import { dbBackupRoute } from "./routes/db-backup";
 import { renderStorefront } from "./shell";
 import { createDb, SupabaseSettingsStore } from "./db";
 import version from "../version.json";
@@ -51,6 +58,13 @@ app.route("/", opsRoute);
 app.route("/", emailRoute);
 app.route("/", mediaRoute);
 app.route("/", paymentsRoute);
+app.route("/", refundsRoute);
+app.route("/", paymentReportsRoute);
+app.route("/", productsCsvRoute);
+app.route("/", shippingTrackingRoute);
+app.route("/", githubLogRoute);
+app.route("/", repoStatsRoute);
+app.route("/", dbBackupRoute);
 
 // Legacy bookmarks and cached links — carried over from .htaccess lines 8-10.
 app.get("/index.html", (c) => c.redirect("/", 301));

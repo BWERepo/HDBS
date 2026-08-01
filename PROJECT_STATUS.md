@@ -5,6 +5,110 @@
 
 ---
 
+## Current state — 2026-08-01 (The "smaller tail": every remaining PHP endpoint except the three deliberately dropped)
+
+**Every PHP endpoint identified in this session's full-migration audit is now either ported or a
+confirmed, deliberate drop.** Following the payments milestone, the entire remaining backlog was
+cleared in one continuous pass: `refund.php`, `paypal_payments.php`, `paypal_status.php`,
+`square_payments.php`, `products_csv.php`, `usps.php`/`validate_tracking.php`, `applog.php`,
+`github_log.php`, `repo_stats.php`, and `db_backup.php`. 84 new tests, 484/484 passing overall,
+typecheck clean, every route live-verified on staging (auth gates confirmed correct; no live
+credentials exist yet for Square/PayPal/GitHub/USPS, same gap as the payments milestone).
+
+**`refund.php`** (`src/refunds.ts`, `src/routes/refunds.ts`) — full/partial refund via a real
+Square refund (card orders), a real PayPal capture-refund (PayPal/Venmo orders), or a ledger-only
+entry for Cash/Check, plus a third confirmation-email template
+(`buildRefundEmailHtml`/`sendRefundEmail` in `email.ts`). `SquareGateway`/`PayPalGateway` (from the
+payments milestone) each gained a `refund`/`refundCapture` method, reusing the existing injection
+pattern rather than a new abstraction. One subtlety worth remembering: a Square/PayPal refund
+REJECTED by the processor does **not** get a ledger row at all (the PHP calls `fail()` before its
+`INSERT INTO refunds`) — the ledger only ever records refunds that actually went through.
+
+**Three admin payment-reporting screens** (`src/payment-reports.ts`,
+`src/routes/payment-reports.ts`) — `paypal_payments.php` (sourced entirely from our own orders
+table, no live API call needed), `paypal_status.php` (a live OAuth credential check that never
+exposes the credential values themselves — `PayPalGateway` gained `verifyCredentials(): Promise
+<boolean>` for exactly this), and `square_payments.php`'s **read-only reporting half** (a live
+Square List Payments call joined against our own orders table for tax/refund status, since Square
+never itemizes tax and refunds are issued through our own admin, not Square's). Square's
+`backfill_fees` POST action — a historical-data maintenance tool for orders that predate the async
+webhook going live — was deliberately NOT ported; new orders get their fee from the webhook going
+forward, so this only matters for pre-webhook historical orders, a one-time cleanup job rather than
+ongoing reporting surface.
+
+**`products_csv.php`** (`src/lib/csv.ts`, `src/products-csv.ts`, `src/routes/products-csv.ts`) —
+export and merge/replace import. Workers has no `fgetcsv()`/`fputcsv()` equivalent, so this
+required a real (if minimal) RFC 4180 parser/serializer from scratch — real product descriptions
+routinely contain commas, so a naive `split(",")` genuinely wasn't viable. Two PHP `!empty()`
+subtleties caught by reading the source closely rather than assuming: a present-but-**blank**
+`sell` CSV cell casts to `(int)'' = 0` (not-for-sale), but an **entirely absent** `sell` column
+defaults to 1 (for-sale) — array_combine() always sets the key when the column exists, even for a
+blank cell, so the PHP's `?? 1` fallback only ever fires when the column is missing outright. And
+`cogm`'s `!empty()` treats a literal `"0"` cell the same as a blank one (falls back to the
+price-based default), which a naive JS truthy check on the string `"0"` would get backwards (a
+non-empty string is truthy in JS). Both are covered by dedicated tests.
+
+**`usps.php`/`validate_tracking.php`** (`src/lib/usps-gateway.ts`, `src/shipping-tracking.ts`,
+`src/routes/shipping-tracking.ts`) — live USPS Tracking API v3 lookup, same gateway-injection
+pattern as Square/PayPal. No sandbox/live split to resolve here at all (USPS has no sandbox
+tracking data reachable with this app's product tier, per the PHP's own header comment — both
+environments always call the real API).
+
+**`applog.php`** — not an HTTP endpoint at all, just a shared PHP logging helper
+(`applog()`/`dbg()`/`pagelog()`) that other files `require_once`. "Porting" it meant adding the
+missing `console.error(...)` calls (visible via `wrangler tail`, the Workers-native equivalent of
+a log file) at the failure points in `payments.ts`/`refunds.ts` that called `applog()` in the
+original — `PAYMENT-FAIL`, `PP-CREATE-FAIL`, `PP-CAPTURE-FAIL`, `REFUND-FAIL` — matching the
+original's context tags so a future `wrangler tail` session reads the same way the old log files
+did. The admin-facing log *viewer* (admin.php's `email_log`/`deploy_log`/`app_log`/`github_log`
+actions) remains a separate, still-TODO item in `routes/admin.ts`.
+
+**`github_log.php`/`repo_stats.php`** (`src/lib/github-gateway.ts`, `src/github-log.ts`,
+`src/repo-stats.ts`, `src/routes/github-log.ts`, `src/routes/repo-stats.ts`) — the admin "Change
+History" screen. `github_log.php` ported closely: `curl_multi`'s parallel per-commit file-count
+fetches become `Promise.all`, and the PHP's 10-minute file cache becomes Cloudflare's Cache API
+(`caches.default`) at the route layer — same intent (don't hammer GitHub's API on every admin page
+load), Workers-native mechanism. `repo_stats.php` needed a genuine re-architecture, not a literal
+port: it scanned the **live deployed directory** on Hostinger (`RecursiveDirectoryIterator` over
+`public_html`) for file/line counts, and a Worker has no filesystem to walk, deployed or otherwise.
+Replaced with GitHub's recursive git-tree API for file listing (one call) and
+`raw.githubusercontent.com` fetches for line counts, capped at 400 files scanned to bound
+subrequests per request — large enough to cover this codebase's real file count today.
+
+**`db_backup.php`** (`src/db-backup.ts`, `src/routes/db-backup.ts`) — also a genuine
+re-architecture, not a literal port: the PHP built a *runnable MySQL dump* (`SHOW CREATE TABLE` +
+`INSERT` statements), a format meaningless against Supabase's Postgres, and a Worker has no
+`pg_dump` binary to shell out to for a real equivalent. Replaced with a JSON export of every row in
+every one of the 20 tables `supabase/migrations/*.sql` creates — not a re-runnable script, but the
+same underlying guarantee (a portable snapshot of every row), which is what a backup actually
+needs to provide. **Scope deliberately narrower than the PHP in one way**: only the `?download=1`
+mode is ported (token-gated direct response) — the PHP's other mode emails the dump as an
+attachment via `sendEmailWithAttachment()`, and this codebase's `EmailSender` abstraction
+(`src/lib/email-sender.ts`) has no attachment support yet (nothing else ported so far has needed
+it). Shipping a fake "emailed" mode that claims an attachment exists when it doesn't would be
+actively misleading, so it's deferred rather than half-built — and download is the mode the PHP's
+own comment already calls out as the one that actually matters ("the only way to get the dump text
+at all," for local tooling like the `/BWEHDBSBackup` skill). Reuses the already-ported
+`backup_token` auto-generation in `settings.ts` (already in `AUTO_TOKEN_KEYS`) rather than
+reimplementing that logic.
+
+**Three product decisions confirmed by the user before any of this was built** (github_log.php,
+repo_stats.php, db_backup.php: port all three, not drop) — these are all genuinely low-stakes
+admin/dev conveniences, so the recommendation each time was "drop, since the platform's own tooling
+already covers this," but the user chose to keep all three working on the new stack.
+
+`npm test`: 484/484 passing (84 new across this batch: 35 payments + 14 refunds + 9 payment-reports
++ 8 csv + 14 products-csv + 7 shipping-tracking + 5 github-log + 5 repo-stats + 4 db-backup —
+tallies to more than 84 because some of those were already counted in the payments-milestone
+entry above; see individual test files for exact per-module counts). `tsc --noEmit`: clean.
+
+**Live-verified on redeployed staging, auth gates only** — same caveat as the payments milestone:
+Square/PayPal/GitHub/USPS credentials are still unset on staging, so every route was confirmed to
+fail gracefully (401/403/"not configured") rather than crash, not exercised end-to-end against a
+real external API. `refund.php` additionally confirmed against a real order id (401 unauthenticated
+on both GET and POST, matching the PHP's file-level `requireAdmin()`).
+
+
 ## Current state — 2026-08-01 (Payments: Square charge + PayPal create/capture + webhook)
 
 **The single largest remaining migration gap is now closed in code**: `api/process_payment.php`
