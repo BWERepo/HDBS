@@ -5,6 +5,46 @@
 
 ---
 
+## Incident — 2026-08-01: the third console error was a half-finished design, now completed
+
+After the two fixes below, the user's console still showed one 501 on every page load, on
+`/api/admin.php`. Traced it (not from `ui.js`'s `tryLoad()` — that only accounts for the two
+401s, both confirmed benign) to a completely separate call site:
+`public/index.html`'s leftover PHP-era inline script,
+`fetch('/api/admin.php',{action:'get_version'})`, firing unconditionally on every single page load
+to populate the four `.site-version-line` footers. `get_version` was never ported to
+`routes/admin.ts` — hence the 501 on every visit, forever, until now.
+
+**Root cause: `src/shell.ts`'s `ShellOptions.version` field was accepted but never used.** Its own
+doc comment already said *"rendered into window.BIZ_VERSION for the footer version lines"* — that
+was the intended design from Phase 2, correctly describing what should happen, but `buildTokens()`
+never actually emitted a `BIZ_VERSION` token. Since `index.html:1046`'s fetch script was never a
+`{{TOKEN}}` site (it's raw PHP-era JS, not a `<?php echo ?>` echo the shell generator ever touched),
+nothing forced this half-finished state to be visible until a real browser loaded the real page.
+
+**Fixed by finishing the design, not adding a new one**: `buildTokens()` now emits
+`BIZ_VERSION_JSON`; `index.html`'s `window.BIZ_NAME=...` script line now also sets
+`window.BIZ_VERSION={{BIZ_VERSION_JSON}}`; the dead fetch is replaced with a direct read of that
+global. Version is a build-time constant from `version.json` — there was never a reason for a
+live network round trip once the plan moved off the `major_version`/`minor_version` settings-row
+scheme, which is exactly the point PROJECT_STATUS.md's "Open decisions" section made weeks ago.
+
+**Also closed the open decision from Phase 0**: `version.json` was still the placeholder `0.1.0`.
+Queried the real value live (`major_version`/`minor_version` are both in `api/admin.php`'s own
+public-keys allowlist, so no admin token was needed): **4 / 27**. Set `version.json` to `4.27.0` so
+the footer doesn't look like a regression the moment a real visitor sees it.
+
+**Live-verified**: `window.BIZ_VERSION="4.27.0";` now present in the served HTML (confirmed with a
+cache-busted request after a transient edge-cache blip on the very first post-deploy request — the
+page correctly sends `Cache-Control: no-store`, so this was a one-off propagation timing artifact,
+not a caching misconfiguration); the dead `get_version` fetch string no longer appears anywhere in
+the response; `POST /api/admin.php {action:"get_version"}` still 501s as expected, since nothing
+calls it anymore.
+
+`npm test`: 367/367 passing (1 new). `tsc --noEmit`: clean.
+
+---
+
 ## Incident — 2026-08-01: every ported route was missing `success:true`/`false`, now fixed
 
 **A foundational bug in `src/lib/http.ts`'s `ok()`/`fail()`, present since Phase 0, affecting all

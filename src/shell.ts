@@ -105,6 +105,14 @@ export function buildTokens(biz: BizProfile, opts: ShellOptions): Record<string,
     BIZ_SHORT_NAME_JSON: jsonEmbed(biz.short_name),
     BIZ_EMAIL_JSON: jsonEmbed(biz.email),
     BIZ_LOGO_JSON: jsonEmbed(logoAbs),
+    // The half of this design that was never finished: `version` has been accepted as a
+    // ShellOptions field since Phase 2, but nothing ever turned it into a token, so
+    // public/index.html's leftover PHP-era `fetch('/api/admin.php',{action:'get_version'})` script
+    // (never a {{TOKEN}} site, so scripts/generate-shell.mjs had no reason to touch it) kept firing
+    // on every page load against an action that was never ported — a 501 on every single visit.
+    // Completing the intended design: version.json is a build-time constant, not something that
+    // needs a live round trip, so index.html now reads window.BIZ_VERSION directly instead.
+    BIZ_VERSION_JSON: jsonEmbed(opts.version),
 
     // Numeric / literal.
     BIZ_LOGO_WIDTH: String(opts.logoWidth ?? 748),

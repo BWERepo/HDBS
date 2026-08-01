@@ -33,6 +33,15 @@ describe("buildTokens", () => {
     expect(t.BIZ_NAME_JSON).toBe(JSON.stringify("Suzi's & Co"));
   });
 
+  // version.json is a build-time constant, not a live database row — this token replaces
+  // index.html's old PHP-era fetch('/api/admin.php',{action:'get_version'}), which fired a 501 on
+  // every page load because get_version was never ported (see this file's header on BIZ_VERSION).
+  it("embeds the version as window.BIZ_VERSION, no admin.php round trip needed", () => {
+    const biz = resolveBizProfile(null);
+    const t = buildTokens(biz, { origin: "https://handmadedesignsbysuzi.com", version: "3.14.0" });
+    expect(t.BIZ_VERSION_JSON).toBe(JSON.stringify("3.14.0"));
+  });
+
   it("neutralises a closing </script> inside a JSON-embedded value", () => {
     const biz = resolveBizProfile(JSON.stringify({ name: `</script><script>alert(1)</script>` }));
     const t = buildTokens(biz, opts);

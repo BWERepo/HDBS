@@ -78,7 +78,7 @@
   ]
 }
 </script>
-<script>window.BIZ_NAME={{BIZ_NAME_JSON}};window.BIZ_SHORT_NAME={{BIZ_SHORT_NAME_JSON}};window.BIZ_EMAIL={{BIZ_EMAIL_JSON}};</script>
+<script>window.BIZ_NAME={{BIZ_NAME_JSON}};window.BIZ_SHORT_NAME={{BIZ_SHORT_NAME_JSON}};window.BIZ_EMAIL={{BIZ_EMAIL_JSON}};window.BIZ_VERSION={{BIZ_VERSION_JSON}};</script>
 </head>
 <body>
 
@@ -1042,15 +1042,14 @@
 <script>document.addEventListener('DOMContentLoaded', function(){ TableKit.initAll(); });</script>
 <script>
 (function(){
-  function fmtDate(d){return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});}
-  fetch('/api/admin.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'get_version'})})
-  .then(function(r){return r.json();})
-  .then(function(d){
-    // Show when the version was actually last changed, not the current page-load time
-    var ds=d.updated_at?fmtDate(new Date(d.updated_at)):'unknown';
-    var txt='Version: '+(d.version||'1.0')+'   Date: '+ds;
-    document.querySelectorAll('.site-version-line').forEach(function(el){el.textContent=txt;});
-  }).catch(function(){});
+  // Version is a build-time constant (version.json, stamped as window.BIZ_VERSION above) rather
+  // than a live database row, so this no longer needs a network round trip at all. The old
+  // PHP-era version of this script fetched api/admin.php's get_version action on every single
+  // page load — an action this port never implemented, since the whole point of moving to
+  // version.json was to make version a git question, not a database question. That left a 501
+  // firing on every page load until this was rewritten to just read the value already on window.
+  var txt='Version: '+(window.BIZ_VERSION||'0.0.0');
+  document.querySelectorAll('.site-version-line').forEach(function(el){el.textContent=txt;});
 })();
 </script>
 </body>
