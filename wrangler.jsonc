@@ -13,6 +13,20 @@
   "compatibility_date": "2026-07-01",
   "compatibility_flags": ["nodejs_compat"],
 
+  // Regenerates public/js, public/css, and public/.well-known from the repo-root copies before
+  // EVERY `wrangler dev`/`wrangler deploy`, regardless of how it's invoked. This exists because
+  // a bare `npx wrangler deploy --env staging` (bypassing the npm script's `predeploy:staging`
+  // hook) shipped a `public/` directory whose `js/` had gone missing locally, silently deploying
+  // a staging site with every <script src> 404ing into the SPA shell's HTML — the browser then
+  // refused to execute it (strict MIME checking), and everything depending on that JS (TableKit,
+  // the admin nav's openMenu, etc.) broke. Caught only because the user manually loaded the page
+  // and saw the console errors — not by anything automated. This hook makes that class of drift
+  // structurally impossible: the assets directory is ALWAYS regenerated immediately before
+  // Wrangler reads it, no matter which command or script triggered the deploy.
+  "build": {
+    "command": "node scripts/sync-assets.mjs"
+  },
+
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",

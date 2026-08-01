@@ -5,6 +5,49 @@
 
 ---
 
+## Incident — 2026-08-01: a deploy I ran broke staging's JS, now fixed and hardened
+
+**Caused by this session, not a pre-existing bug.** While live-verifying the products write path
+above, I ran `npx wrangler deploy --env staging` directly instead of `npm run deploy:staging`. The
+latter's `predeploy:staging` npm hook runs `scripts/sync-assets.mjs`, which regenerates
+`public/js/`/`public/css/`/`public/.well-known/` from the repo-root copies; a bare `wrangler
+deploy` has no reason to know that step exists. At the moment I ran it, `public/js/` did not exist
+in this session's working directory at all (`public/css/` did, unexplained asymmetry — never
+root-caused, and it no longer matters given the fix below). Wrangler deploys are declarative, so
+that deploy overwrote whatever JS was live before with **none** — every `<script src="/js/...">`
+on the site 404'd into the SPA shell's HTML, and browsers correctly refused to execute it (`strict
+MIME type checking`), which cascaded into `TableKit is not defined`, `openMenu is not defined`,
+and a non-functional hamburger menu/admin nav. **The user hit this live** while attempting the
+manual product-upload verification I'd asked them to do, and sent a screenshot of the console
+errors — that's how it was caught, not by anything automated.
+
+**Fixed**: ran `npm run sync:assets` (17/17 JS files restored, confirmed identical to repo root),
+redeployed to staging, and curled 4 of the previously-broken files directly — all now return
+`Content-Type: text/javascript` with real JS content, not HTML.
+
+**Hardened so this can't recur, at the tool level rather than by convention**: added a `build`
+block to `wrangler.jsonc` —
+```jsonc
+"build": { "command": "node scripts/sync-assets.mjs" }
+```
+Wrangler runs this automatically before **every** `wrangler dev`/`wrangler deploy`, regardless of
+whether it's invoked via an npm script or bare `npx wrangler`. **Proved it, not just configured
+it**: deleted `public/js/` again on purpose, ran a bare `wrangler deploy --dry-run`, and confirmed
+the `[custom build]`-prefixed log showed `sync-assets` running automatically and `public/js/`
+existing again on disk afterward with all 17 files matching root, before I did a real (non-dry-run)
+redeploy. "Remember to use the right npm command" is no longer a requirement for a correct deploy.
+
+`npm test`: 360/360 (no test regressions — this was a deploy-process gap, not a code bug).
+`tsc --noEmit`: clean.
+
+**Lesson for future sessions**: this project's own established pattern — "a dry-run build proves
+the config resolves, not that the runtime behaves as assumed" (Phase 2's `run_worker_first` and
+immutable-headers bugs, both above) — applies to the asset pipeline too, not just runtime code.
+Always verify a real deployed page loads its own JS/CSS (a curl content-type check is enough), not
+just that `wrangler deploy` exits 0.
+
+---
+
 ## Current state — 2026-08-01 (Phase 3: product image upload — the write path)
 
 **`src/products.ts` extended with `saveProduct`/`deleteProduct` (POST/DELETE), completing
