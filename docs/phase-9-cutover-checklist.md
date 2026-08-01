@@ -168,12 +168,21 @@ point is identical secret *names*, deliberately different *values*.
   Resend's "restricted to only send emails" 401, not an "invalid API key" error — correctly scoped
   send-only, appropriate least-privilege for a production secret). **But the sending domain itself
   is NOT verified yet** — a real send attempt to `orders@mail.handmadedesignsbysuzi.com` (the exact
-  from-address `src/lib/email-sender.ts` uses) returned Resend's own `403
-  domain_not_verified`. Per `docs/phase-0-checklist.md` step 5: add `mail.handmadedesignsbysuzi.com`
-  in Resend's dashboard, add the DKIM/SPF records Resend gives you to Hostinger DNS — **on the
-  `mail.` subdomain only, never the apex SPF/MX records** (that's what runs Suzi's real mailbox).
-  Until this is done, every real send will 403; re-run the same test send to confirm before
-  considering this item closed.
+  from-address `src/lib/email-sender.ts` uses) returned Resend's own `403 domain_not_verified`.
+  **Blocked on cost, not just DNS**: Resend's free tier only covers one verified domain per
+  account, and this account already has one (a sibling project); a second domain needs a $20/mo
+  plan upgrade. User is deciding between paying, reusing the existing verified domain (less
+  on-brand — mail would come from a shared address), switching providers (e.g. Brevo — genuine free
+  tier, but needs a new `EmailSender` implementation since `LiveEmailSender` is Resend-specific
+  today), or deferring. **Decision as of 2026-08-01: defer.**
+  - 🤖 **`wrangler.jsonc`'s production `EMAIL_MODE` flipped from `"live"` back to `"sink"`**, and
+    redeployed — confirmed via the deploy output (`env.EMAIL_MODE ("sink")`). Reasoning documented
+    inline in `wrangler.jsonc`: `LiveEmailSender` doesn't throw on a failed Resend call, it just
+    returns `status: "failed"` — so leaving `EMAIL_MODE=live` with an unverified domain wouldn't
+    crash anything, it would silently fail *every* real send and log it in a way that reads like a
+    bug rather than a known, deliberate gap. `sink` is the honest state until a provider decision
+    is made. **Revisit before actually flipping routes live in step 8** — cutover with `EMAIL_MODE`
+    still on `sink` means real customers get zero order-confirmation emails.
 - 👤 USPS `CONSUMER_KEY`/`CONSUMER_SECRET`, if shipment tracking should work at cutover (currently
   unset on both Workers — always a lower-priority deferred item, still true here).
 - 🤖 `bash scripts/check-secret-parity.sh` — **now reports name-parity between staging and
@@ -256,6 +265,12 @@ independent of the migration timeline:
 ---
 
 ## 8. 👤 The cutover itself — DNS + routes
+
+⚠️ **Open item as of 2026-08-01: production `EMAIL_MODE` is deliberately `sink`, not `live`** (see
+step 5 — Resend's second-domain cost, provider decision deferred). Cutting over with this unresolved
+means real customers place real orders and get **zero confirmation emails**. Resolve the email
+provider decision and flip `EMAIL_MODE` back to `"live"` (redeploy) before proceeding past this
+point, or explicitly accept that gap for an initial window — don't let it happen silently.
 
 Only after every item above is confirmed:
 

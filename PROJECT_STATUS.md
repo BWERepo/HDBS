@@ -5,6 +5,32 @@
 
 ---
 
+## Current state — 2026-08-01 (Email provider decision deferred; production flipped back to EMAIL_MODE=sink)
+
+Resend's free tier only covers one verified domain per account, and this Cloudflare/Resend account
+already has one from a sibling project — a second domain (`mail.handmadedesignsbysuzi.com`) needs
+a $20/mo plan upgrade. Presented the real options (pay, reuse the existing verified domain at the
+cost of a less on-brand from-address, switch to a free-tier provider like Brevo requiring a new
+`EmailSender` implementation, or defer) — **user chose to defer**.
+
+**`wrangler.jsonc`'s production `EMAIL_MODE` flipped from `"live"` back to `"sink"`, redeployed,
+confirmed in the deploy output.** Reasoning, documented inline in the config: `LiveEmailSender`
+doesn't throw on a failed Resend call, it just logs `status: "failed"` — so leaving `EMAIL_MODE`
+on `"live"` with an unverified domain wouldn't crash anything, it would silently fail every real
+send in a way indistinguishable from a genuine bug. `sink` is the honest, deliberate state until a
+provider decision is actually made — matches staging's own default, not a regression.
+
+**Flagged prominently in `docs/phase-9-cutover-checklist.md` step 8**, not just step 5: cutting
+over to the real domain with `EMAIL_MODE` still on `sink` means real customers get zero order
+confirmation emails. This needs to be resolved (or explicitly, consciously accepted) before routes
+are ever uncommented — not something to let slip through silently once step 5's other items look
+done.
+
+`npm test`: 497/497 (unaffected — a config var change, not application logic). `tsc --noEmit`:
+clean.
+
+---
+
 ## Current state — 2026-08-01 (RESEND_API_KEY set on production, but the sending domain isn't verified yet)
 
 `RESEND_API_KEY` is now set on production. Confirmed genuinely valid without needing domain-read
