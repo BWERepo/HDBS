@@ -5,6 +5,57 @@
 
 ---
 
+## Incident — 2026-08-01: every ported route was missing `success:true`/`false`, now fixed
+
+**A foundational bug in `src/lib/http.ts`'s `ok()`/`fail()`, present since Phase 0, affecting all
+~74 response call sites across every route file.** `api/config.php`'s real helpers are:
+```php
+function ok($data = []) { echo json_encode(array_merge(['success'=>true], $data)); }
+function fail($msg, $code = 400) { echo json_encode(['success'=>false,'error'=>$msg]); }
+```
+This port's `ok()`/`fail()` returned only the caller's data/error — **no `success` field at all**.
+Every one of the ~9,900 lines of front-end JS checks `d.success` before trusting a response
+(`store.js`, `admin-orders.js` ×30, `admin-misc.js` ×26, `ui.js` ×12, `auth.js` ×6, and more) — so
+every ported route's response has been silently untrusted by the browser since it was written,
+**even on a genuine 200**. This is why the storefront's product grid was stuck on loading
+skeletons forever after the JS-load fix above: `ui.js`'s `apiFetch('products.php').then(d =>
+if(d.success && d.products) ...)` never fired, because `d.success` was always `undefined`.
+
+**Caught only because the user loaded the real site in a browser** and reported the visual symptom
+(skeleton placeholders, never resolving) — no unit test could have caught this, because nothing in
+this codebase asserted the HTTP-level envelope shape. Every prior phase's "live-verified" claims in
+this file checked backend correctness by reading curl'd JSON bodies directly (was the tax amount
+right? did the row get inserted?) — genuinely true and still valid — but none of them re-exercised
+this specific front-end contract by loading the actual page, so this had been silently broken
+since the very first route was wired.
+
+**Fixed**: `ok(c, body)` now returns `{ success: true, ...body }`; `fail(c, message, status)` now
+returns `{ success: false, error: message }` — byte-compatible with the PHP again. Added dedicated
+tests in `http.test.ts` (mounting a throwaway Hono app, the same pattern `cors.test.ts` already
+established) asserting the envelope shape explicitly, since nothing had before. `npm run
+typecheck` confirmed zero call sites broke across all 74 usages — none needed updating.
+
+**Live-verified on redeployed staging**: `GET /api/products.php` now returns
+`{"success":true,"products":[...]}`; an unauthorized `POST /api/products.php` now returns
+`{"success":false,"error":"Unauthorized"}` at 401. Also used this incident to audit the two
+*other* console errors the user's screenshots showed (`payment_configuration` and `paypal_fees`
+both 401ing on page load): both are **genuinely absent from `api/admin.php`'s own public-settings
+allowlist**, so they 401 on the real production PHP site too, silently swallowed by a `.catch()` —
+not a regression. A third error (a 501) was not reproduced by replaying every unconditional
+page-load call in `js/ui.js`'s `tryLoad()`; it likely came from a specific interaction between the
+user's two screenshots rather than the bare page load, and needs a fresh console capture to pin
+down now that this fix is live.
+
+`npm test`: 366/366 passing (6 new, all in `http.test.ts`). `tsc --noEmit`: clean.
+
+**Lesson for future sessions, sharper than the deploy-hook one above**: a curl-based "live
+verification" that reads specific fields out of a JSON body can miss an entire envelope-shape
+contract if it never diffs against what the real PHP actually emitted. Compare a ported
+endpoint's *raw* response text against the equivalent live PHP response at least once per route
+family, not just the fields the test happens to check.
+
+---
+
 ## Incident — 2026-08-01: a deploy I ran broke staging's JS, now fixed and hardened
 
 **Caused by this session, not a pre-existing bug.** While live-verifying the products write path
