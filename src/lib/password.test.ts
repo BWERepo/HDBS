@@ -1,6 +1,17 @@
 import { describe, it, expect } from "vitest";
 import bcrypt from "bcryptjs";
-import { hashPassword, verifyPassword } from "./password";
+import { hashPassword, verifyPassword, PBKDF2_ITERATIONS, WORKERS_PBKDF2_ITERATION_CEILING } from "./password";
+
+// A real `wrangler deploy` + login attempt 500'd with
+// "NotSupportedError: Pbkdf2 failed: iteration counts above 100000 are not supported" — the
+// Workers runtime's WebCrypto rejects what OWASP recommends (210,000), and Vitest (plain Node)
+// has no such cap, so it couldn't have caught this itself. This test at least stops the constant
+// from silently drifting back past the platform ceiling.
+describe("PBKDF2_ITERATIONS", () => {
+  it("never exceeds the Workers runtime's WebCrypto ceiling", () => {
+    expect(PBKDF2_ITERATIONS).toBeLessThanOrEqual(WORKERS_PBKDF2_ITERATION_CEILING);
+  });
+});
 
 describe("hashPassword / verifyPassword (PBKDF2 round-trip)", () => {
   it("verifies a password against its own hash", async () => {

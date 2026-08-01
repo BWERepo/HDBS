@@ -20,7 +20,16 @@
 import bcrypt from "bcryptjs";
 
 const PBKDF2_PREFIX = "pbkdf2";
-const PBKDF2_ITERATIONS = 210_000; // OWASP's 2023 minimum recommendation for PBKDF2-HMAC-SHA256.
+// OWASP's 2023 minimum recommendation for PBKDF2-HMAC-SHA256 is 210,000 — but the Workers
+// runtime's WebCrypto throws NotSupportedError above 100,000 ("iteration counts above 100000 are
+// not supported"). This only surfaces at request time in the real `workerd` runtime, not under
+// Vitest (plain Node, no such cap) — caught by an actual `wrangler deploy` + curl login attempt,
+// which 500'd with that exact error. 100,000 is the ceiling this platform allows.
+export const PBKDF2_ITERATIONS = 100_000;
+/** The Workers runtime's hard ceiling — see PBKDF2_ITERATIONS' comment. Exported so a test can
+ *  guard against silently regressing past it (Vitest itself can't catch the real error, since it
+ *  runs under Node, which has no such cap). */
+export const WORKERS_PBKDF2_ITERATION_CEILING = 100_000;
 const SALT_BYTES = 16;
 const KEY_BYTES = 32;
 

@@ -60,8 +60,25 @@ and deployed to `https://hdbs-staging.muddy-resonance-c828.workers.dev`. Curled 
   write to the live `settings` table; `login` correctly reports "Admin password not configured"
   since the fresh database has no `admin_password` row yet.
 
-**Not yet done:** setting a real `admin_password` in the staging settings table (so login can
-actually be exercised end-to-end) — a deliberate business decision, not done without asking.
+**Found and fixed a real platform-limit bug via this live testing** — the kind unit tests
+structurally cannot catch. Bootstrapped a real `admin_password` (bcrypt, via Postgres's
+`pgcrypto`/`crypt()`, avoiding any hand-copied hash string) and attempted a real login: 500,
+`NotSupportedError: Pbkdf2 failed: iteration counts above 100000 are not supported (requested
+210000)`. The Workers runtime's WebCrypto caps PBKDF2 at 100,000 iterations; `src/lib/
+password.ts` was using OWASP's 210,000 recommendation. Vitest runs under plain Node, which has no
+such cap, so this could ONLY have been caught by a real `wrangler deploy` + login attempt — never
+by the unit suite, however thorough. Fixed: `PBKDF2_ITERATIONS` dropped to 100,000 (the platform
+ceiling), and added a test (`password.test.ts`) asserting the constant never exceeds an exported
+`WORKERS_PBKDF2_ITERATION_CEILING`, so a future "let's be more OWASP-compliant" edit fails fast
+in CI instead of live.
+
+**Redeployed and fully re-verified end-to-end against live staging:** bcrypt-seeded login
+succeeds (200, session token issued, 64 hex chars matching `bin2hex(random_bytes(32))`); the
+issued token authenticates a real non-public `get_setting` call; a second login with the same
+password also succeeds — confirming the bcrypt→PBKDF2 rehash-on-login path itself works and the
+rehashed value verifies correctly on the next attempt. This is the actual admin credential now
+live on staging (not written down here) — the login flow is provably working end-to-end.
+
 Production has NOT been deployed or touched — only staging.
 
 ---
