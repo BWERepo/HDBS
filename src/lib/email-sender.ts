@@ -1,38 +1,75 @@
-// Minimal EMAIL_MODE dispatch, extracted here because contact.ts's contact form AND studio.ts's
-// commission-inquiry notification both need to send an outbound email, and neither should
-// duplicate this decision.
+// EMAIL_MODE dispatch + the actual Resend call. Extracted because contact.ts, studio.ts, and now
+// email.ts's order-confirmation resend all need to send an outbound email, and none should
+// duplicate this decision or the logo-splice/CRLF-guard contract mailer.php's sendEmail()
+// applies to literally everything.
 //
-// Full Resend integration (logo splice, templates, DKIM-aligned sending domain) is Phase 4's
-// email.ts — deliberately not built here. What IS built: the EMAIL_MODE=sink path the plan
-// describes ("render the full HTML, write the email_log row with status='sink', return success
-// WITHOUT calling Resend"), which is genuinely usable today since staging already runs with
-// EMAIL_MODE=sink and no RESEND_API_KEY exists yet. The 'live' path is a clearly-marked stub —
-// wire it to Resend when email.ts lands; until then it correctly reports failure rather than
-// silently pretending to send.
+// mailer.php's sendEmail() splices the logo and strips CR/LF UNCONDITIONALLY, and does so via a
+// by-reference $html mutation — the caller's own variable changes, so anything logged to
+// email_log afterward reflects the spliced version, not the pre-logo template. That's why the
+// splice/strip happen HERE, centrally, and why EmailSendResult returns the final `html` for the
+// caller to log — the TS equivalent of PHP's by-reference mutation.
+//
+// Sending domain per the migration plan: mail.handmadedesignsbysuzi.com (not the apex — isolates
+// reputation from Hostinger mail), Reply-To the real mailbox so replies still reach Suzi.
+// Requires RESEND_API_KEY + a verified sending domain, neither of which exist yet — the `live`
+// path is real, working code, but genuinely untestable until those exist. `sink` mode (already
+// running on staging) needs neither and is what every live-verification in this project has used
+// so far.
+
+import { spliceLogoHeader, stripCrlf } from "./email-format";
 
 export interface EmailSendResult {
   sent: boolean;
   status: "sent" | "failed" | "sink";
+  /** The actual HTML that was (or would be) sent — logo-spliced. Log this, not the pre-splice
+   *  template, so email_log reflects what a recipient actually saw. */
+  html: string;
 }
 
 export interface EmailSender {
-  send(to: string, subject: string, html: string): Promise<EmailSendResult>;
+  send(to: string | string[], subject: string, html: string): Promise<EmailSendResult>;
 }
 
 export class SinkEmailSender implements EmailSender {
-  async send(): Promise<EmailSendResult> {
-    return { sent: true, status: "sink" };
+  async send(_to: string | string[], _subject: string, html: string): Promise<EmailSendResult> {
+    return { sent: true, status: "sink", html: spliceLogoHeader(html) };
   }
 }
 
-/** TODO(email.ts, Phase 4): call Resend. Until then, correctly reports failure — the email
- *  simply isn't sent — rather than claiming success for something that didn't happen. */
+const RESEND_FROM_ADDRESS = "orders@mail.handmadedesignsbysuzi.com";
+const REPLY_TO = "handmadedesignsbysuzi@yahoo.com";
+
 export class LiveEmailSender implements EmailSender {
-  async send(): Promise<EmailSendResult> {
-    return { sent: false, status: "failed" };
+  constructor(
+    private apiKey: string,
+    private fromName: string
+  ) {}
+
+  async send(to: string | string[], subject: string, html: string): Promise<EmailSendResult> {
+    const finalHtml = spliceLogoHeader(html);
+    const safeTo = (Array.isArray(to) ? to : [to]).map(stripCrlf);
+    const safeSubject = stripCrlf(subject);
+    const safeFromName = stripCrlf(this.fromName);
+
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: `${safeFromName} <${RESEND_FROM_ADDRESS}>`,
+          to: safeTo,
+          reply_to: REPLY_TO,
+          subject: safeSubject,
+          html: finalHtml,
+        }),
+      });
+      return { sent: res.ok, status: res.ok ? "sent" : "failed", html: finalHtml };
+    } catch {
+      return { sent: false, status: "failed", html: finalHtml };
+    }
   }
 }
 
-export function createEmailSender(emailMode: "live" | "sink"): EmailSender {
-  return emailMode === "sink" ? new SinkEmailSender() : new LiveEmailSender();
+export function createEmailSender(emailMode: "live" | "sink", apiKey: string, fromName: string): EmailSender {
+  return emailMode === "sink" ? new SinkEmailSender() : new LiveEmailSender(apiKey, fromName);
 }

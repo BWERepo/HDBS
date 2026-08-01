@@ -25,7 +25,7 @@ contactRoute.post("/api/contact.php", async (c) => {
 
   const result = await submitContactForm(
     new SupabaseContactStore(db),
-    createEmailSender(c.env.EMAIL_MODE),
+    createEmailSender(c.env.EMAIL_MODE, c.env.RESEND_API_KEY, bizName),
     bizName,
     { name: body.name as string | undefined, email: body.email as string | undefined, subject: body.subject as string | undefined, message: body.message as string | undefined },
     await sha256Hex(`contact_${ip}`)

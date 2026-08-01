@@ -27,6 +27,7 @@ import type { ContactStore } from "./contact";
 import type { StudioStore, StudioItemRow, StudioInquiryRow, StudioNoteRow } from "./studio";
 import type { CapitalEquipmentStore, CapitalEquipmentRow, BusinessDocsFileStore } from "./business";
 import type { EmailLogStore, EmailLogRow } from "./ops";
+import type { EmailOrderStore, OrderForConfirmation, OrderItemForConfirmation } from "./email";
 
 export function createDb(env: Env): SupabaseClient {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -729,5 +730,69 @@ export class SupabaseEmailLogStore implements EmailLogStore {
   async clearEmailLog(): Promise<void> {
     const { error } = await this.db.from("email_log").delete().not("id", "is", null);
     checkError("clearEmailLog", error);
+  }
+}
+
+/** Wires email.ts's EmailOrderStore to `orders`, `order_items` (joined with `products` in JS,
+ *  since product_id is deliberately not a real FK), and `email_log`. */
+export class SupabaseEmailOrderStore implements EmailOrderStore {
+  constructor(private db: SupabaseClient) {}
+
+  async getOrderForConfirmation(orderId: string): Promise<OrderForConfirmation | null> {
+    const { data, error } = await this.db
+      .from("orders")
+      .select("id, customer_email, customer_name, shipping_address, total, tax_amount, order_date, order_type, payment_method, check_number, transaction_fee")
+      .eq("id", orderId)
+      .maybeSingle();
+    checkError("getOrderForConfirmation", error);
+    if (!data) return null;
+    return {
+      ...data,
+      total: Number(data.total),
+      tax_amount: Number(data.tax_amount),
+      transaction_fee: Number(data.transaction_fee),
+    } as OrderForConfirmation;
+  }
+
+  async getOrderItemsForConfirmation(orderId: string): Promise<OrderItemForConfirmation[]> {
+    const { data: items, error } = await this.db.from("order_items").select("product_id, product_name, price, quantity").eq("order_id", orderId);
+    checkError("getOrderItemsForConfirmation", error);
+    const rows = (items ?? []) as { product_id: string | null; product_name: string | null; price: number; quantity: number }[];
+
+    const productIds = rows.map((r) => r.product_id).filter((id): id is string => !!id && id !== "_ship");
+    const productInfo = new Map<string, { img: string | null; sku: string | null }>();
+    if (productIds.length > 0) {
+      const { data: products, error: prodError } = await this.db.from("products").select("id, img1, sku").in("id", productIds);
+      checkError("getOrderItemsForConfirmation(products)", prodError);
+      for (const p of (products ?? []) as { id: string; img1: string | null; sku: string | null }[]) {
+        productInfo.set(p.id, { img: p.img1, sku: p.sku });
+      }
+    }
+
+    return rows.map((r) => ({
+      product_id: r.product_id,
+      product_name: r.product_name,
+      price: Number(r.price),
+      quantity: Number(r.quantity),
+      img: r.product_id ? (productInfo.get(r.product_id)?.img ?? null) : null,
+      sku: r.product_id ? (productInfo.get(r.product_id)?.sku ?? null) : null,
+    }));
+  }
+
+  async stampConfirmSentAt(orderId: string, sentAtIso: string): Promise<void> {
+    const { error } = await this.db.from("orders").update({ confirm_sent_at: sentAtIso }).eq("id", orderId);
+    checkError("stampConfirmSentAt", error);
+  }
+
+  async logEmail(entry: { emailType: string; sentTo: string; orderId: string; subject: string; status: "sent" | "failed" | "sink"; body: string }): Promise<void> {
+    const { error } = await this.db.from("email_log").insert({
+      email_type: entry.emailType,
+      sent_to: entry.sentTo,
+      order_id: entry.orderId,
+      subject: entry.subject,
+      status: entry.status,
+      email_body: entry.body,
+    });
+    checkError("logEmail", error);
   }
 }

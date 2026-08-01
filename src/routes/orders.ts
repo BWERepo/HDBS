@@ -3,9 +3,12 @@
 import { Hono } from "hono";
 import type { Env } from "../types";
 import { ok, fail } from "../lib/http";
-import { createDb, SupabaseAdminAuthStore, SupabaseOrdersStore } from "../db";
+import { createDb, SupabaseAdminAuthStore, SupabaseOrdersStore, SupabaseEmailOrderStore, SupabaseSettingsStore } from "../db";
 import { isValidAdminToken } from "../auth";
 import { listOrders, createOrder, updateOrder, deleteOrder, deleteAllOrders, type OrderUpdatableFields } from "../orders";
+import { sendOrderConfirmationEmail } from "../email";
+import { resolveBizProfile } from "../lib/biz-profile";
+import { createEmailSender } from "../lib/email-sender";
 
 export const ordersRoute = new Hono<{ Bindings: Env }>();
 
@@ -66,9 +69,24 @@ ordersRoute.post("/api/orders.php", async (c) => {
     },
     isAdmin,
     rateLimitKey,
-    c.env.ORDER_TOKEN_SECRET
-    // onInPersonPaid intentionally omitted (defaults to a no-op) — email.ts doesn't exist yet.
-    // TODO(email.ts): wire the in-person-paid confirmation email once that module exists.
+    c.env.ORDER_TOKEN_SECRET,
+    undefined,
+    // Direct in-process call, not an HTTP round-trip to send_confirm.php — the PHP curled its
+    // own /send_confirm.php from within orders.php, which only worked because that endpoint had
+    // no auth. Calling the business logic directly here is both simpler and avoids needing to
+    // decide how an unauthenticated internal call would satisfy the admin gate we added to the
+    // public /send_confirm.php route (see routes/email.ts's header).
+    async (orderId: string) => {
+      const bizProfileRaw = await new SupabaseSettingsStore(db).getSetting("biz_profile");
+      const biz = resolveBizProfile(bizProfileRaw);
+      await sendOrderConfirmationEmail(
+        new SupabaseEmailOrderStore(db),
+        createEmailSender(c.env.EMAIL_MODE, c.env.RESEND_API_KEY, biz.name),
+        biz.name,
+        biz.email,
+        orderId
+      );
+    }
   );
   return result.ok ? ok(c, { message: "Order saved", cancel_token: result.data!.cancel_token }) : fail(c, result.error!, result.status);
 });

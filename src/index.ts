@@ -25,6 +25,7 @@ import { contactRoute } from "./routes/contact";
 import { studioRoute } from "./routes/studio";
 import { businessRoute } from "./routes/business";
 import { opsRoute } from "./routes/ops";
+import { emailRoute } from "./routes/email";
 import { mediaRoute } from "./routes/media";
 import { renderStorefront } from "./shell";
 import version from "../version.json";
@@ -45,6 +46,7 @@ app.route("/", contactRoute);
 app.route("/", studioRoute);
 app.route("/", businessRoute);
 app.route("/", opsRoute);
+app.route("/", emailRoute);
 app.route("/", mediaRoute);
 
 // Legacy bookmarks and cached links — carried over from .htaccess lines 8-10.

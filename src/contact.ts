@@ -95,7 +95,9 @@ export async function submitContactForm(
   const html = buildContactEmailHtml(bizName, name, email, subject, message);
 
   const result = await sender.send(to, fullSubject, html);
-  await store.logEmail({ emailType: "Contact Form", sentTo: to, subject: fullSubject, status: result.status, body: html });
+  // Log result.html, not the pre-splice `html` — matches mailer.php's by-reference $html mutation,
+  // so email_log reflects what a recipient actually saw (logo spliced in).
+  await store.logEmail({ emailType: "Contact Form", sentTo: to, subject: fullSubject, status: result.status, body: result.html });
 
   if (result.sent) return { ok: true, data: { message: "Message sent" } };
   return { ok: false, error: "Failed to send — please email us directly at handmadedesignsbysuzi@yahoo.com", status: 500 };

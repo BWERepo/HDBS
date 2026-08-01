@@ -296,7 +296,8 @@ export async function submitStudioInquiry(
   const fullSubject = `Design Studio Inquiry: ${projectType || "New Project"} — ${name}`;
   const html = buildInquiryEmailHtml(bizName, { name, email, phone, projectType, budget, timeline, description, inspiration });
   const result = await sender.send(to, fullSubject, html);
-  await store.logEmail({ emailType: "Studio Inquiry", sentTo: to, subject: fullSubject, status: result.status, body: html });
+  // Log result.html, not the pre-splice `html` — see lib/email-sender.ts's header.
+  await store.logEmail({ emailType: "Studio Inquiry", sentTo: to, subject: fullSubject, status: result.status, body: result.html });
 
   // The inquiry is stored either way — don't fail the visitor if only the email relay hiccuped.
   return { ok: true, data: { message: "Inquiry received" } };

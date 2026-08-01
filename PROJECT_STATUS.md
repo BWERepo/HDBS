@@ -5,6 +5,72 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 4: email.ts)
+
+**`src/lib/email-format.ts`, real Resend wiring in `src/lib/email-sender.ts`, and
+`src/email.ts` written and wired.** This is Phase 4 proper — the plan's `email.ts`.
+
+**Scoped after reading all 5 order-email files** (745 lines): they turned out to be **3 different,
+overlapping order-confirmation templates** plus a 4th client-triggered variant, not 9 distinct
+senders. Confirmed with the user before proceeding:
+- `mailer.php`'s `_emailLogoHeader()`/`_noCrlf()` → ported as `spliceLogoHeader`/`stripCrlf`
+  (pure, tested against all 3 real header-color branches this codebase's templates use, plus both
+  fallback paths).
+- `api/order_confirm_email.php`'s `sendOrderConfirmation()` — used only by the not-yet-built
+  Square/PayPal payment processors — deferred alongside payments, nothing calls it yet.
+- `notify.php` (internal "new order" alert to Suzi) — deferred, redundant with the confirmation.
+- `order_confirm.php` (a 4th, client-triggered, token-gated variant) — deferred, likely superseded.
+- **`send_confirm.php`** — ported. Turns out this is the template `api/orders.php`'s `createOrder()`
+  *actually* fires for in-person-paid orders (curled internally in the PHP), not
+  `order_confirm_email.php`'s simpler one — discovered by reading orders.ts's own header comment
+  from earlier this session, which already documented that curl call.
+
+**A real gap found and fixed while building this**: `mailer.php`'s `sendEmail()` applies the logo
+splice to literally every outbound email, unconditionally, via a by-reference `$html` mutation so
+anything logged afterward reflects the spliced version. `contact.ts`/`studio.ts` (built earlier
+this session, before this file existed) were missing it — their sink-logged emails on staging
+didn't have the logo. Fixed by moving the splice into `EmailSender.send()` itself (both
+`SinkEmailSender`/`LiveEmailSender`), which now returns the final spliced `html` for the caller to
+log — the TS equivalent of PHP's by-reference mutation. Updated `contact.ts`/`studio.ts` to log
+`result.html`, not the pre-splice template. **Live-verified the fix**: resubmitted a real contact
+form, confirmed the newly-logged `email_log` row now contains the logo image, where the
+earlier-session entries do not.
+
+**Real Resend wiring landed in `LiveEmailSender`** (sending domain `mail.handmadedesignsbysuzi.com`
+per the plan, Reply-To Suzi's real mailbox) — genuine, complete code, but **untestable until
+`RESEND_API_KEY` + a verified sending domain exist** (neither does yet). `sink` mode is what every
+live-verification in this project has used, and remains fully exercised.
+
+**One deliberate security fix, not a literal port**: the live `send_confirm.php` has **no
+`requireAdmin()` call at all**, despite its own comment calling it admin-only — anyone who found
+the URL could resend, or via preview mode read, any order's confirmation email. Gated behind
+`isValidAdminToken` in the port. The *internal* call from `orders.ts`'s in-person-paid order
+creation calls `sendOrderConfirmationEmail()` directly in-process rather than over HTTP to this
+now-gated route — cleaner than the PHP's self-`curl()`, and sidesteps the question of how an
+unauthenticated internal caller would satisfy the new admin gate.
+
+`src/db.ts` gained `SupabaseEmailOrderStore` (joins `order_items` with `products` in JS for
+image/SKU, since `product_id` is deliberately not a real FK — same reasoning as `orders.ts`'s own
+join-in-JS pattern). New route: `POST /send_confirm.php` (admin-gated, supports `preview`).
+`routes/orders.ts`'s `onInPersonPaid` hook now actually fires the confirmation email instead of
+being a no-op TODO.
+
+**Live-verified against staging, full round trip with real data**: `send_confirm.php` correctly
+401s without a token; preview mode against a real order (`ORD-MR57UJ0A`) returns the correct
+recipient/subject/logo-spliced HTML with the real line item; a real resend updates
+`confirm_sent_at` and logs an `email_log` row with the logo present; creating a real in-person-paid
+order auto-fires the confirmation end-to-end (verified the email_log entry, then confirmed that
+`isInPersonPaid` correctly *skips forcing* `Awaiting Payment` without itself forcing `Paid` — that
+part is the caller's responsibility, matching the PHP exactly). Test orders cleaned up afterward.
+
+`npm test`: 341/341 passing (26 new: 12 email-format + 14 email). `tsc --noEmit`: clean.
+
+**Remaining**: payments (Square/PayPal/webhooks/Apple Pay — deliberately last, "give it room" per
+the plan), and the deferred pieces above (`order_confirm_email.php`'s payment-triggered template,
+`notify.php`, `order_confirm.php`) which only make sense once payments exist to trigger them.
+
+---
+
 ## Current state — 2026-08-01 (Phase 3 continued: business.ts + ops.ts)
 
 **`src/business.ts` (capital_equipment + business_docs) and `src/ops.ts` (email_log) written and

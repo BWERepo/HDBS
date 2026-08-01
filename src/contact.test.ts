@@ -18,7 +18,7 @@ class ContactStoreFake implements ContactStore {
 }
 
 class FakeEmailSender implements EmailSender {
-  result: EmailSendResult = { sent: true, status: "sink" };
+  result: EmailSendResult = { sent: true, status: "sink", html: "" };
   sentTo: string | null = null;
   async send(to: string): Promise<EmailSendResult> {
     this.sentTo = to;
@@ -75,7 +75,7 @@ describe("submitContactForm", () => {
   });
 
   it("reports failure (without throwing) when the sender fails, and still logs it", async () => {
-    sender.result = { sent: false, status: "failed" };
+    sender.result = { sent: false, status: "failed", html: "" };
     const result = await submitContactForm(store, sender, "Biz", { name: "Jane", email: "a@x.com", message: "hello" }, "k");
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/Failed to send/);

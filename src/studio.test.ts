@@ -20,7 +20,7 @@ import type { EmailSender, EmailSendResult } from "./lib/email-sender";
 import { SettingsStoreFake } from "./settings";
 
 class FakeEmailSender implements EmailSender {
-  result: EmailSendResult = { sent: true, status: "sink" };
+  result: EmailSendResult = { sent: true, status: "sink", html: "" };
   async send(): Promise<EmailSendResult> {
     return this.result;
   }
@@ -88,7 +88,7 @@ describe("submitStudioInquiry", () => {
   });
 
   it("stores the inquiry and always succeeds even if the email send fails", async () => {
-    sender.result = { sent: false, status: "failed" };
+    sender.result = { sent: false, status: "failed", html: "" };
     const result = await submitStudioInquiry(store, sender, "Biz", { name: "Jane", email: "a@x.com", description: "A quilt" }, "k", "1.2.3.4");
     expect(result.ok).toBe(true);
     expect(store.inquiries).toHaveLength(1);
