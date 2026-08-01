@@ -137,10 +137,35 @@ phase's route wiring reads `settings` for these instead of the correct Worker se
 correct data — boolean coercion (`sell`/`coming_soon` as `0`/`1`) and the admin-only `cogm` gate
 both confirmed working against real data, not just fakes.
 
-**Not yet done:** migration `0009` (normalizing product/business image URLs from absolute
-`https://handmadedesignsbysuzi.com/...` to root-relative) — deliberately deferred until after
-data load per the plan; images currently still point at the absolute prod domain. R2 media itself
-also hasn't been populated yet (`media-mirror/` → `hdbs-public`/`hdbs-public-staging`).
+**Migration `0009` run against staging and live-verified** — all 47 products' image URLs rewritten
+from absolute (`https://handmadedesignsbysuzi.com/product_images/...`) to root-relative
+(`/product_images/...`); confirmed via `GET /api/products.php`, zero products left with an
+absolute URL.
+
+**R2 population in progress**: `media-mirror/` (159 product images + 1 business logo, ~59MB,
+pulled in Phase 0) is being uploaded to `hdbs-public-staging` via `wrangler r2 object put`, one
+object per file, key = URL path minus the leading slash (`product_images/<filename>`,
+`business_logo/<filename>`) so a simple `GET /product_images/*` Worker route can do
+`env.R2_PUBLIC.get(pathname.slice(1))` directly — matching what migration 0009 actually produced,
+not the plan's original aspirational `products/<id>/imgN.jpg` restructuring. `Cache-Control:
+public, max-age=31536000, immutable` set on every object per the plan.
+
+**`src/routes/media.ts` written and mounted** — `GET /product_images/*`, `/business_logo/*`,
+`/business_hero/*`, `/business_about/*`, `/studio_images/*` all proxy to `env.R2_PUBLIC`, key =
+URL path minus leading slash, `writeHttpMetadata()`/etag set from the R2 object, falling back to
+a 1-year immutable cache-control if the object has none. Mounted before the SPA catch-all in
+`src/index.ts` (required — these paths have a file extension so the catch-all's `wantsShell()`
+correctly skips them, but would otherwise fall through to `env.ASSETS.fetch()`, 404, and render
+the HTML shell instead of an image).
+
+**All 160 files uploaded to `hdbs-public-staging`** via `wrangler r2 object put`
+(`Cache-Control: public, max-age=31536000, immutable` set on each), 0 failures. **Live-verified**
+end-to-end: real JPEG bytes with correct `Content-Type: image/jpeg` served through the Worker for
+multiple spot-checked files (including a `_v2`-suffixed filename, confirming those replacement
+images made it through Phase 0's media pull correctly), a real 404 for a nonexistent key, and
+cross-checked every image URL the live `GET /api/products.php` response actually references
+against the deployed bucket — all resolve. Phase 1's media/data/URL-normalization work is now
+fully done and verified on staging.
 
 ---
 
