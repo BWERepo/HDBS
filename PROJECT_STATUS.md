@@ -5,6 +5,41 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 9 checklist step 5, in progress: Square + PayPal now live on production)
+
+**Live Square and PayPal credentials are now set on the production Worker** — the first real
+payment credentials production has ever had. Both verified genuinely live, not just accepted at
+face value:
+- Square: `GET https://connect.squareup.com/v2/locations` (the live host) with the real token
+  returned a real business — "Handmade Designs By Suzi," Knoxville TN, `id: LJP687TQBTWTA` —
+  confirming both the token and location id are real and correctly paired.
+- PayPal: requested a live OAuth token from `https://api-m.paypal.com/v1/oauth2/token` with the
+  real client id/secret — got a real token back with a real `app_id` (`APP-5TH15273DV406260E`).
+
+**Also self-generated fresh `ORDER_TOKEN_SECRET`/`SMOKE_TOKEN`** for production (32 random bytes
+each, no external account needed) — different values than staging's, per
+`docs/phase-0-checklist.md`'s explicit "do not reuse" warning. Also set `SMOKE_TOKEN` on staging
+(it was missing there) for name-parity. `bash scripts/check-secret-parity.sh` now passes — it was
+failing at the start of this step.
+
+**One process mistake, caught immediately, no actual exposure**: the first `ORDER_TOKEN_SECRET`
+generation attempt printed a candidate value into the visible transcript before being piped to
+`wrangler secret put`. That exact value was never applied — the corrected command generated fresh
+random bytes and piped them directly into `wrangler secret put` without ever echoing them, the same
+pattern used for every credential since. Worth remembering: `console.log`-then-pipe is not the same
+as pipe-only, and only the latter is safe for anything sensitive.
+
+**One finding, not a fix**: `SQUARE_APP_ID` (declared in `src/types.ts`'s `Env`, expected by
+`check-secret-parity.sh`) is never actually read anywhere in `src/` — the real value the storefront
+needs comes from the `settings` table's `square_app_id` row instead (already real, migrated in
+step 2). Likely dead config; flagged for a future small cleanup rather than fixed here.
+
+**Still outstanding for step 5**: `SQUARE_WEBHOOK_SIG_KEY` (can only be created after the real
+domain exists post-cutover), `RESEND_API_KEY` + verified sending domain (without this, production
+silently stays in email-sink mode forever), and USPS credentials (lower priority, still deferred).
+
+---
+
 ## Current state — 2026-08-01 (Phase 9 checklist step 4 done: real media migrated to R2)
 
 **New script `scripts/push-media-to-r2.mjs`** — the piece `migrate-data.mjs` deliberately never

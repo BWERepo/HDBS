@@ -20,9 +20,9 @@ confirmed, per `docs/production-isolation.md`'s one-way-door warning.
 | R2 buckets | Created, private, real product/logo media loaded (159+1 files) | ✅ Same — created 2026-08-01, private, 159 product images + 1 logo loaded and verified |
 | Supabase schema | migrations `0001`-`0011` | ✅ `0001`-`0011`, all applied and confirmed live 2026-08-01 |
 | Supabase data | Real prod snapshot loaded (`scripts/migrate-data.mjs`, Phase 1) | ✅ Real snapshot loaded 2026-08-01, verified row-for-row against all 12 tables |
-| Secrets present | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` | **Only `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`** |
-| Missing on *both* | `SMOKE_TOKEN`, `SQUARE_APP_ID`, `SQUARE_WEBHOOK_SIG_KEY`, `USPS_CONSUMER_KEY`/`_SECRET`, `RESEND_API_KEY` | (same) |
-| `npm run check:secrets` | — | **Fails today** — run it, this is the live output as of this audit |
+| Secrets present | Same 7 names as production, sandbox values | ✅ `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SMOKE_TOKEN`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` — Square/PayPal verified genuinely live against Square's/PayPal's own production APIs, 2026-08-01 |
+| Missing on *both* | `SQUARE_APP_ID` (likely vestigial, see step 5), `SQUARE_WEBHOOK_SIG_KEY` (needs live DNS, step 8), `USPS_CONSUMER_KEY`/`_SECRET`, `RESEND_API_KEY` | (same) |
+| `npm run check:secrets` | — | ✅ Name-parity passes as of 2026-08-01 (was failing at audit time) |
 
 Confirmed via `npx wrangler deployments list`, `npx wrangler r2 bucket list`, `npx wrangler secret
 list` (both Workers), `bash scripts/check-secret-parity.sh`, and this file's own Phase 1/2 history
@@ -130,34 +130,50 @@ a manual step for the account owner, not something this script can close.
 
 ---
 
-## 5. 👤 Live payment/API credentials for production
+## 5. 🟡 Live payment/API credentials for production — Square + PayPal done, rest outstanding
 
 **These must be LIVE credentials, not the sandbox ones set on staging this session.** Square Sandbox
 and PayPal Sandbox tokens must never reach the production Worker — `check-secret-parity.sh`'s whole
 point is identical secret *names*, deliberately different *values*.
 
-- 👤 Square: production access token + production location id (Square Developer Dashboard →
-  production application, not sandbox), plus a **production webhook subscription** pointed at
-  `https://handmadedesignsbysuzi.com/api/square-webhook.php` for `SQUARE_WEBHOOK_SIG_KEY` — this
-  can only be created once the DNS cutover (step 8) is live, so it's the one secret that comes
-  *after* cutover, not before. Note this creates a brief window where the webhook backstop isn't
-  configured; the plan already accepts an initial short read-only order freeze (per
-  `docs/production-isolation.md`'s one-way-doors section) which covers this.
-- 👤 PayPal: production Client ID + Secret (PayPal Developer Dashboard → Live app, not Sandbox).
-- 👤 `ORDER_TOKEN_SECRET` — generate fresh 32 random bytes, **do not reuse staging's value** (per
-  `docs/phase-0-checklist.md` step 6 — this was already called out as an environment-specific
-  secret, never copied).
-- 👤 `SMOKE_TOKEN` — replaces the old `rt_token`. Also flagged in `Claude.md:57` as a **live
-  production credential sitting in plaintext in a tracked file that should be rotated regardless**
-  of this migration; rotating it here kills two birds.
-- 👤 `RESEND_API_KEY` + verified sending domain (`mail.handmadedesignsbysuzi.com`) — without this,
-  production would silently run `EMAIL_MODE=sink` forever and no real order confirmation would ever
-  reach a customer. Check `wrangler.jsonc`'s production `vars.EMAIL_MODE` is `"live"` (it already
-  is) and that this key is actually set before cutover, not after.
+- ✅ **Square — done 2026-08-01.** Live `SQUARE_TOKEN` + `SQUARE_LOCATION_ID` set on production.
+  Verified for real, not just accepted at face value: called `GET
+  https://connect.squareup.com/v2/locations` (the live host, not sandbox) directly with the token,
+  which returned a real business — "Handmade Designs By Suzi", Knoxville TN, `MOBILE` type,
+  `id: LJP687TQBTWTA` — matching the location id given, confirming both values are genuinely live
+  and paired correctly.
+  - ⚠️ Found in passing: `SQUARE_APP_ID` (an `Env` field, expected by `check-secret-parity.sh`) is
+    never actually read anywhere in `src/` — the real app id the storefront's Web Payments SDK uses
+    comes from the `settings` table's `square_app_id` row (already migrated with real data in step
+    2), not this secret. Likely vestigial. Worth removing from `src/types.ts`/the parity script's
+    `EXPECTED` list rather than chasing a value for a secret nothing reads — flagged, not fixed,
+    since removing declared-but-unused config is a separate small cleanup from this checklist.
+  - Still outstanding: the **production webhook subscription**, pointed at
+    `https://handmadedesignsbysuzi.com/api/square-webhook.php` for `SQUARE_WEBHOOK_SIG_KEY` — can
+    only be created once DNS cutover (step 8) is live, so this is the one secret that comes *after*
+    cutover, not before. Creates a brief window where the webhook backstop isn't configured; the
+    plan already accepts an initial short read-only order freeze (per
+    `docs/production-isolation.md`'s one-way-doors section) which covers this.
+- ✅ **PayPal — done 2026-08-01.** Live `PAYPAL_CLIENT_ID` + `PAYPAL_SECRET` set on production.
+  Verified for real: requested a live OAuth token from `https://api-m.paypal.com/v1/oauth2/token`
+  (the live host) with these credentials — got a real token back with a real `app_id`
+  (`APP-5TH15273DV406260E`), confirming the pair is genuinely live and correctly matched, not a
+  sandbox pair or a typo'd secret.
+- ✅ **`ORDER_TOKEN_SECRET`/`SMOKE_TOKEN` — done 2026-08-01.** Both self-generated (32 random bytes
+  each, no external account needed) — separate values on staging vs. production, never reused
+  across environments, per `docs/phase-0-checklist.md` step 6's explicit warning. `SMOKE_TOKEN`
+  additionally rotates the plaintext value that was sitting in `Claude.md:57` — worth deleting that
+  stale value from `Claude.md` now that the real one lives only in Cloudflare's secret store.
+- 👤 `RESEND_API_KEY` + verified sending domain (`mail.handmadedesignsbysuzi.com`) — still not set.
+  Without this, production would silently run `EMAIL_MODE=sink` forever and no real order
+  confirmation would ever reach a customer. `wrangler.jsonc`'s production `vars.EMAIL_MODE` is
+  already `"live"`; this key is the only thing missing to make that setting do anything.
 - 👤 USPS `CONSUMER_KEY`/`CONSUMER_SECRET`, if shipment tracking should work at cutover (currently
-  unset on both Workers — this was always a lower-priority deferred item, still true here).
-- 🤖 `bash scripts/check-secret-parity.sh` must pass (all names present on both Workers) before
-  proceeding — it will fail loudly if anything above was missed.
+  unset on both Workers — always a lower-priority deferred item, still true here).
+- 🤖 `bash scripts/check-secret-parity.sh` — **now reports name-parity between staging and
+  production** (re-run 2026-08-01 to confirm). Remaining "MISSING from hdbs" items are exactly the
+  four above (`SQUARE_APP_ID`, `SQUARE_WEBHOOK_SIG_KEY`, both USPS keys, `RESEND_API_KEY`), not a
+  parity bug.
 
 ---
 
@@ -220,8 +236,9 @@ Only after every item above is confirmed:
 - [x] Real media migrated (159 product images + 1 logo, done 2026-08-01, byte-verified); studio/
       hero/about images and capital-equipment receipts/business docs remain a manual pull from
       Hostinger (never rescued in Phase 0 — optional, owner's call before cutover)
-- [ ] All 13 secrets set on production with **live** (not sandbox) payment values;
-      `npm run check:secrets` passes
+- [x] Square + PayPal live secrets set and verified genuinely live (done 2026-08-01);
+      `ORDER_TOKEN_SECRET`/`SMOKE_TOKEN` self-generated fresh; name-parity passes
+- [ ] `SQUARE_WEBHOOK_SIG_KEY` (after DNS, step 8), `RESEND_API_KEY`, USPS keys still outstanding
 - [ ] `npx wrangler deploy` (production) succeeds; a full browser walkthrough against the
       `workers.dev` hostname works end to end, including one real refunded live charge
 - [ ] `regression_test.php` token and staging Basic Auth password rotated (or Cloudflare Access live)
