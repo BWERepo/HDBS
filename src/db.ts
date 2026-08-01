@@ -18,6 +18,7 @@ import type { Env } from "./types";
 import type { AdminAuthStore, AdminSession } from "./auth";
 import type { SettingsStore } from "./settings";
 import type { ProductsStore, ProductRow } from "./products";
+import type { OrdersStore, OrderRow, OrderItemRow } from "./orders";
 
 export function createDb(env: Env): SupabaseClient {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -116,5 +117,29 @@ export class SupabaseProductsStore implements ProductsStore {
       .order("created_at", { ascending: true });
     checkError("listProducts", error);
     return (data ?? []) as ProductRow[];
+  }
+}
+
+/** Wires orders.ts's OrdersStore to the `orders` and `order_items` tables. */
+export class SupabaseOrdersStore implements OrdersStore {
+  constructor(private db: SupabaseClient) {}
+
+  async listOrders(): Promise<OrderRow[]> {
+    const { data, error } = await this.db
+      .from("orders")
+      .select(
+        "id, customer_name, customer_email, customer_phone, shipping_address, shipping_carrier, tracking_number, confirm_sent_at, shipping_sent_at, total, payment_method, status, square_payment_id, order_date, created_at, tax_amount, tax_swept_date, order_type, transaction_fee, payment_configuration, check_number, refunded_amount, paypal_capture_id, paypal_surcharge"
+      )
+      .order("created_at", { ascending: false });
+    checkError("listOrders", error);
+    return (data ?? []) as OrderRow[];
+  }
+
+  async listOrderItems(): Promise<OrderItemRow[]> {
+    const { data, error } = await this.db
+      .from("order_items")
+      .select("order_id, product_id, product_name, price, quantity");
+    checkError("listOrderItems", error);
+    return (data ?? []) as OrderItemRow[];
   }
 }

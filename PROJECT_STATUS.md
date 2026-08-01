@@ -5,6 +5,41 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 3 continued: orders read endpoint)
+
+**`src/orders.ts` written and wired** — ports `api/orders.php`'s `GET` action (admin-only order
+list with grouped line items). Same store-interface + fake pattern as auth/settings/products.
+POST (create)/PUT (update)/DELETE deliberately deferred — order creation carries a stock-decrement
+transaction, a per-IP rate limit, and a cancel-token HMAC that needs `ORDER_TOKEN_SECRET`
+(replacing the `DB_PASS`-keyed HMAC per the plan's Auth section), genuinely payment-adjacent logic
+that deserves its own pass rather than riding on a read endpoint.
+
+Ported faithfully, including two easy-to-get-subtly-wrong formatting rules: `order_date` ->
+`n/j/Y` with no leading zeros, and `created_at` (stored UTC) -> `America/New_York` 12-hour time
+(`g:i A`). The time conversion is unit-tested against the SAME real data point
+`scripts/migrate-data.mjs` empirically validated earlier (`ORD-MR57UJ0A`'s `created_at` ->
+`"1:37 PM"`), so the test isn't just internally consistent, it's checked against a real recorded
+event.
+
+`src/db.ts` gained `SupabaseOrdersStore`; `src/routes/orders.ts` wires `GET /api/orders.php`
+behind `isValidAdminToken` (401 without a valid token, matching `requireAdmin()`).
+
+**Live-verified against staging with real admin credentials** (Suzi's actual production
+password, migrated in along with the rest of `settings` — the test password bootstrapped earlier
+this session no longer works, as expected, since the data migration overwrote it): both real
+orders returned with exactly correct shape — `ORD-MR57UJ0A`'s `time` field is `"1:37 PM"`, exactly
+matching the empirical calculation; shipping/subtotal split correct ($50 item + $12 shipping +
+$4.88 tax = $66.88 total); the $12 shipping refund shows up in `refunded_amount`.
+
+`npm test`: 121/121 passing. `tsc --noEmit`: clean.
+
+**Not yet done:** order creation/update/delete, `customers.ts`, `subscribers.ts` (public
+newsletter signup only — `customers` itself has zero rows in production, finding 1), `tax.ts`,
+`shipping.ts`, `email.ts`, payments. `ORDER_TOKEN_SECRET` has not been generated or set as a
+Worker secret yet.
+
+---
+
 ## Current state — 2026-08-01
 
 **Both Supabase projects now exist**, under the "Business Web Express" org, same as the sibling
