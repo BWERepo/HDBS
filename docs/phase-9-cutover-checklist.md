@@ -21,7 +21,7 @@ confirmed, per `docs/production-isolation.md`'s one-way-door warning.
 | Supabase schema | migrations `0001`-`0011` | ✅ `0001`-`0011`, all applied and confirmed live 2026-08-01 |
 | Supabase data | Real prod snapshot loaded (`scripts/migrate-data.mjs`, Phase 1) | ✅ Real snapshot loaded 2026-08-01, verified row-for-row against all 12 tables |
 | Secrets present | Same 7 names as production, sandbox values | ✅ `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SMOKE_TOKEN`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` — Square/PayPal verified genuinely live against Square's/PayPal's own production APIs, 2026-08-01 |
-| Missing on *both* | `SQUARE_APP_ID` (likely vestigial, see step 5), `SQUARE_WEBHOOK_SIG_KEY` (needs live DNS, step 8), `USPS_CONSUMER_KEY`/`_SECRET`, `RESEND_API_KEY` | (same) |
+| Missing on *both* | `SQUARE_APP_ID` (likely vestigial, see step 5), `SQUARE_WEBHOOK_SIG_KEY` (needs live DNS, step 8), `USPS_CONSUMER_KEY`/`_SECRET` | 🟡 `RESEND_API_KEY` now set but sending domain unverified (403 on real send) — see step 5 |
 | `npm run check:secrets` | — | ✅ Name-parity passes as of 2026-08-01 (was failing at audit time) |
 
 Confirmed via `npx wrangler deployments list`, `npx wrangler r2 bucket list`, `npx wrangler secret
@@ -164,10 +164,16 @@ point is identical secret *names*, deliberately different *values*.
   across environments, per `docs/phase-0-checklist.md` step 6's explicit warning. `SMOKE_TOKEN`
   additionally rotates the plaintext value that was sitting in `Claude.md:57` — worth deleting that
   stale value from `Claude.md` now that the real one lives only in Cloudflare's secret store.
-- 👤 `RESEND_API_KEY` + verified sending domain (`mail.handmadedesignsbysuzi.com`) — still not set.
-  Without this, production would silently run `EMAIL_MODE=sink` forever and no real order
-  confirmation would ever reach a customer. `wrangler.jsonc`'s production `vars.EMAIL_MODE` is
-  already `"live"`; this key is the only thing missing to make that setting do anything.
+- 🟡 `RESEND_API_KEY` — set on production 2026-08-01. Confirmed genuinely valid (a real key returns
+  Resend's "restricted to only send emails" 401, not an "invalid API key" error — correctly scoped
+  send-only, appropriate least-privilege for a production secret). **But the sending domain itself
+  is NOT verified yet** — a real send attempt to `orders@mail.handmadedesignsbysuzi.com` (the exact
+  from-address `src/lib/email-sender.ts` uses) returned Resend's own `403
+  domain_not_verified`. Per `docs/phase-0-checklist.md` step 5: add `mail.handmadedesignsbysuzi.com`
+  in Resend's dashboard, add the DKIM/SPF records Resend gives you to Hostinger DNS — **on the
+  `mail.` subdomain only, never the apex SPF/MX records** (that's what runs Suzi's real mailbox).
+  Until this is done, every real send will 403; re-run the same test send to confirm before
+  considering this item closed.
 - 👤 USPS `CONSUMER_KEY`/`CONSUMER_SECRET`, if shipment tracking should work at cutover (currently
   unset on both Workers — always a lower-priority deferred item, still true here).
 - 🤖 `bash scripts/check-secret-parity.sh` — **now reports name-parity between staging and
@@ -281,7 +287,9 @@ Only after every item above is confirmed:
       Hostinger (never rescued in Phase 0 — optional, owner's call before cutover)
 - [x] Square + PayPal live secrets set and verified genuinely live (done 2026-08-01);
       `ORDER_TOKEN_SECRET`/`SMOKE_TOKEN` self-generated fresh; name-parity passes
-- [ ] `SQUARE_WEBHOOK_SIG_KEY` (after DNS, step 8), `RESEND_API_KEY`, USPS keys still outstanding
+- [ ] `SQUARE_WEBHOOK_SIG_KEY` (after DNS, step 8), USPS keys still outstanding
+- [ ] `RESEND_API_KEY` set (done) but sending domain not yet verified — real email will 403 until
+      `mail.handmadedesignsbysuzi.com`'s DKIM/SPF records are added at Hostinger DNS
 - [x] `npx wrangler deploy` (production) succeeds; a full browser walkthrough against the
       `workers.dev` hostname worked end to end, including one real refunded live charge
       (done 2026-08-01 — ORD-MSAT7Q4O, real Square payment + refund IDs)

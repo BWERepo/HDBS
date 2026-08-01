@@ -5,6 +5,26 @@
 
 ---
 
+## Current state — 2026-08-01 (RESEND_API_KEY set on production, but the sending domain isn't verified yet)
+
+`RESEND_API_KEY` is now set on production. Confirmed genuinely valid without needing domain-read
+access: calling Resend's API directly returned "restricted to only send emails" (401
+`restricted_api_key`) rather than an invalid-key error — a real key, correctly scoped send-only.
+
+**Real send attempt exposed a real gap, not assumed from the checklist alone**: sent an actual test
+email via Resend's API using the exact from-address `src/lib/email-sender.ts` uses
+(`orders@mail.handmadedesignsbysuzi.com`) to the user's own inbox — got back Resend's own `403
+domain_not_verified`. The sending domain was never added/verified in Resend at all. Per
+`docs/phase-0-checklist.md` step 5, this needs the domain added in Resend's dashboard and its
+DKIM/SPF records added to Hostinger DNS on the `mail.` subdomain (never the apex, which runs
+Suzi's real mailbox) — account/DNS work only the user can do.
+
+**Until this is fixed, every real production email will silently fail with a 403** the same way a
+missing key would have — `EMAIL_MODE=live` alone isn't enough. This is now the one concrete blocker
+left in step 5 of `docs/phase-9-cutover-checklist.md`.
+
+---
+
 ## Current state — 2026-08-01 (Phase 9 checklist step 7 done: both carried-over Phase 0 security fixes)
 
 **`regression_test.php`'s `rt_token` rotated on the live production PHP site** — a different
