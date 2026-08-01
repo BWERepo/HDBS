@@ -114,8 +114,14 @@ export class SupabaseSettingsStore implements SettingsStore {
 }
 
 /** Wires products.ts's ProductsStore to the `products` table. */
+/** Wires products.ts's ProductsStore to the `products` table (Supabase) and R2_PUBLIC (image
+ *  files) — the same dual-binding pattern as SupabaseCapitalEquipmentStore below, but against the
+ *  public bucket rather than the private one, since product images are customer-facing. */
 export class SupabaseProductsStore implements ProductsStore {
-  constructor(private db: SupabaseClient) {}
+  constructor(
+    private db: SupabaseClient,
+    private r2: R2Bucket
+  ) {}
 
   async listProducts(): Promise<ProductRow[]> {
     const { data, error } = await this.db
@@ -126,6 +132,20 @@ export class SupabaseProductsStore implements ProductsStore {
       .order("created_at", { ascending: true });
     checkError("listProducts", error);
     return (data ?? []) as ProductRow[];
+  }
+
+  async upsertProduct(row: ProductRow): Promise<void> {
+    const { error } = await this.db.from("products").upsert(row, { onConflict: "id" });
+    checkError("upsertProduct", error);
+  }
+
+  async deleteProduct(id: string): Promise<void> {
+    const { error } = await this.db.from("products").delete().eq("id", id);
+    checkError("deleteProduct", error);
+  }
+
+  putProductImage(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+    return r2Put(this.r2, key, bytes, contentType);
   }
 }
 

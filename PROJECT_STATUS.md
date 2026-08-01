@@ -5,6 +5,69 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 3: product image upload — the write path)
+
+**`src/products.ts` extended with `saveProduct`/`deleteProduct` (POST/DELETE), completing
+`api/products.php`'s full port** — the last of the three deferred "no meaning without R2"
+image-upload paths (`settings.ts`'s biz_profile logo/hero/about and `studio.ts`'s gallery images
+are still deferred; this closes the highest-value one, since the admin catalog was otherwise
+entirely read-only).
+
+**Extracted the shared upload helpers first**: `decodeDataUrl`/`detectFileType`/`mimeForFileType`/
+`sanitizeFilename`/`sanitizeDispositionName` moved out of `business.ts` into
+`src/lib/file-upload.ts` (with their tests moving to `src/lib/file-upload.test.ts`), since
+`products.ts` needed the same magic-byte type detection `business.ts` already had. `business.ts`
+re-exports them so nothing importing from there broke.
+
+**Deliberately did NOT reuse `decodeDataUrl` for the actual image-slot decode**, only
+`detectFileType` for the magic-byte check — `api/products.php`'s per-slot validation has
+genuinely different semantics from the single-file business-doc/receipt uploads that module was
+built for: the size cap is on the **base64 text length** (`strlen($m[2]) > 4MB*4/3`), not decoded
+bytes; a slot that merely *contains* `"data:image"` without matching the full pattern, or fails to
+base64-decode, is **silently emptied** rather than failing the request; but a **bad magic byte**
+aborts the *entire* save with a 400 — a genuinely different failure mode from the other two. All
+three behaviors ported and tested explicitly, including the asymmetry between them.
+
+**One faithfully-preserved PHP quirk, documented rather than fixed**: validation and the R2 write
+happen per-slot in order, exactly like the PHP's per-slot `file_put_contents()` inside its loop —
+so if slot 3 fails magic-byte validation after slots 1-2 already wrote successfully, those two R2
+objects are **not** rolled back even though the product row itself is never saved. Same orphaning
+the live PHP has always produced on Hostinger. Contrast with `send_confirm.php`'s missing
+`requireAdmin()` in `email.ts` (Phase 4, below), which *was* a deliberate security fix — this one
+has no such consequence, so it's preserved and called out, not corrected.
+
+**Also preserved two easy-to-miss PHP semantics**, both covered by dedicated tests: `cogm` defaults
+to half the price only when the key is *absent* (`isset()`), so an explicit `cogm: 0` is honored,
+not defaulted; and `coming_soon` follows PHP's `empty()` truthiness (`0`, `"0"`, absent → false;
+anything else → true), not a plain JS truthy check.
+
+**URLs**: `api/products.php:65` hardcoded the production domain into the stored URL. New uploads
+here store a root-relative path (`/product_images/<filename>`) instead, matching what migration
+`0009` already normalized every existing row to.
+
+`src/db.ts`'s `SupabaseProductsStore` gained `upsertProduct`/`deleteProduct`/`putProductImage` and
+now takes `R2_PUBLIC` in its constructor (same dual-binding pattern as
+`SupabaseCapitalEquipmentStore`, against the public bucket since product images are
+customer-facing). `src/routes/products.ts` wires `POST`/`DELETE /api/products.php` behind
+`isValidAdminToken`, replacing the two 501 stubs.
+
+**Live-verified against staging, but only the unauthenticated path** — deployed and curled the real
+Worker: `GET /api/products.php` still returns real catalog data (no regression), and `POST`/`DELETE`
+both correctly 401 with no token and with a bogus token (confirming the admin gate makes a real
+`admin_sessions` round-trip against live Supabase, not just a unit-tested code path). **Did NOT
+live-verify an actual authenticated save/delete** — the real admin password now live on staging is
+Suzi's actual production password (migrated in during Phase 1), deliberately never written down
+anywhere in this session, so there is no way to self-serve a valid token the way earlier phases'
+throwaway-password bootstrap did. This is a real gap, not a formality: the Supabase `upsert()`
+call and the R2 `put()` call are exercised by the in-memory fake's 19 new tests, but not yet by a
+real database and a real bucket. **Worth a manual pass in the admin UI** (create a product with a
+real image, confirm it renders and the R2 object exists, then delete it) before this is trusted at
+the same level as the rest of Phase 3.
+
+`npm test`: 360/360 passing (19 new). `tsc --noEmit`: clean.
+
+---
+
 ## Current state — 2026-08-01 (Phase 4: email.ts)
 
 **`src/lib/email-format.ts`, real Resend wiring in `src/lib/email-sender.ts`, and
