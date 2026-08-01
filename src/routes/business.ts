@@ -95,7 +95,7 @@ businessRoute.delete("/api/capital_equipment.php", async (c) => {
 businessRoute.post("/api/business_docs.php", async (c) => {
   if (!(await requireAdmin(c))) return fail(c, "Unauthorized", 401);
   const db = createDb(c.env);
-  const settingsStore = new SupabaseSettingsStore(db);
+  const settingsStore = new SupabaseSettingsStore(db, c.env.R2_PUBLIC);
   const fileStore = new R2BusinessDocsFileStore(c.env.R2_PRIVATE);
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
   const action = typeof body.action === "string" ? body.action : "";

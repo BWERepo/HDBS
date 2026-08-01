@@ -1,16 +1,18 @@
 // Design Studio: content items, page-copy config, and commission inquiries. Ports api/studio.php.
 // Same store-interface + fake pattern as everywhere else.
 //
-// Deliberately deferred: studioSaveImage's actual file write (api/studio.php's studioSaveImage()
-// saves a base64 upload to disk). Like products.ts/settings.ts's image uploads, this needs R2,
-// not a verbatim port of disk-write code. A `data:` URL image value is rejected with a clear
-// "not yet available" error for now; an already-URL value passes through unchanged (editing an
-// item's text without touching its image keeps working).
+// studioSaveImage() (api/studio.php:122-141) is ported in resolveStudioImage() below, backed by
+// R2 rather than disk. Its filename is deterministic per item (`studio_<id>.<ext>`) or fixed for
+// the hero (`studio_hero.<ext>`), so — unlike biz_profile's time-stamped filenames in settings.ts —
+// a re-upload naturally overwrites the same R2 key and needs no old-file cleanup on save. Only
+// deleteStudioItem needs to clean up (matching studio.php's delete_item), and only because the row
+// itself is going away, not because the filename would otherwise collide.
 //
 // studio_seed.php is a stale, unused duplicate of the studioSeed()/table-DDL that's ALSO defined
 // inline in studio.php itself (studio.php never requires studio_seed.php) — ported from the
 // inline version (studio.php's), which is the one actually running, not the file-level duplicate.
 
+import { decodeBase64Image, mimeForFileType } from "./lib/file-upload";
 import { escapeHtml } from "./lib/html-escape";
 import type { EmailSender } from "./lib/email-sender";
 import type { SettingsStore } from "./settings";
@@ -76,11 +78,14 @@ export interface StudioResult<T = Record<string, never>> {
 
 export interface StudioStore {
   listItems(): Promise<StudioItemRow[]>;
+  getItem(id: number): Promise<StudioItemRow | null>;
   countItemsBySection(section: string): Promise<number>;
   insertItem(row: Pick<StudioItemRow, "section" | "title" | "data" | "sort_order">): Promise<number>;
   updateItem(id: number, fields: Partial<Pick<StudioItemRow, "title" | "data" | "image" | "sort_order" | "active">>): Promise<void>;
   updateItemSortOrder(id: number, sortOrder: number): Promise<void>;
   deleteItem(id: number): Promise<void>;
+  putImage(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
+  deleteImage(key: string): Promise<void>;
 
   listInquiries(): Promise<StudioInquiryRow[]>;
   listAllNotes(): Promise<StudioNoteRow[]>;
@@ -380,15 +385,46 @@ export interface SaveItemInput {
   image?: string;
 }
 
-/** Resolves an image field the way api/studio.php's studioSaveImage() did, minus the actual file
- *  write (see this file's header — that needs R2, not a verbatim port). */
-function resolveImage(value: string | undefined): { ok: true; url: string } | { ok: false; error: string } {
+/**
+ * Ports api/studio.php's studioSaveImage(): empty stays empty, an already-URL value (anything not
+ * containing "data:image") passes through unchanged, a malformed or undecodable base64 value is
+ * silently emptied (matches the PHP returning ''), and a too-large or bad-magic-byte value is a
+ * hard failure that aborts the whole save (matches the PHP's fail()). Writes the decoded bytes to
+ * R2 under `studio_images/<filebase>.<ext>` and returns a root-relative URL with a cache-busting
+ * `?t=` query param, exactly like the PHP's `ALLOWED_ORIGIN . '/studio_images/' . $filename . '?t='
+ * . time()` — just without the hardcoded domain (see products.ts's header for why: staging and
+ * production each resolve the path against their own R2 bucket via routes/media.ts).
+ */
+async function resolveStudioImage(
+  store: StudioStore,
+  value: string | undefined,
+  filebase: string
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   if (!value) return { ok: true, url: "" };
-  if (!value.startsWith("data:image")) return { ok: true, url: value }; // already a URL
-  return { ok: false, error: "Image upload not yet available on this environment — pending R2 wiring" };
+  if (!value.includes("data:image")) return { ok: true, url: value }; // already a URL
+
+  const decoded = decodeBase64Image(value);
+  if (!decoded.ok) {
+    if (decoded.reason === "too_large") return { ok: false, error: "Image too large (max 4MB)" };
+    if (decoded.reason === "bad_type") return { ok: false, error: "Invalid image format — only JPEG and PNG are accepted" };
+    return { ok: true, url: "" }; // no_match or decode_failed -> silent empty, matches studioSaveImage()
+  }
+
+  const filename = `${filebase}.${decoded.fileType}`;
+  await store.putImage(`studio_images/${filename}`, decoded.bytes, mimeForFileType(decoded.fileType));
+  return { ok: true, url: `/studio_images/${filename}?t=${Math.floor(Date.now() / 1000)}` };
 }
 
-/** Ports api/studio.php's `action=save_item`. Caller must have already required admin. */
+/**
+ * Ports api/studio.php's `action=save_item`. Caller must have already required admin.
+ *
+ * Faithfully preserves the PHP's insert-then-resolve-image ordering: for a NEW item, the row is
+ * inserted (with no image yet) to obtain its id — which the image filename embeds
+ * (`studio_<id>.<ext>`) — before the image is resolved. If the image then fails validation, that
+ * insert is NOT rolled back, matching studio.php exactly (INSERT happens before the studioSaveImage
+ * call that can fail()). For an EXISTING item, no such row exists yet to leave behind — the row's
+ * other fields are only written by the final UPDATE below, so a failed image leaves it untouched.
+ */
 export async function saveStudioItem(store: StudioStore, input: SaveItemInput): Promise<StudioResult<{ id: number }>> {
   const section = input.section ?? "";
   if (!(STUDIO_SECTIONS as readonly string[]).includes(section)) return { ok: false, error: "Invalid section" };
@@ -399,21 +435,32 @@ export async function saveStudioItem(store: StudioStore, input: SaveItemInput): 
   const sortOrder = Number(input.sort_order ?? 0);
   const active = !!input.active;
 
-  const image = resolveImage(input.image);
-  if (!image.ok) return { ok: false, error: image.error };
-
   let id = input.id ?? 0;
   if (!id) {
     id = await store.insertItem({ section, title, data: dataJson, sort_order: sortOrder });
   }
+
+  const image = await resolveStudioImage(store, input.image, `studio_${id}`);
+  if (!image.ok) return { ok: false, error: image.error };
+
   await store.updateItem(id, { title, data: dataJson, image: image.url, sort_order: sortOrder, active });
   return { ok: true, data: { id } };
 }
 
-/** Ports api/studio.php's `action=delete_item`. Caller must have already required admin. Image
- *  file cleanup is skipped (no R2 wiring for uploads yet, so nothing to clean up in practice). */
+/** Ports api/studio.php's `action=delete_item`. Caller must have already required admin. Removes
+ *  the item's own R2 image object first, matching the PHP's read-then-unlink-then-delete order —
+ *  the query string is stripped before extracting the filename, mirroring `parse_url(...,
+ *  PHP_URL_PATH)` dropping the `?t=` cache-bust param. */
 export async function deleteStudioItem(store: StudioStore, id: number): Promise<StudioResult> {
   if (!id) return { ok: false, error: "Missing id" };
+  const item = await store.getItem(id);
+  const marker = "/studio_images/";
+  const path = item?.image ? item.image.split("?")[0]! : "";
+  const idx = path.lastIndexOf(marker);
+  if (idx !== -1) {
+    const filename = path.slice(idx + marker.length);
+    if (filename) await store.deleteImage(`studio_images/${filename}`);
+  }
   await store.deleteItem(id);
   return { ok: true };
 }
@@ -426,15 +473,18 @@ export async function reorderStudioItems(store: StudioStore, order: (number | st
   return { ok: true };
 }
 
-/** Ports api/studio.php's `action=save_config`. Caller must have already required admin. */
+/** Ports api/studio.php's `action=save_config`. Caller must have already required admin. The hero
+ *  image uses a fixed filebase (`studio_hero`, matching the PHP's `studioSaveImage(...,
+ *  'studio_hero')`) rather than an id-based one, since there's only ever one. */
 export async function saveStudioConfig(
+  store: StudioStore,
   settingsStore: Pick<SettingsStore, "setSetting">,
   config: Record<string, unknown> | null
 ): Promise<StudioResult> {
   if (!config || typeof config !== "object") return { ok: false, error: "Missing config" };
   const hero = config.hero as { image?: string } | undefined;
   if (hero?.image) {
-    const resolved = resolveImage(hero.image);
+    const resolved = await resolveStudioImage(store, hero.image, "studio_hero");
     if (!resolved.ok) return { ok: false, error: resolved.error };
     hero.image = resolved.url;
   }
@@ -491,12 +541,22 @@ export class StudioStoreFake implements StudioStore {
   notes: StudioNoteRow[] = [];
   rateLimits = new Map<string, { attempts: number; lastAt: number }>();
   emailLogs: { emailType: string; sentTo: string; subject: string; status: string; body: string }[] = [];
+  images = new Map<string, { bytes: Uint8Array; contentType: string }>();
   private nextItemId = 1;
   private nextInquiryId = 1;
   private nextNoteId = 1;
 
   async listItems(): Promise<StudioItemRow[]> {
     return this.items;
+  }
+  async getItem(id: number): Promise<StudioItemRow | null> {
+    return this.items.find((i) => i.id === id) ?? null;
+  }
+  async putImage(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+    this.images.set(key, { bytes, contentType });
+  }
+  async deleteImage(key: string): Promise<void> {
+    this.images.delete(key);
   }
   async countItemsBySection(section: string): Promise<number> {
     return this.items.filter((i) => i.section === section).length;

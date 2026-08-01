@@ -35,7 +35,7 @@ async function sha256Hex(input: string): Promise<string> {
 
 studioRoute.get("/api/studio.php", async (c) => {
   const db = createDb(c.env);
-  const store = new SupabaseStudioStore(db);
+  const store = new SupabaseStudioStore(db, c.env.R2_PUBLIC);
 
   if (c.req.query("action") === "inquiries") {
     if (!(await requireAdmin(c))) return fail(c, "Unauthorized", 401);
@@ -43,7 +43,7 @@ studioRoute.get("/api/studio.php", async (c) => {
     return ok(c, result.data);
   }
 
-  const result = await getStudioPage(store, new SupabaseSettingsStore(db));
+  const result = await getStudioPage(store, new SupabaseSettingsStore(db, c.env.R2_PUBLIC));
   return ok(c, result.data);
 });
 
@@ -51,11 +51,11 @@ studioRoute.post("/api/studio.php", async (c) => {
   const db = createDb(c.env);
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
   const action = typeof body.action === "string" ? body.action : "";
-  const store = new SupabaseStudioStore(db);
+  const store = new SupabaseStudioStore(db, c.env.R2_PUBLIC);
 
   if (action === "inquire") {
     const ip = c.req.header("CF-Connecting-IP") ?? "";
-    const bizProfileRaw = await new SupabaseSettingsStore(db).getSetting("biz_profile");
+    const bizProfileRaw = await new SupabaseSettingsStore(db, c.env.R2_PUBLIC).getSetting("biz_profile");
     const bizName = resolveBizProfile(bizProfileRaw).name;
     const result = await submitStudioInquiry(
       store,
@@ -102,7 +102,7 @@ studioRoute.post("/api/studio.php", async (c) => {
       return result.ok ? ok(c, { message: "Order saved" }) : fail(c, result.error!, result.status);
     }
     case "save_config": {
-      const result = await saveStudioConfig(new SupabaseSettingsStore(db), (body.config ?? null) as Record<string, unknown> | null);
+      const result = await saveStudioConfig(store, new SupabaseSettingsStore(db, c.env.R2_PUBLIC), (body.config ?? null) as Record<string, unknown> | null);
       return result.ok ? ok(c, { message: "Page copy saved" }) : fail(c, result.error!, result.status);
     }
     case "inquiry_status": {

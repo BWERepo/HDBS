@@ -25,7 +25,7 @@ emailRoute.post("/send_confirm.php", async (c) => {
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
   const orderId = typeof body.order_id === "string" ? body.order_id.trim() : "";
 
-  const bizProfileRaw = await new SupabaseSettingsStore(db).getSetting("biz_profile");
+  const bizProfileRaw = await new SupabaseSettingsStore(db, c.env.R2_PUBLIC).getSetting("biz_profile");
   const biz = resolveBizProfile(bizProfileRaw);
 
   const result = await sendOrderConfirmationEmail(

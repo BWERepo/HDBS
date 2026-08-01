@@ -18,6 +18,15 @@ import {
 } from "./studio";
 import type { EmailSender, EmailSendResult } from "./lib/email-sender";
 import { SettingsStoreFake } from "./settings";
+import { MAX_BASE64_IMAGE_LENGTH } from "./lib/file-upload";
+
+function makeDataUrl(mime: string, bytes: number[]): string {
+  const binary = String.fromCharCode(...bytes);
+  return `data:${mime};base64,${btoa(binary)}`;
+}
+const JPEG_BYTES = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10];
+const PNG_BYTES = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const BOGUS_BYTES = [0x00, 0x01, 0x02, 0x03];
 
 class FakeEmailSender implements EmailSender {
   result: EmailSendResult = { sent: true, status: "sink", html: "" };
@@ -201,16 +210,55 @@ describe("saveStudioItem", () => {
     expect(store.items[0]!.image).toBe("https://example.com/img.jpg");
   });
 
-  it("rejects a data: URL image (upload not yet wired to R2)", async () => {
-    const result = await saveStudioItem(store, { section: "gallery", title: "T", image: "data:image/jpeg;base64,abc" });
+  it("uploads a valid JPEG/PNG image to R2 under studio_images/studio_<id>.<ext>", async () => {
+    const result = await saveStudioItem(store, { section: "gallery", title: "T", image: makeDataUrl("image/jpeg", JPEG_BYTES) });
+    expect(result.ok).toBe(true);
+    const id = result.data!.id;
+    expect(store.items[0]!.image).toMatch(new RegExp(`^/studio_images/studio_${id}\\.jpg\\?t=\\d+$`));
+    const written = store.images.get(`studio_images/studio_${id}.jpg`);
+    expect(written).toBeDefined();
+    expect(Array.from(written!.bytes)).toEqual(JPEG_BYTES);
+    expect(written!.contentType).toBe("image/jpeg");
+  });
+
+  it("silently empties a malformed data:image value instead of failing", async () => {
+    const result = await saveStudioItem(store, { section: "gallery", title: "T", image: "data:image/jpeg;base64" });
+    expect(result.ok).toBe(true);
+    expect(store.items[0]!.image).toBe("");
+  });
+
+  it("rejects a bad-magic-byte image and aborts the whole save", async () => {
+    const result = await saveStudioItem(store, { section: "gallery", title: "T", image: makeDataUrl("image/jpeg", BOGUS_BYTES) });
     expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/not yet available/);
+    expect(result.error).toMatch(/Invalid image format/);
+  });
+
+  it("rejects an image over the 4MB base64 cap", async () => {
+    const huge = `data:image/jpeg;base64,${"A".repeat(MAX_BASE64_IMAGE_LENGTH + 1)}`;
+    const result = await saveStudioItem(store, { section: "gallery", title: "T", image: huge });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/too large/);
   });
 });
 
 describe("deleteStudioItem / reorderStudioItems", () => {
   it("deleteStudioItem requires an id", async () => {
     expect((await deleteStudioItem(store, 0)).ok).toBe(false);
+  });
+
+  it("deleteStudioItem removes the item's own R2 image object", async () => {
+    const saved = await saveStudioItem(store, { section: "gallery", title: "T", image: makeDataUrl("image/png", PNG_BYTES) });
+    const id = saved.data!.id;
+    expect(store.images.has(`studio_images/studio_${id}.png`)).toBe(true);
+    await deleteStudioItem(store, id);
+    expect(store.images.has(`studio_images/studio_${id}.png`)).toBe(false);
+    expect(store.items).toHaveLength(0);
+  });
+
+  it("deleteStudioItem is a no-op on image cleanup when the item has no studio_images URL", async () => {
+    const saved = await saveStudioItem(store, { section: "gallery", title: "T", image: "https://example.com/img.jpg" });
+    const result = await deleteStudioItem(store, saved.data!.id);
+    expect(result.ok).toBe(true);
   });
 
   it("reorderStudioItems sets sort_order to each id's position", async () => {
@@ -224,16 +272,24 @@ describe("deleteStudioItem / reorderStudioItems", () => {
 
 describe("saveStudioConfig", () => {
   it("requires a config object", async () => {
-    expect((await saveStudioConfig(settings, null)).ok).toBe(false);
+    expect((await saveStudioConfig(store, settings, null)).ok).toBe(false);
   });
 
   it("saves the config as JSON", async () => {
-    await saveStudioConfig(settings, { hero: { headline: "Hi" } });
+    await saveStudioConfig(store, settings, { hero: { headline: "Hi" } });
     expect(JSON.parse((await settings.getSetting("studio_config"))!)).toEqual({ hero: { headline: "Hi" } });
   });
 
-  it("rejects a data: URL hero image", async () => {
-    const result = await saveStudioConfig(settings, { hero: { image: "data:image/jpeg;base64,abc" } });
+  it("uploads a valid hero image to R2 under the fixed studio_hero.<ext> key", async () => {
+    const result = await saveStudioConfig(store, settings, { hero: { image: makeDataUrl("image/png", PNG_BYTES) } });
+    expect(result.ok).toBe(true);
+    const saved = JSON.parse((await settings.getSetting("studio_config"))!);
+    expect(saved.hero.image).toMatch(/^\/studio_images\/studio_hero\.png\?t=\d+$/);
+    expect(store.images.has("studio_images/studio_hero.png")).toBe(true);
+  });
+
+  it("rejects a bad-magic-byte hero image", async () => {
+    const result = await saveStudioConfig(store, settings, { hero: { image: makeDataUrl("image/jpeg", BOGUS_BYTES) } });
     expect(result.ok).toBe(false);
   });
 });

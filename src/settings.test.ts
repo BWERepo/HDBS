@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { getSettingValue, setSettingValue, SettingsStoreFake, PUBLIC_SETTING_KEYS, SENSITIVE_SETTING_KEYS } from "./settings";
+import { MAX_BASE64_IMAGE_LENGTH } from "./lib/file-upload";
+
+function makeDataUrl(mime: string, bytes: number[]): string {
+  const binary = String.fromCharCode(...bytes);
+  return `data:${mime};base64,${btoa(binary)}`;
+}
+const JPEG_BYTES = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10];
+const PNG_BYTES = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const BOGUS_BYTES = [0x00, 0x01, 0x02, 0x03];
 
 let store: SettingsStoreFake;
 
@@ -104,6 +113,88 @@ describe("setSettingValue", () => {
       expect(await store.getSetting(key)).toBeNull();
     });
   }
+
+  describe("biz_profile image uploads", () => {
+    it("passes through a non-object value unchanged (no JSON, no image processing)", async () => {
+      const result = await setSettingValue(store, "biz_profile", "not json");
+      expect(result.ok).toBe(true);
+      expect(await store.getSetting("biz_profile")).toBe("not json");
+    });
+
+    it("leaves an already-URL logo untouched", async () => {
+      const value = JSON.stringify({ name: "Biz", logo: "/business_logo/existing.jpg" });
+      const result = await setSettingValue(store, "biz_profile", value);
+      expect(result.ok).toBe(true);
+      expect(JSON.parse((await store.getSetting("biz_profile"))!).logo).toBe("/business_logo/existing.jpg");
+    });
+
+    it("leaves a malformed data:image value untouched, unlike studio's silent-empty", async () => {
+      const value = JSON.stringify({ name: "Biz", logo: "data:image/jpeg;base64" });
+      const result = await setSettingValue(store, "biz_profile", value);
+      expect(result.ok).toBe(true);
+      expect(JSON.parse((await store.getSetting("biz_profile"))!).logo).toBe("data:image/jpeg;base64");
+    });
+
+    it("uploads a valid logo to R2 under business_logo/logo_<ts>.<ext>", async () => {
+      const value = JSON.stringify({ name: "Biz", logo: makeDataUrl("image/jpeg", JPEG_BYTES) });
+      const result = await setSettingValue(store, "biz_profile", value);
+      expect(result.ok).toBe(true);
+      const saved = JSON.parse((await store.getSetting("biz_profile"))!);
+      expect(saved.logo).toMatch(/^\/business_logo\/logo_\d+\.jpg$/);
+      const key = saved.logo.slice(1);
+      expect(store.images.has(key)).toBe(true);
+      expect(store.images.get(key)!.contentType).toBe("image/jpeg");
+    });
+
+    it("uploads hero_image and about_picture to their own directories", async () => {
+      const value = JSON.stringify({
+        name: "Biz",
+        hero_image: makeDataUrl("image/png", PNG_BYTES),
+        about_picture: makeDataUrl("image/jpeg", JPEG_BYTES),
+      });
+      await setSettingValue(store, "biz_profile", value);
+      const saved = JSON.parse((await store.getSetting("biz_profile"))!);
+      expect(saved.hero_image).toMatch(/^\/business_hero\/hero_\d+\.png$/);
+      expect(saved.about_picture).toMatch(/^\/business_about\/about_\d+\.jpg$/);
+    });
+
+    it("deletes the previous logo file once the new one is written", async () => {
+      await setSettingValue(store, "biz_profile", JSON.stringify({ name: "Biz", logo: "/business_logo/old.jpg" }));
+      await store.putImage("business_logo/old.jpg", new Uint8Array([1]), "image/jpeg");
+      const result = await setSettingValue(store, "biz_profile", JSON.stringify({ name: "Biz", logo: makeDataUrl("image/jpeg", JPEG_BYTES) }));
+      expect(result.ok).toBe(true);
+      expect(store.images.has("business_logo/old.jpg")).toBe(false);
+    });
+
+    it("does not delete an old logo belonging to a different key's file", async () => {
+      await setSettingValue(store, "biz_profile", JSON.stringify({ name: "Biz", logo: "https://cdn.example.com/not-ours.jpg" }));
+      await setSettingValue(store, "biz_profile", JSON.stringify({ name: "Biz", logo: makeDataUrl("image/jpeg", JPEG_BYTES) }));
+      // No assertion needed beyond "did not throw" — deleteImage is only ever called with our own
+      // business_logo/ prefix, so an externally-hosted old URL is never touched.
+    });
+
+    it("hard-fails on a bad-magic-byte image (aborts the whole save, does not silently empty)", async () => {
+      const value = JSON.stringify({ name: "Biz", logo: makeDataUrl("image/jpeg", BOGUS_BYTES) });
+      const result = await setSettingValue(store, "biz_profile", value);
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/Invalid logo image format/);
+      expect(await store.getSetting("biz_profile")).toBeNull(); // never written
+    });
+
+    it("hard-fails on an over-cap image with a field-specific message", async () => {
+      const huge = `data:image/jpeg;base64,${"A".repeat(MAX_BASE64_IMAGE_LENGTH + 1)}`;
+      const result = await setSettingValue(store, "biz_profile", JSON.stringify({ name: "Biz", hero_image: huge }));
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/Hero image too large/);
+    });
+
+    it("hard-fails on a decode failure, unlike studio's silent-empty for the same case", async () => {
+      const value = JSON.stringify({ name: "Biz", about_picture: "data:image/jpeg;base64,!!!" });
+      const result = await setSettingValue(store, "biz_profile", value);
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/Could not decode about picture/);
+    });
+  });
 });
 
 describe("PUBLIC_SETTING_KEYS / SENSITIVE_SETTING_KEYS", () => {

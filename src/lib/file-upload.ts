@@ -51,6 +51,42 @@ export function mimeForFileType(type: DetectedFileType): string {
   return type === "pdf" ? "application/pdf" : type === "png" ? "image/png" : "image/jpeg";
 }
 
+/** Mirrors PHP's `strlen($m[2]) > 4 * 1024 * 1024 * 4 / 3` — a cap on the base64 TEXT length
+ *  (accounting for base64's ~4/3 size overhead), not the decoded byte count. Shared by every
+ *  `data:image/...;base64,...` upload path except products.ts's (which keeps its own inline copy —
+ *  see products.ts's header for why). */
+export const MAX_BASE64_IMAGE_LENGTH = Math.floor((4 * 1024 * 1024 * 4) / 3);
+
+export type DecodedBase64Image =
+  | { ok: true; bytes: Uint8Array; fileType: "jpg" | "png" }
+  | { ok: false; reason: "no_match" | "too_large" | "decode_failed" | "bad_type" };
+
+/**
+ * Decodes a `data:image/...;base64,...` value against MAX_BASE64_IMAGE_LENGTH and validates
+ * JPEG/PNG magic bytes — the shared semantics behind api/products.php, api/studio.php's
+ * studioSaveImage(), and api/admin.php's biz_profile logo/hero/about blocks. This function only
+ * classifies the outcome; it never decides pass-through vs. silent-empty vs. hard-fail, because
+ * those three PHP call sites don't all agree (biz_profile hard-fails on a `decode_failed`, while
+ * products/studio silently empty on it) — each caller maps `reason` onto its own source's behavior.
+ */
+export function decodeBase64Image(value: string): DecodedBase64Image {
+  const m = /^data:image\/(\w+);base64,(.+)$/s.exec(value);
+  if (!m) return { ok: false, reason: "no_match" };
+  const base64Data = m[2]!;
+  if (base64Data.length > MAX_BASE64_IMAGE_LENGTH) return { ok: false, reason: "too_large" };
+  let bytes: Uint8Array;
+  try {
+    const binary = atob(base64Data);
+    bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  } catch {
+    return { ok: false, reason: "decode_failed" };
+  }
+  const fileType = detectFileType(bytes);
+  if (fileType !== "jpg" && fileType !== "png") return { ok: false, reason: "bad_type" };
+  return { ok: true, bytes, fileType };
+}
+
 /** Strips control characters and HTML/quote-significant characters — this value is later rendered
  *  in the admin UI and echoed in a Content-Disposition header. */
 export function sanitizeFilename(name: string, fallback: string, maxLen = 200): string {

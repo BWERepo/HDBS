@@ -75,7 +75,7 @@ adminRoute.post("/api/admin.php", async (c) => {
     case "get_setting": {
       const key = String(body.key ?? "");
       const isAdmin = await auth.isValidAdminToken(authStore, adminToken(c));
-      const settingsStore = new SupabaseSettingsStore(db);
+      const settingsStore = new SupabaseSettingsStore(db, c.env.R2_PUBLIC);
       const result = await getSettingValue(settingsStore, key, isAdmin);
       return result.ok ? ok(c, { value: result.data!.value }) : fail(c, result.error!, result.status);
     }
@@ -87,7 +87,7 @@ adminRoute.post("/api/admin.php", async (c) => {
       }
       const key = String(body.key ?? "");
       const value = String(body.value ?? "");
-      const settingsStore = new SupabaseSettingsStore(db);
+      const settingsStore = new SupabaseSettingsStore(db, c.env.R2_PUBLIC);
       const result = await setSettingValue(settingsStore, key, value);
       if (!result.ok) return fail(c, result.error!, result.status);
       // Matches api/admin.php:284's version_updated_at stamp on either version field.

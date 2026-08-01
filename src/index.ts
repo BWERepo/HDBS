@@ -28,6 +28,7 @@ import { opsRoute } from "./routes/ops";
 import { emailRoute } from "./routes/email";
 import { mediaRoute } from "./routes/media";
 import { renderStorefront } from "./shell";
+import { createDb, SupabaseSettingsStore } from "./db";
 import version from "../version.json";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -85,7 +86,7 @@ function wantsShell(pathname: string): boolean {
 }
 
 app.all("*", async (c) => {
-  const load = async () => null; // TODO(Phase 3): read the biz_profile row via src/db.ts
+  const load = () => new SupabaseSettingsStore(createDb(c.env), c.env.R2_PUBLIC).getSetting("biz_profile");
 
   if (wantsShell(new URL(c.req.url).pathname)) {
     const shell = await renderStorefront(c.env, c.req.raw, load, version.version);

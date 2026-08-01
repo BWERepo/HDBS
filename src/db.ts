@@ -101,15 +101,25 @@ export class SupabaseAdminAuthStore implements AdminAuthStore {
   }
 }
 
-/** Wires settings.ts's SettingsStore to the same `settings` table. */
+/** Wires settings.ts's SettingsStore to the `settings` table and R2_PUBLIC (biz_profile's
+ *  logo/hero/about image uploads — customer-facing, same bucket as product images). */
 export class SupabaseSettingsStore implements SettingsStore {
-  constructor(private db: SupabaseClient) {}
+  constructor(
+    private db: SupabaseClient,
+    private r2: R2Bucket
+  ) {}
 
   getSetting(key: string): Promise<string | null> {
     return getSettingRow(this.db, key);
   }
   setSetting(key: string, value: string): Promise<void> {
     return setSettingRow(this.db, key, value);
+  }
+  putImage(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+    return r2Put(this.r2, key, bytes, contentType);
+  }
+  deleteImage(key: string): Promise<void> {
+    return r2Delete(this.r2, key);
   }
 }
 
@@ -561,14 +571,33 @@ export class SupabaseContactStore implements ContactStore {
 }
 
 /** Wires studio.ts's StudioStore to `studio_items`, `studio_inquiries`, `studio_project_notes`,
- *  `rate_limits`, and `email_log`. */
+ *  `rate_limits`, `email_log`, and R2_PUBLIC (gallery/hero image uploads — same bucket as product
+ *  images and biz_profile, since studio content is customer-facing). */
 export class SupabaseStudioStore implements StudioStore {
-  constructor(private db: SupabaseClient) {}
+  constructor(
+    private db: SupabaseClient,
+    private r2: R2Bucket
+  ) {}
 
   async listItems(): Promise<StudioItemRow[]> {
     const { data, error } = await this.db.from("studio_items").select("id, section, title, data, image, sort_order, active, created_at");
     checkError("listItems", error);
     return (data ?? []) as StudioItemRow[];
+  }
+  async getItem(id: number): Promise<StudioItemRow | null> {
+    const { data, error } = await this.db
+      .from("studio_items")
+      .select("id, section, title, data, image, sort_order, active, created_at")
+      .eq("id", id)
+      .maybeSingle();
+    checkError("getItem", error);
+    return (data as StudioItemRow | null) ?? null;
+  }
+  putImage(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+    return r2Put(this.r2, key, bytes, contentType);
+  }
+  deleteImage(key: string): Promise<void> {
+    return r2Delete(this.r2, key);
   }
   async countItemsBySection(section: string): Promise<number> {
     const { count, error } = await this.db.from("studio_items").select("id", { count: "exact", head: true }).eq("section", section);

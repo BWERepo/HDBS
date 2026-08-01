@@ -20,7 +20,7 @@ contactRoute.post("/api/contact.php", async (c) => {
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
   const ip = c.req.header("CF-Connecting-IP") ?? "";
 
-  const bizProfileRaw = await new SupabaseSettingsStore(db).getSetting("biz_profile");
+  const bizProfileRaw = await new SupabaseSettingsStore(db, c.env.R2_PUBLIC).getSetting("biz_profile");
   const bizName = resolveBizProfile(bizProfileRaw).name;
 
   const result = await submitContactForm(

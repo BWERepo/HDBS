@@ -77,7 +77,7 @@ ordersRoute.post("/api/orders.php", async (c) => {
     // decide how an unauthenticated internal call would satisfy the admin gate we added to the
     // public /send_confirm.php route (see routes/email.ts's header).
     async (orderId: string) => {
-      const bizProfileRaw = await new SupabaseSettingsStore(db).getSetting("biz_profile");
+      const bizProfileRaw = await new SupabaseSettingsStore(db, c.env.R2_PUBLIC).getSetting("biz_profile");
       const biz = resolveBizProfile(bizProfileRaw);
       await sendOrderConfirmationEmail(
         new SupabaseEmailOrderStore(db),

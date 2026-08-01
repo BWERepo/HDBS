@@ -5,6 +5,100 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 3: the last two deferred image uploads — biz_profile + studio)
+
+**Closes both remaining "no meaning without R2" deferrals called out in Phase 3's product-image
+entry below**: `settings.ts`'s biz_profile logo/hero_image/about_picture uploads, and
+`studio.ts`'s gallery-item and hero-image uploads. Every base64-image upload path in the app is
+now R2-backed; nothing is left returning a placeholder "not yet available" error.
+
+**Extracted a shared decoder first**: `decodeBase64Image()` in `src/lib/file-upload.ts` — the
+base64-TEXT-length cap (not decoded-byte cap) plus JPEG/PNG magic-byte check that
+`api/products.php`, `api/studio.php`'s `studioSaveImage()`, and `api/admin.php`'s three
+biz_profile blocks all share. It only classifies the outcome (`no_match` / `too_large` /
+`decode_failed` / `bad_type`); it doesn't decide pass-through vs. silent-empty vs. hard-fail,
+because **the three PHP call sites don't actually agree with each other** on that:
+
+- `studio.php`'s `studioSaveImage()`: malformed pattern *or* a base64 decode failure both silently
+  return `''`; only too-large or a bad magic byte call `fail()`.
+- `admin.php`'s biz_profile blocks: a malformed pattern leaves the field **untouched** (the PHP's
+  `preg_match` is the guard for the whole `if` block); but once the pattern matches, a decode
+  failure is **also** a hard `fail()` — unlike studio, which forgives it. Too-large and bad-magic-byte
+  are hard fails in both.
+
+This is a real, easy-to-miss divergence between two PHP files that look like they're doing the same
+thing. Each port (`resolveStudioImage` in `studio.ts`, `processBizProfileImages` in `settings.ts`)
+maps the shared classifier onto its own source's behavior rather than unifying them — verified with
+dedicated tests per branch in both `studio.test.ts` and `settings.test.ts` (deliberately including a
+same-shaped "decode failure" case in both files with opposite expected outcomes, so a future
+refactor that accidentally unifies them would fail loudly).
+
+**Filename scheme differences, both preserved exactly**: studio images use a deterministic filename
+(`studio_<item id>.<ext>`, or the fixed `studio_hero.<ext>` for the page-copy hero) — matching
+`studioSaveImage()`'s own `$filebase` argument — so a re-upload naturally overwrites the same R2
+key and needs no old-file cleanup on save (only `deleteStudioItem` cleans up, and only because the
+row itself is going away). biz_profile's three images use a **time-stamped** filename
+(`logo_<unix-seconds>.<ext>`, etc.), matching `admin.php`'s `'logo_' . time() . '.' . $ext` — so
+each upload gets a new key, and the OLD file has to be explicitly deleted (prefix-checked against
+the pre-update biz_profile row, exactly like the PHP's `strpos($oldBiz['logo'], $logoUrl) === 0`
+check, just against a root-relative `/business_logo/` prefix instead of a full domain — matching
+what migration 0009 already normalized every existing biz_profile row to).
+
+**Storage**: both go to `R2_PUBLIC` under the same prefixes `routes/media.ts` already proxied
+(`studio_images/`, `business_logo/`, `business_hero/`, `business_about/` — media.ts's own header
+already anticipated this, calling out that `business_hero`/`business_about` were "empty in
+production... but routed anyway"). `SupabaseStudioStore` and `SupabaseSettingsStore` both gained an
+`R2Bucket` constructor parameter; every construction site across `routes/admin.ts`,
+`routes/business.ts`, `routes/studio.ts`, `routes/email.ts`, `routes/contact.ts`, and
+`routes/orders.ts` was updated to pass `c.env.R2_PUBLIC` (mechanical, since `c.env` was already in
+scope at every call site — most of those only ever call `.getSetting()` and never touch the new
+image methods, but the interface now requires them for `SupabaseSettingsStore` to compile).
+
+**One preserved orphaning quirk, not fixed**: if a studio item is re-saved with a different image
+*extension* than before (PNG then later JPEG), the old extension's R2 object is never cleaned up —
+same as the live PHP's disk behavior, since the filename is extension-dependent. Consistent with
+how products.ts's own per-slot orphaning was documented rather than fixed.
+
+`npm test`: 383/383 passing (16 new — `file-upload.ts` gained no new tests of its own since
+`decodeBase64Image` is exercised indirectly through both `studio.test.ts` and `settings.test.ts`).
+`tsc --noEmit`: clean.
+
+**Live-verified with a real authenticated pass this time** — the user logged into staging
+themselves (same admin-password gap as Phase 3's product-image entry) and uploaded a real Design
+Studio gallery item image, a Page Copy hero image, and a Business Profile logo, all through the
+actual admin UI. All three landed correctly: `GET /api/studio.php` shows a real gallery item with
+`image: "/studio_images/studio_19.jpg?t=1785603307"` and a `studio_config.hero.image` of
+`/studio_images/studio_hero.jpg?t=1785602676"`; the R2 object `business_logo/logo_1785602989.jpg`
+is fetchable directly (200, correct `Content-Type: image/jpeg`).
+
+**Caught and fixed a real, unrelated pre-existing bug along the way**: the storefront homepage kept
+showing the default logo/hero/about even after a successful biz_profile save. Root cause was in
+`src/index.ts`'s SPA catch-all, NOT in this session's new code — `const load = async () => null;`
+had sat there since before `src/db.ts` existed, with a `// TODO(Phase 3): read the biz_profile row
+via src/db.ts` comment that never got followed up once `src/db.ts` actually landed. Every phase
+since then kept building real Supabase-backed features while the one thing that renders the
+homepage's own branding was still silently hardcoded to "no data available." `getBizProfile()` in
+`shell.ts` already had the injection seam built for exactly this (`load: () => Promise<string |
+null>`, with its own isolate-scoped 60s cache and graceful fallback-to-defaults on failure) — it
+was just never wired to a real loader. Fixed with a one-line change: `load` now constructs
+`SupabaseSettingsStore` and calls `getSetting("biz_profile")` for real. Confirmed on redeploy: the
+homepage HTML now contains `business_logo/logo_1785602989.jpg` instead of the default
+`HDBSLogo.jpeg`.
+
+**How this was diagnosed**: the first two "verified" reports from the user turned out to be
+against the wrong screen (the Projects/inquiries tab, which has no images) and then a real save
+that looked like it silently did nothing. `wrangler tail --env staging` proved the Worker was
+receiving zero requests during one retry attempt (confirmed the tail itself was live by curling the
+Worker directly mid-session and watching it appear instantly) — which turned out to be a red
+herring from checking too early. The DevTools Network tab on the actual retry showed real 200s all
+the way through, which is what pointed at "the write path works, something downstream doesn't
+read it" rather than a save-path bug — leading straight to the `index.ts` stub. Lesson: when a
+change is confirmed to have written real data but the page doesn't reflect it, check what actually
+reads that data before re-auditing the write path a second time.
+
+`npm test`: 383/383 passing (unchanged by the `index.ts` fix — no test file covers that entry
+point). `tsc --noEmit`: clean.
+
 ## Incident — 2026-08-01: the third console error was a half-finished design, now completed
 
 After the two fixes below, the user's console still showed one 501 on every page load, on
