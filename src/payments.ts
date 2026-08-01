@@ -33,6 +33,17 @@ import type { PayPalGateway } from "./lib/paypal-gateway";
 import type { EmailSender } from "./lib/email-sender";
 import type { EmailOrderStore, PaymentOrderSummary, PaymentLineItem } from "./email";
 import { sendPaymentReceivedEmail } from "./email";
+import type { AppLogStore } from "./app-log";
+
+/** Best-effort: an app_log write failing must never fail the payment/refund it's logging about. */
+async function logNotify(appLog: AppLogStore | undefined, context: string, message: string): Promise<void> {
+  if (!appLog) return;
+  try {
+    await appLog.append("notify_log.txt", { context, message });
+  } catch {
+    // swallow — logging is not on the critical path
+  }
+}
 
 export interface PaymentsResult<T = Record<string, never>> {
   ok: boolean;
@@ -152,7 +163,8 @@ export async function chargeOrderWithSquare(
   squareLocationId: string,
   input: SquareChargeInput,
   isAdmin: boolean,
-  now: Date = new Date()
+  now: Date = new Date(),
+  appLog?: AppLogStore
 ): Promise<PaymentsResult<{ message: string; payment_id: string; total: number; order_id: string }>> {
   const orderId = (input.order_id ?? "").trim();
   const sourceId = (input.source_id ?? "").trim();
@@ -192,6 +204,7 @@ export async function chargeOrderWithSquare(
   if (!charge.ok) {
     await store.releaseFromProcessing(orderId);
     console.error("PAYMENT-FAIL", { orderId, locationId: squareLocationId, error: charge.message });
+    await logNotify(appLog, "PAYMENT-FAIL", `Order: ${orderId} | ${charge.message}`);
     return { ok: false, error: charge.message };
   }
   if (charge.status !== "COMPLETED") {
@@ -248,7 +261,8 @@ export async function createPaypalOrderForCheckout(
   settings: PaymentSettingsStore,
   bizName: string,
   input: PaypalCreateInput,
-  isAdmin: boolean
+  isAdmin: boolean,
+  appLog?: AppLogStore
 ): Promise<PaymentsResult<{ paypal_order_id: string; surcharge: number; total: number }>> {
   const orderId = (input.order_id ?? "").trim();
   if (!orderId) return { ok: false, error: "Missing order_id" };
@@ -278,6 +292,7 @@ export async function createPaypalOrderForCheckout(
   });
   if (!created.ok) {
     console.error("PP-CREATE-FAIL", { orderId, error: created.message });
+    await logNotify(appLog, "PP-CREATE-FAIL", `Order: ${orderId} | ${created.message}`);
     return { ok: false, error: created.message };
   }
 
@@ -308,7 +323,8 @@ export async function capturePaypalOrderForCheckout(
   biz: PaymentBizInfo,
   input: PaypalCaptureInput,
   isAdmin: boolean,
-  now: Date = new Date()
+  now: Date = new Date(),
+  appLog?: AppLogStore
 ): Promise<PaymentsResult<{ message: string; payment_id: string; total: number; surcharge: number; order_id: string }>> {
   const orderId = (input.order_id ?? "").trim();
   const paypalOrderId = (input.paypal_order_id ?? "").trim();
@@ -354,6 +370,7 @@ export async function capturePaypalOrderForCheckout(
   if (!captured.ok) {
     await store.releaseFromProcessing(orderId);
     console.error("PP-CAPTURE-FAIL", { orderId, paypalOrderId, error: captured.message });
+    await logNotify(appLog, "PP-CAPTURE-FAIL", `Order: ${orderId} | PayPal order: ${paypalOrderId} | ${captured.message}`);
     return { ok: false, error: captured.message };
   }
 
@@ -444,7 +461,11 @@ export interface SquareWebhookEvent {
  *    anything this codebase ever writes. Preserved rather than fixed, matching this migration's
  *    general policy of documenting rather than silently correcting non-security-relevant quirks.
  */
-export async function handleSquareWebhookEvent(store: OrdersStore, event: SquareWebhookEvent): Promise<{ handled: boolean; orderId: string | null }> {
+export async function handleSquareWebhookEvent(
+  store: OrdersStore,
+  event: SquareWebhookEvent,
+  appLog?: AppLogStore
+): Promise<{ handled: boolean; orderId: string | null }> {
   if (event.type !== "payment.updated") return { handled: false, orderId: null };
   const payment = event.data?.object?.payment;
   if (!payment || payment.status !== "COMPLETED") return { handled: false, orderId: null };
@@ -469,7 +490,15 @@ export async function handleSquareWebhookEvent(store: OrdersStore, event: Square
     if (found) orderId = found.id;
   }
 
-  if (!orderId) return { handled: false, orderId: null };
+  if (!orderId) {
+    if (appLog) {
+      await appLog.append("webhook_log.txt", {
+        context: "COMPLETED but no order ID found",
+        message: `Square: ${payment.id ?? ""} | Note: ${payment.note ?? "none"}`,
+      });
+    }
+    return { handled: false, orderId: null };
+  }
 
   const current = await store.getOrder(orderId);
   if (!current || current.status === "Paid") return { handled: true, orderId };
@@ -486,6 +515,10 @@ export async function handleSquareWebhookEvent(store: OrdersStore, event: Square
     tax_amount: taxDollars,
     transaction_fee: feeDollars,
   });
+
+  if (appLog) {
+    await appLog.append("webhook_log.txt", { context: "PAID", message: `Order: ${orderId} | Square: ${payment.id ?? ""}` });
+  }
 
   return { handled: true, orderId };
 }

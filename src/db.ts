@@ -30,6 +30,7 @@ import type { EmailLogStore, EmailLogRow } from "./ops";
 import type { EmailOrderStore, OrderForConfirmation, OrderItemForConfirmation } from "./email";
 import type { RefundsStore, RefundRow } from "./refunds";
 import type { DbBackupStore } from "./db-backup";
+import type { AppLogStore, AppLogFile, AppLogEntry } from "./app-log";
 
 export function createDb(env: Env): SupabaseClient {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -900,6 +901,30 @@ export class SupabaseEmailLogStore implements EmailLogStore {
   async clearEmailLog(): Promise<void> {
     const { error } = await this.db.from("email_log").delete().not("id", "is", null);
     checkError("clearEmailLog", error);
+  }
+}
+
+/** Wires app-log.ts's AppLogStore to the `app_log` table (see supabase/migrations/0011_app_log.sql
+ *  and app-log.ts's own header for why this table exists at all). */
+export class SupabaseAppLogStore implements AppLogStore {
+  constructor(private db: SupabaseClient) {}
+
+  async append(file: AppLogFile, entry: { context: string; message: string }): Promise<void> {
+    const { error } = await this.db.from("app_log").insert({ file, context: entry.context, message: entry.message });
+    checkError("appendAppLog", error);
+  }
+  async readEntries(file: AppLogFile): Promise<AppLogEntry[]> {
+    const { data, error } = await this.db.from("app_log").select("*").eq("file", file).order("logged_at", { ascending: true });
+    checkError("readAppLogEntries", error);
+    return ((data ?? []) as { logged_at: string; context: string; message: string }[]).map((r) => ({
+      loggedAt: r.logged_at,
+      context: r.context,
+      message: r.message,
+    }));
+  }
+  async clear(file: AppLogFile): Promise<void> {
+    const { error } = await this.db.from("app_log").delete().eq("file", file);
+    checkError("clearAppLog", error);
   }
 }
 

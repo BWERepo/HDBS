@@ -13,6 +13,7 @@ import {
 import { OrdersStoreFake, makeOrderRow } from "./orders";
 import { SettingsStoreFake } from "./settings";
 import type { EmailSender, EmailSendResult } from "./lib/email-sender";
+import { AppLogStoreFake } from "./app-log";
 
 class FakeEmailSender implements EmailSender {
   sent: { to: string | string[]; subject: string; html: string }[] = [];
@@ -155,6 +156,17 @@ describe("chargeOrderWithSquare", () => {
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/declined/);
     expect(store.orders[0]!.status).toBe("Awaiting Payment");
+  });
+
+  it("logs a PAYMENT-FAIL entry to the app_log notify file on a declined charge", async () => {
+    seedAwaitingOrder();
+    const gateway = new FakeSquareGateway();
+    gateway.result = { ok: false, message: "Your card was declined." };
+    const appLog = new AppLogStoreFake();
+    await chargeOrderWithSquare(store, gateway, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false, new Date(), appLog);
+    expect(appLog.rows["notify_log.txt"]).toHaveLength(1);
+    expect(appLog.rows["notify_log.txt"]![0]!.context).toBe("PAYMENT-FAIL");
+    expect(appLog.rows["notify_log.txt"]![0]!.message).toContain("ORD-1");
   });
 
   it("releases the claim when Square returns a non-COMPLETED status", async () => {
@@ -378,5 +390,32 @@ describe("handleSquareWebhookEvent", () => {
       data: { object: { payment: { id: "sqpay3", status: "COMPLETED", note: "", order_id: "sqorderX", amount_money: { amount: 999999 } } } },
     });
     expect(result.handled).toBe(false);
+  });
+
+  it("logs a webhook_log PAID entry on a successful match, matching square-webhook.php's own log line", async () => {
+    store.orders = [makeOrderRow({ id: "ORD-7", status: "Awaiting Payment" })];
+    const appLog = new AppLogStoreFake();
+    await handleSquareWebhookEvent(
+      store,
+      { type: "payment.updated", data: { object: { payment: { id: "sqpay2", status: "COMPLETED", note: "Order ORD-7" } } } },
+      appLog
+    );
+    expect(appLog.rows["webhook_log.txt"]).toHaveLength(1);
+    expect(appLog.rows["webhook_log.txt"]![0]).toEqual({
+      loggedAt: appLog.rows["webhook_log.txt"]![0]!.loggedAt,
+      context: "PAID",
+      message: "Order: ORD-7 | Square: sqpay2",
+    });
+  });
+
+  it("logs a webhook_log entry when no order can be identified", async () => {
+    const appLog = new AppLogStoreFake();
+    await handleSquareWebhookEvent(
+      store,
+      { type: "payment.updated", data: { object: { payment: { id: "sqpay3", status: "COMPLETED", note: "", order_id: "sqorderX", amount_money: { amount: 999999 } } } } },
+      appLog
+    );
+    expect(appLog.rows["webhook_log.txt"]).toHaveLength(1);
+    expect(appLog.rows["webhook_log.txt"]![0]!.context).toBe("COMPLETED but no order ID found");
   });
 });

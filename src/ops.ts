@@ -8,8 +8,10 @@
 // - github_log.php is a live external API integration (GitHub commits) with its own filesystem
 //   cache. Lower priority than the business-logic modules, similar to USPS tracking — deferred,
 //   not because it's hard, but because it isn't core storefront/admin functionality.
-// - api/applog.php has no HTTP endpoint of its own; per the migration plan it becomes
-//   console.log/wrangler tail, which is a call-site concern, not a module to port.
+// - api/applog.php has no HTTP endpoint of its own; its call sites (payments.ts, refunds.ts,
+//   square-webhook handling) write both console.error (wrangler tail) and the app_log table.
+//   The admin-facing log VIEWER (read_log/clear_log/get_error_log) is a separate module,
+//   src/app-log.ts, wired into routes/admin.ts.
 
 export interface EmailLogRow {
   id: number;

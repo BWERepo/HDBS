@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import type { Env } from "../types";
 import { apiHosts } from "../types";
 import { ok, fail } from "../lib/http";
-import { createDb, SupabaseAdminAuthStore, SupabaseOrdersStore, SupabaseCustomersStore, SupabaseSettingsStore, SupabaseEmailOrderStore } from "../db";
+import { createDb, SupabaseAdminAuthStore, SupabaseOrdersStore, SupabaseCustomersStore, SupabaseSettingsStore, SupabaseEmailOrderStore, SupabaseAppLogStore } from "../db";
 import { isValidAdminToken } from "../auth";
 import { resolveBizProfile } from "../lib/biz-profile";
 import { createEmailSender } from "../lib/email-sender";
@@ -39,7 +39,9 @@ paymentsRoute.post("/api/process_payment.php", async (c) => {
     biz,
     c.env.SQUARE_LOCATION_ID,
     { order_id: body.order_id as string | undefined, source_id: body.source_id as string | undefined, test_mode: !!body.test_mode },
-    isAdmin
+    isAdmin,
+    new Date(),
+    new SupabaseAppLogStore(db)
   );
   return result.ok ? ok(c, result.data) : fail(c, result.error!, result.status);
 });
@@ -56,7 +58,8 @@ paymentsRoute.post("/api/paypal_create.php", async (c) => {
     new SupabaseSettingsStore(db, c.env.R2_PUBLIC),
     biz.name,
     { order_id: body.order_id as string | undefined, test_mode: !!body.test_mode },
-    isAdmin
+    isAdmin,
+    new SupabaseAppLogStore(db)
   );
   return result.ok ? ok(c, result.data) : fail(c, result.error!, result.status);
 });
@@ -80,7 +83,9 @@ paymentsRoute.post("/api/paypal_capture.php", async (c) => {
       paypal_order_id: body.paypal_order_id as string | undefined,
       test_mode: !!body.test_mode,
     },
-    isAdmin
+    isAdmin,
+    new Date(),
+    new SupabaseAppLogStore(db)
   );
   return result.ok ? ok(c, result.data) : fail(c, result.error!, result.status);
 });
@@ -105,7 +110,8 @@ paymentsRoute.post("/api/square-webhook.php", async (c) => {
   }
   if (!event || typeof event !== "object" || !("type" in event)) return c.text("Missing event type", 400);
 
-  await handleSquareWebhookEvent(new SupabaseOrdersStore(createDb(c.env)), event as Parameters<typeof handleSquareWebhookEvent>[1]);
+  const db = createDb(c.env);
+  await handleSquareWebhookEvent(new SupabaseOrdersStore(db), event as Parameters<typeof handleSquareWebhookEvent>[1], new SupabaseAppLogStore(db));
 
   return c.text("OK", 200);
 });

@@ -3,16 +3,19 @@
 // The front end is NOT being rewritten (js/auth.js:159 calls apiFetch('admin.php', 'POST',
 // {action:'login', ...})), so this stays a single path with an `action` field in the body rather
 // than becoming REST-per-action. Only the actions ported so far (src/auth.ts, src/settings.ts)
-// are wired; every other admin.php action (get_version, github_token, smtp, logs, db browser —
-// the last one the migration plan recommends dropping entirely) is still TODO and returns 501 so
-// it's visibly unimplemented rather than a bare 404 that looks like a routing bug.
+// are wired, along with the admin log viewer (read_log/clear_log/get_error_log, backed by
+// src/app-log.ts's app_log table — see that file's header for why a real table exists at all).
+// Every other admin.php action (get_version, github_token, smtp, db browser — the last one the
+// migration plan recommends dropping entirely) is still TODO and returns 501 so it's visibly
+// unimplemented rather than a bare 404 that looks like a routing bug.
 
 import { Hono } from "hono";
 import type { Env } from "../types";
 import { ok, fail } from "../lib/http";
-import { createDb, SupabaseAdminAuthStore, SupabaseSettingsStore } from "../db";
+import { createDb, SupabaseAdminAuthStore, SupabaseSettingsStore, SupabaseAppLogStore } from "../db";
 import * as auth from "../auth";
 import { getSettingValue, setSettingValue } from "../settings";
+import { readLog, clearLog, getErrorLog } from "../app-log";
 
 export const adminRoute = new Hono<{ Bindings: Env }>();
 
@@ -95,6 +98,30 @@ adminRoute.post("/api/admin.php", async (c) => {
         await settingsStore.setSetting("version_updated_at", new Date().toISOString());
       }
       return ok(c, { message: "Setting saved" });
+    }
+
+    case "read_log": {
+      if (!(await auth.isValidAdminToken(authStore, adminToken(c)))) {
+        return fail(c, "Session expired. Please log in again.", 401);
+      }
+      const result = await readLog(new SupabaseAppLogStore(db), String(body.file ?? ""));
+      return result.ok ? ok(c, result.data!) : fail(c, result.error!, result.status);
+    }
+
+    case "clear_log": {
+      if (!(await auth.isValidAdminToken(authStore, adminToken(c)))) {
+        return fail(c, "Session expired. Please log in again.", 401);
+      }
+      const result = await clearLog(new SupabaseAppLogStore(db), String(body.file ?? ""));
+      return result.ok ? ok(c, { message: "Log cleared" }) : fail(c, result.error!, result.status);
+    }
+
+    case "get_error_log": {
+      if (!(await auth.isValidAdminToken(authStore, adminToken(c)))) {
+        return fail(c, "Session expired. Please log in again.", 401);
+      }
+      const result = await getErrorLog(new SupabaseAppLogStore(db));
+      return result.ok ? ok(c, result.data!) : fail(c, result.error!, result.status);
     }
 
     default:

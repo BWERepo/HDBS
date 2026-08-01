@@ -5,6 +5,60 @@
 
 ---
 
+## Current state — 2026-08-01 (Admin log viewer: a real Supabase table replaces the disk files)
+
+**`api/admin.php`'s `read_log`/`clear_log`/`get_error_log` actions are ported** — the last
+still-TODO surface called out at the end of the "smaller tail" milestone below. These three read
+and write plain text files on Hostinger's disk (`notify_log.txt`, `webhook_log.txt`,
+`error_log.txt`, `pages.log`); a Worker has no filesystem, and the earlier `applog.php` port
+already replaced the underlying writes with `console.error` (viewable only live via `wrangler
+tail`, nothing queryable after the fact) — so the admin log *viewer* had nothing left to read.
+
+**A genuine architecture decision, put to the user rather than assumed**: drop the viewer
+(`wrangler tail`/Cloudflare's own dashboard already cover live debugging) vs. rebuild it on a real
+table. The user chose to rebuild it — same choice pattern as the github_log/repo_stats/db_backup
+decisions in the milestone below.
+
+**New module `src/app-log.ts`**: an `app_log` Supabase table (`supabase/migrations/0011_app_log.sql`,
+RLS enabled like every other table), one row per log line (`file`/`context`/`message`/`logged_at`),
+replacing the PHP's per-file text blob. `readLog`/`clearLog`/`getErrorLog` port the three admin.php
+actions exactly — same 200-line cap + reversal for `read_log`, same 100KB tail-truncation banner
+for `get_error_log`, same `$allowed` file list and "Invalid log file"/"No entries yet." messages.
+Wired into `routes/admin.ts` behind the same admin-token gate as `set_setting`.
+
+**Only two of the four files have real writers today, matching what's already ported**: `notify`
+(payments.ts's `PAYMENT-FAIL`/`PP-CREATE-FAIL`/`PP-CAPTURE-FAIL`, refunds.ts's `REFUND-FAIL` — all
+four already had `console.error` call sites from the payments milestone; each gained a
+best-effort `appLog.append()` alongside it, swallowing its own errors so a logging failure can
+never fail the payment/refund it's logging about) and `webhook` (the Square webhook handler's own
+`PAID`/`COMPLETED but no order ID found` line, matching `square-webhook.php:89-95` byte-for-byte in
+content). `error` (gated on `debug_mode`) and `pages` (gated on `log_page_changes`) have no ported
+writer yet — same as the live PHP, which only populates those once debug mode or page-view logging
+is turned on. They're still valid, listable/clearable files, just empty until something writes to
+them — not a gap introduced by this port.
+
+`npm test`: 497/497 passing (13 new: 9 in `app-log.test.ts`, plus one targeted write-path test each
+in `payments.test.ts` (×2, PAYMENT-FAIL + webhook) and `refunds.test.ts`). `tsc --noEmit`: clean.
+
+**Live-verified against staging, real Supabase round trip**: migration `0011_app_log.sql` applied
+by the user via the Supabase SQL editor (RLS enabled, matching the project's standing pattern).
+Confirmed real auth gating (401 with no/bogus token), a real `SELECT` (`read_log` on an empty
+table returns `"No entries yet."`, not an error — proves the table exists and RLS/service-role
+access works), a real `DELETE` (`clear_log` returns success), `get_error_log`'s placeholder
+message, and the shared "Invalid log file" rejection for an unknown file name. **Did NOT
+live-verify an actual write** — same root cause as the payments milestone: Square/PayPal
+credentials are still unset on staging, so none of the three writer call sites (`chargeOrderWithSquare`,
+`createPaypalOrderForCheckout`, the webhook handler) can be reached end-to-end yet. The insert path
+is covered by dedicated unit tests against `AppLogStoreFake` instead, same as every other module
+whose live credentials don't exist yet.
+
+**Everything identified in this project's PHP-to-Cloudflare migration plan is now either ported or
+a deliberate, confirmed drop.** What's left before cutover is exactly what the milestone below
+already said: real Square/PayPal/GitHub/USPS credentials (owner-only), and Phase 10 itself
+(uncommenting `routes` in `wrangler.jsonc`).
+
+---
+
 ## Current state — 2026-08-01 (The "smaller tail": every remaining PHP endpoint except the three deliberately dropped)
 
 **Every PHP endpoint identified in this session's full-migration audit is now either ported or a

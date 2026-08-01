@@ -18,6 +18,7 @@ import type { PayPalGateway } from "./lib/paypal-gateway";
 import type { EmailSender } from "./lib/email-sender";
 import type { EmailOrderStore, RefundOrderSummary } from "./email";
 import { sendRefundEmail } from "./email";
+import type { AppLogStore } from "./app-log";
 
 export interface RefundRow {
   id: number;
@@ -84,7 +85,8 @@ export async function processRefund(
   bizName: string,
   bizEmail: string,
   input: CreateRefundInput,
-  now: Date = new Date()
+  now: Date = new Date(),
+  appLog?: AppLogStore
 ): Promise<
   RefundResult<{
     message: string;
@@ -126,6 +128,7 @@ export async function processRefund(
     const refunded = await squareGateway.refund({ paymentId: order.square_payment_id, idempotencyKey, amountCents: Math.round(amount * 100), reason });
     if (!refunded.ok) {
       console.error("REFUND-FAIL", { orderId, amount, error: refunded.message });
+      if (appLog) await appLog.append("notify_log.txt", { context: "REFUND-FAIL", message: `Order: ${orderId} | $${amount} | ${refunded.message}` });
       return { ok: false, error: refunded.message };
     }
     refundId = refunded.refundId;
@@ -137,6 +140,7 @@ export async function processRefund(
     const refunded = await paypalGateway.refundCapture({ captureId: order.paypal_capture_id, requestId, amount, noteToPayer: reason });
     if (!refunded.ok) {
       console.error("REFUND-FAIL", { orderId, amount, pp: refunded.message });
+      if (appLog) await appLog.append("notify_log.txt", { context: "REFUND-FAIL", message: `Order: ${orderId} | $${amount} | ${refunded.message}` });
       return { ok: false, error: refunded.message };
     }
     refundId = refunded.refundId;

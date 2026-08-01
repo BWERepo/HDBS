@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import type { Env } from "../types";
 import { apiHosts } from "../types";
 import { ok, fail } from "../lib/http";
-import { createDb, SupabaseAdminAuthStore, SupabaseOrdersStore, SupabaseRefundsStore, SupabaseSettingsStore, SupabaseEmailOrderStore } from "../db";
+import { createDb, SupabaseAdminAuthStore, SupabaseOrdersStore, SupabaseRefundsStore, SupabaseSettingsStore, SupabaseEmailOrderStore, SupabaseAppLogStore } from "../db";
 import { isValidAdminToken } from "../auth";
 import { resolveBizProfile } from "../lib/biz-profile";
 import { createEmailSender } from "../lib/email-sender";
@@ -48,7 +48,9 @@ refundsRoute.post("/api/refund.php", async (c) => {
       order_id: body.order_id as string | undefined,
       amount: body.amount as number | string | undefined,
       reason: body.reason as string | undefined,
-    }
+    },
+    new Date(),
+    new SupabaseAppLogStore(db)
   );
   return result.ok ? ok(c, result.data) : fail(c, result.error!, result.status);
 });

@@ -3,6 +3,7 @@ import { listRefundsForOrder, processRefund, RefundsStoreFake } from "./refunds"
 import { OrdersStoreFake, makeOrderRow } from "./orders";
 import { FakeSquareGateway, FakePayPalGateway } from "./payments";
 import type { EmailSender, EmailSendResult } from "./lib/email-sender";
+import { AppLogStoreFake } from "./app-log";
 
 class FakeEmailSender implements EmailSender {
   sent: { to: string | string[]; subject: string; html: string }[] = [];
@@ -54,8 +55,8 @@ function seedOrder(overrides: Partial<Parameters<typeof makeOrderRow>[0]> = {}) 
   ];
 }
 
-async function run(input: Parameters<typeof processRefund>[8]) {
-  return processRefund(orders, refunds, square, paypal, emailStore, emailSender, bizName, bizEmail, input);
+async function run(input: Parameters<typeof processRefund>[8], appLog?: Parameters<typeof processRefund>[10]) {
+  return processRefund(orders, refunds, square, paypal, emailStore, emailSender, bizName, bizEmail, input, new Date(), appLog);
 }
 
 describe("listRefundsForOrder", () => {
@@ -142,6 +143,15 @@ describe("processRefund — card (Square)", () => {
     const result = await run({ order_id: "ORD-1", amount: 10, reason: "x" });
     expect(result.ok).toBe(false);
     expect(refunds.refunds).toHaveLength(0);
+  });
+
+  it("logs a REFUND-FAIL entry to the app_log notify file on a failed Square API call", async () => {
+    seedOrder();
+    square.refundResult = { ok: false, message: "Square refund failed: Unknown Square error" };
+    const appLog = new AppLogStoreFake();
+    await run({ order_id: "ORD-1", amount: 10, reason: "x" }, appLog);
+    expect(appLog.rows["notify_log.txt"]).toHaveLength(1);
+    expect(appLog.rows["notify_log.txt"]![0]!.context).toBe("REFUND-FAIL");
   });
 });
 
