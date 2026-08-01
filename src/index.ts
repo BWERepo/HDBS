@@ -20,6 +20,9 @@ import { ordersRoute } from "./routes/orders";
 import { taxRoute } from "./routes/tax";
 import { subscribersRoute } from "./routes/subscribers";
 import { customersRoute } from "./routes/customers";
+import { contentRoute } from "./routes/content";
+import { contactRoute } from "./routes/contact";
+import { studioRoute } from "./routes/studio";
 import { mediaRoute } from "./routes/media";
 import { renderStorefront } from "./shell";
 import version from "../version.json";
@@ -35,6 +38,9 @@ app.route("/", ordersRoute);
 app.route("/", taxRoute);
 app.route("/", subscribersRoute);
 app.route("/", customersRoute);
+app.route("/", contentRoute);
+app.route("/", contactRoute);
+app.route("/", studioRoute);
 app.route("/", mediaRoute);
 
 // Legacy bookmarks and cached links — carried over from .htaccess lines 8-10.

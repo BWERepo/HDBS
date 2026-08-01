@@ -5,6 +5,66 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 3 continued: content, contact, studio)
+
+**`src/content.ts` (reviews + faqs), `src/contact.ts`, and `src/studio.ts` written and wired.**
+
+**New shared piece: `src/lib/email-sender.ts`** — a minimal `EMAIL_MODE` dispatcher (`sink`/`live`),
+extracted because both `contact.ts` and `studio.ts`'s inquiry form need to send an email and
+neither should duplicate the decision. Full Resend integration (logo splice, templates, DKIM
+domain) is still Phase 4's `email.ts` — NOT built here. What IS built: the `sink` path the plan
+already specifies ("render the full HTML, write email_log with status='sink', return success
+WITHOUT calling Resend") — genuinely usable today since staging already runs `EMAIL_MODE=sink`
+with no `RESEND_API_KEY`. The `live` path is a clearly-marked stub that correctly reports failure
+rather than pretending to send.
+
+**`content.ts`** ports `api/reviews.php` (public approved-only list / admin all-list, rate-limited
+public submission, admin approve/delete) and `api/faqs.php` (list, add, update, reorder, delete) —
+straightforward CRUD, no email dependency.
+
+**`contact.ts`** ports `api/contact.php`'s validation, rate limit, and HTML email template
+(`buildContactEmailHtml`, a pure/testable function) — the actual send goes through the
+`EmailSender` abstraction above.
+
+**`studio.ts`** is the big one — ports `api/studio.php`'s full surface: idempotent starter-content
+seeding (`ensureStudioSeeded`, checked by count exactly like the PHP), public
+items+page-copy-config GET, admin inquiry pipeline (list with grouped notes,
+status/due-date/notes CRUD, project delete), and the public commission-inquiry form (rate-limited,
+computes a default due date from timeline phrases like "two weeks", emails a notification, and —
+matching the PHP exactly — **always returns success once the inquiry is stored**, even if the
+email send fails, so a flaky mail relay never blocks a visitor's submission). Noted and skipped:
+`api/studio_seed.php` is a stale, unused duplicate of the seed logic already inlined in
+`studio.php` itself (which never `require`s the separate file) — ported from the inline version,
+the one actually running.
+
+**Deliberately deferred, consistent with `products.ts`/`settings.ts`**: `studioSaveImage`'s actual
+file write. A `data:` URL image value now returns a clear "not yet available — pending R2 wiring"
+error; an already-URL value (editing text without touching the image) passes through unchanged.
+
+`src/db.ts` gained `SupabaseReviewsStore`, `SupabaseFaqsStore`, `SupabaseContactStore`,
+`SupabaseStudioStore`, plus shared `rate_limits`/`email_log` helpers reused across all three
+(the same `rate_limits` table already backs subscribers/tax-adjacent throttles — reviews/contact/
+studio-inquiry each get their own key prefix on the same table, matching how `orders.ts` and
+`customers.ts` already share `customer_login_attempts` this way).
+
+**Live-verified against staging, every module, real writes**: submitted a real review (pending),
+approved and deleted it; submitted a real contact form (succeeded via the sink path, no real
+email sent); submitted a real studio inquiry — confirmed the due-date computation ("two weeks" →
+exactly 14 days out), added an admin note (correct `America/New_York` timestamp format), changed
+status, then deleted the whole project and confirmed its note cascaded with it; confirmed
+`GET /api/studio.php` auto-seeds exactly 7 services + 10 FAQs on a fresh call. One repeat of the
+same transient edge blip seen earlier this session (a request occasionally returns the SPA shell
+instead of hitting the Worker) — resolved on immediate retry every time, not a code issue.
+
+`npm test`: 276/276 passing (55 new: 16 content + 8 contact + 31 studio). `tsc --noEmit`: clean.
+
+**Not yet done**: `email.ts` itself (Resend, logo splice, real sending domain), payments
+(deliberately last). Remaining back-office long tail: `business.ts` (capital_equipment,
+business_docs — the latter has no DB table at all, filesystem-only in the PHP) and `ops.ts`
+(applog/email_log viewer/deploy_log/github_log/health/smoke).
+
+---
+
 ## Current state — 2026-08-01 (Phase 3 continued: customer accounts)
 
 **`src/customers.ts` written and wired**, completing `api/customers.php`'s full port:

@@ -22,6 +22,9 @@ import type { OrdersStore, OrderRow, OrderItemRow, OrderInsert, OrderUpdatableFi
 import type { TaxStore, TnCityTaxRow, PendingTaxOrder, TaxSweepRow } from "./tax";
 import type { SubscribersStore, SubscriberRow } from "./subscribers";
 import type { CustomersStore, CustomerRow } from "./customers";
+import type { ReviewsStore, ReviewRow, FaqsStore, FaqRow } from "./content";
+import type { ContactStore } from "./contact";
+import type { StudioStore, StudioItemRow, StudioInquiryRow, StudioNoteRow } from "./studio";
 
 export function createDb(env: Env): SupabaseClient {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -433,5 +436,184 @@ export class SupabaseCustomersStore implements CustomersStore {
   async setAttempt(key: string, attempts: number, lastAt: number): Promise<void> {
     const { error } = await this.db.from("customer_login_attempts").upsert({ email_hash: key, attempts, last_at: lastAt });
     checkError("setAttempt", error);
+  }
+}
+
+// ── rate_limits — shared by reviews, contact, and studio-inquiry submission ──
+async function getGenericRateLimit(db: SupabaseClient, key: string): Promise<{ attempts: number; lastAt: number } | null> {
+  const { data, error } = await db.from("rate_limits").select("attempts, last_at").eq("key_hash", key).maybeSingle();
+  checkError("getRateLimit", error);
+  return data ? { attempts: Number(data.attempts), lastAt: Number(data.last_at) } : null;
+}
+async function setGenericRateLimit(db: SupabaseClient, key: string, attempts: number, lastAt: number): Promise<void> {
+  const { error } = await db.from("rate_limits").upsert({ key_hash: key, attempts, last_at: lastAt });
+  checkError("setRateLimit", error);
+}
+async function insertEmailLog(
+  db: SupabaseClient,
+  entry: { emailType: string; sentTo: string; subject: string; status: "sent" | "failed" | "sink"; body: string; orderId?: string }
+): Promise<void> {
+  const { error } = await db.from("email_log").insert({
+    email_type: entry.emailType,
+    sent_to: entry.sentTo,
+    order_id: entry.orderId ?? "",
+    subject: entry.subject,
+    status: entry.status,
+    email_body: entry.body,
+  });
+  checkError("insertEmailLog", error);
+}
+
+/** Wires content.ts's ReviewsStore to `reviews` and `rate_limits`. */
+export class SupabaseReviewsStore implements ReviewsStore {
+  constructor(private db: SupabaseClient) {}
+
+  async listReviews(onlyApproved: boolean): Promise<ReviewRow[]> {
+    let query = this.db.from("reviews").select("id, customer_name, product_name, rating, review_text, status, created_at").order("created_at", { ascending: false });
+    if (onlyApproved) query = query.eq("status", "approved");
+    const { data, error } = await query;
+    checkError("listReviews", error);
+    return (data ?? []) as ReviewRow[];
+  }
+  async insertReview(row: Pick<ReviewRow, "customer_name" | "product_name" | "rating" | "review_text">): Promise<void> {
+    const { error } = await this.db.from("reviews").insert(row);
+    checkError("insertReview", error);
+  }
+  async updateReviewStatus(id: number, status: string): Promise<void> {
+    const { error } = await this.db.from("reviews").update({ status }).eq("id", id);
+    checkError("updateReviewStatus", error);
+  }
+  async deleteReview(id: number): Promise<void> {
+    const { error } = await this.db.from("reviews").delete().eq("id", id);
+    checkError("deleteReview", error);
+  }
+  getRateLimit(key: string) {
+    return getGenericRateLimit(this.db, key);
+  }
+  setRateLimit(key: string, attempts: number, lastAt: number) {
+    return setGenericRateLimit(this.db, key, attempts, lastAt);
+  }
+}
+
+/** Wires content.ts's FaqsStore to `faqs`. */
+export class SupabaseFaqsStore implements FaqsStore {
+  constructor(private db: SupabaseClient) {}
+
+  async listFaqs(): Promise<FaqRow[]> {
+    const { data, error } = await this.db.from("faqs").select("id, question, answer, sort_order").order("sort_order", { ascending: true }).order("id", { ascending: true });
+    checkError("listFaqs", error);
+    return (data ?? []) as FaqRow[];
+  }
+  async insertFaq(row: Pick<FaqRow, "question" | "answer" | "sort_order">): Promise<void> {
+    const { error } = await this.db.from("faqs").insert(row);
+    checkError("insertFaq", error);
+  }
+  async updateFaq(id: number, question: string, answer: string): Promise<void> {
+    const { error } = await this.db.from("faqs").update({ question, answer }).eq("id", id);
+    checkError("updateFaq", error);
+  }
+  async updateFaqSortOrder(id: number, sortOrder: number): Promise<void> {
+    const { error } = await this.db.from("faqs").update({ sort_order: sortOrder }).eq("id", id);
+    checkError("updateFaqSortOrder", error);
+  }
+  async deleteFaq(id: number): Promise<void> {
+    const { error } = await this.db.from("faqs").delete().eq("id", id);
+    checkError("deleteFaq", error);
+  }
+}
+
+/** Wires contact.ts's ContactStore to `rate_limits` and `email_log`. */
+export class SupabaseContactStore implements ContactStore {
+  constructor(private db: SupabaseClient) {}
+
+  getRateLimit(key: string) {
+    return getGenericRateLimit(this.db, key);
+  }
+  setRateLimit(key: string, attempts: number, lastAt: number) {
+    return setGenericRateLimit(this.db, key, attempts, lastAt);
+  }
+  logEmail(entry: { emailType: string; sentTo: string; subject: string; status: "sent" | "failed" | "sink"; body: string }) {
+    return insertEmailLog(this.db, entry);
+  }
+}
+
+/** Wires studio.ts's StudioStore to `studio_items`, `studio_inquiries`, `studio_project_notes`,
+ *  `rate_limits`, and `email_log`. */
+export class SupabaseStudioStore implements StudioStore {
+  constructor(private db: SupabaseClient) {}
+
+  async listItems(): Promise<StudioItemRow[]> {
+    const { data, error } = await this.db.from("studio_items").select("id, section, title, data, image, sort_order, active, created_at");
+    checkError("listItems", error);
+    return (data ?? []) as StudioItemRow[];
+  }
+  async countItemsBySection(section: string): Promise<number> {
+    const { count, error } = await this.db.from("studio_items").select("id", { count: "exact", head: true }).eq("section", section);
+    checkError("countItemsBySection", error);
+    return count ?? 0;
+  }
+  async insertItem(row: Pick<StudioItemRow, "section" | "title" | "data" | "sort_order">): Promise<number> {
+    const { data, error } = await this.db.from("studio_items").insert(row).select("id").single();
+    checkError("insertItem", error);
+    return (data as { id: number }).id;
+  }
+  async updateItem(id: number, fields: Partial<Pick<StudioItemRow, "title" | "data" | "image" | "sort_order" | "active">>): Promise<void> {
+    const { error } = await this.db.from("studio_items").update(fields).eq("id", id);
+    checkError("updateItem", error);
+  }
+  async updateItemSortOrder(id: number, sortOrder: number): Promise<void> {
+    const { error } = await this.db.from("studio_items").update({ sort_order: sortOrder }).eq("id", id);
+    checkError("updateItemSortOrder", error);
+  }
+  async deleteItem(id: number): Promise<void> {
+    const { error } = await this.db.from("studio_items").delete().eq("id", id);
+    checkError("deleteItem", error);
+  }
+
+  async listInquiries(): Promise<StudioInquiryRow[]> {
+    const { data, error } = await this.db.from("studio_inquiries").select("*");
+    checkError("listInquiries", error);
+    return (data ?? []) as StudioInquiryRow[];
+  }
+  async listAllNotes(): Promise<StudioNoteRow[]> {
+    const { data, error } = await this.db.from("studio_project_notes").select("*");
+    checkError("listAllNotes", error);
+    return (data ?? []) as StudioNoteRow[];
+  }
+  async insertInquiry(row: Omit<StudioInquiryRow, "id" | "created_at">): Promise<number> {
+    const { data, error } = await this.db.from("studio_inquiries").insert(row).select("id").single();
+    checkError("insertInquiry", error);
+    return (data as { id: number }).id;
+  }
+  async updateInquiryStatus(id: number, status: string): Promise<void> {
+    const { error } = await this.db.from("studio_inquiries").update({ status }).eq("id", id);
+    checkError("updateInquiryStatus", error);
+  }
+  async updateInquiryDueDate(id: number, dueDate: string | null): Promise<void> {
+    const { error } = await this.db.from("studio_inquiries").update({ due_date: dueDate }).eq("id", id);
+    checkError("updateInquiryDueDate", error);
+  }
+  async deleteInquiry(id: number): Promise<void> {
+    const { error } = await this.db.from("studio_inquiries").delete().eq("id", id);
+    checkError("deleteInquiry", error);
+  }
+  async insertNote(projectId: number, noteText: string): Promise<StudioNoteRow> {
+    const { data, error } = await this.db.from("studio_project_notes").insert({ project_id: projectId, note_text: noteText }).select("*").single();
+    checkError("insertNote", error);
+    return data as StudioNoteRow;
+  }
+  async deleteNote(id: number): Promise<void> {
+    const { error } = await this.db.from("studio_project_notes").delete().eq("id", id);
+    checkError("deleteNote", error);
+  }
+
+  getRateLimit(key: string) {
+    return getGenericRateLimit(this.db, key);
+  }
+  setRateLimit(key: string, attempts: number, lastAt: number) {
+    return setGenericRateLimit(this.db, key, attempts, lastAt);
+  }
+  logEmail(entry: { emailType: string; sentTo: string; subject: string; status: "sent" | "failed" | "sink"; body: string }) {
+    return insertEmailLog(this.db, entry);
   }
 }
