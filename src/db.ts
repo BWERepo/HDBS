@@ -19,6 +19,8 @@ import type { AdminAuthStore, AdminSession } from "./auth";
 import type { SettingsStore } from "./settings";
 import type { ProductsStore, ProductRow } from "./products";
 import type { OrdersStore, OrderRow, OrderItemRow } from "./orders";
+import type { TaxStore, TnCityTaxRow, PendingTaxOrder, TaxSweepRow } from "./tax";
+import type { SubscribersStore, SubscriberRow } from "./subscribers";
 
 export function createDb(env: Env): SupabaseClient {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -142,4 +144,129 @@ export class SupabaseOrdersStore implements OrdersStore {
     checkError("listOrderItems", error);
     return (data ?? []) as OrderItemRow[];
   }
+}
+
+/** Wires tax.ts's TaxStore to `tn_city_tax`, `tax_sweeps`, and `orders`. */
+export class SupabaseTaxStore implements TaxStore {
+  constructor(private db: SupabaseClient) {}
+
+  async listCities(search: string): Promise<TnCityTaxRow[]> {
+    let query = this.db.from("tn_city_tax").select("id, city, county, tax_rate").order("city", { ascending: true });
+    // .ilike(), not .like() — MySQL's *_ai_ci collation made this search case/accent-insensitive.
+    if (search) query = query.or(`city.ilike.%${search}%,county.ilike.%${search}%`);
+    const { data, error } = await query;
+    checkError("listCities", error);
+    return (data ?? []) as TnCityTaxRow[];
+  }
+
+  async upsertCity(city: string, county: string, taxRate: number): Promise<void> {
+    const { error } = await this.db
+      .from("tn_city_tax")
+      .upsert({ city, county, tax_rate: taxRate }, { onConflict: "city,county" });
+    checkError("upsertCity", error);
+  }
+
+  async deleteCity(id: number): Promise<void> {
+    const { error } = await this.db.from("tn_city_tax").delete().eq("id", id);
+    checkError("deleteCity", error);
+  }
+
+  async listPendingTaxOrders(): Promise<PendingTaxOrder[]> {
+    const { data, error } = await this.db
+      .from("orders")
+      .select("id, order_date, tax_amount")
+      .gt("tax_amount", 0)
+      .is("tax_swept_date", null)
+      .order("order_date", { ascending: true });
+    checkError("listPendingTaxOrders", error);
+    return (data ?? []) as PendingTaxOrder[];
+  }
+
+  async listSweeps(): Promise<TaxSweepRow[]> {
+    const { data, error } = await this.db
+      .from("tax_sweeps")
+      .select("*")
+      .order("sweep_date", { ascending: false })
+      .order("id", { ascending: false });
+    checkError("listSweeps", error);
+    return (data ?? []) as TaxSweepRow[];
+  }
+
+  async insertSweep(sweep: Omit<TaxSweepRow, "id" | "created_at">): Promise<number> {
+    const { data, error } = await this.db.from("tax_sweeps").insert(sweep).select("id").single();
+    checkError("insertSweep", error);
+    return (data as { id: number }).id;
+  }
+
+  async markOrdersSwept(orderIds: string[], sweptAt: string): Promise<void> {
+    const { error } = await this.db.from("orders").update({ tax_swept_date: sweptAt }).in("id", orderIds);
+    checkError("markOrdersSwept", error);
+  }
+
+  async updateSweep(id: number, fields: Partial<Pick<TaxSweepRow, "sweep_date" | "total_tax" | "order_count">>): Promise<void> {
+    const { error } = await this.db.from("tax_sweeps").update(fields).eq("id", id);
+    checkError("updateSweep", error);
+  }
+
+  async deleteSweep(id: number): Promise<void> {
+    const { error } = await this.db.from("tax_sweeps").delete().eq("id", id);
+    checkError("deleteSweep", error);
+  }
+}
+
+/** Wires subscribers.ts's SubscribersStore to `subscribers` and `rate_limits`. */
+export class SupabaseSubscribersStore implements SubscribersStore {
+  constructor(private db: SupabaseClient) {}
+
+  async listSubscribers(): Promise<SubscriberRow[]> {
+    const { data, error } = await this.db
+      .from("subscribers")
+      .select("email, subscribed_at")
+      .order("subscribed_at", { ascending: false });
+    checkError("listSubscribers", error);
+    return ((data ?? []) as { email: string; subscribed_at: string }[]).map((r) => ({
+      email: r.email,
+      date: formatMonthDayYear(r.subscribed_at),
+    }));
+  }
+
+  async findSubscriber(email: string): Promise<{ source: string | null } | null> {
+    const { data, error } = await this.db.from("subscribers").select("source").eq("email", email).maybeSingle();
+    checkError("findSubscriber", error);
+    return data ? { source: data.source } : null;
+  }
+
+  async insertSubscriber(email: string, source: string | null): Promise<void> {
+    const { error } = await this.db.from("subscribers").insert({ email, source });
+    checkError("insertSubscriber", error);
+  }
+
+  async updateSubscriberSourceIfEmpty(email: string, source: string): Promise<void> {
+    const { error } = await this.db.from("subscribers").update({ source }).eq("email", email).or("source.is.null,source.eq.");
+    checkError("updateSubscriberSourceIfEmpty", error);
+  }
+
+  async deleteSubscriber(email: string): Promise<void> {
+    const { error } = await this.db.from("subscribers").delete().eq("email", email);
+    checkError("deleteSubscriber", error);
+  }
+
+  async getRateLimit(key: string): Promise<{ attempts: number; lastAt: number } | null> {
+    const { data, error } = await this.db.from("rate_limits").select("attempts, last_at").eq("key_hash", key).maybeSingle();
+    checkError("getRateLimit", error);
+    return data ? { attempts: Number(data.attempts), lastAt: Number(data.last_at) } : null;
+  }
+
+  async setRateLimit(key: string, attempts: number, lastAt: number): Promise<void> {
+    const { error } = await this.db.from("rate_limits").upsert({ key_hash: key, attempts, last_at: lastAt });
+    checkError("setRateLimit", error);
+  }
+}
+
+/** Ports PHP's DATE_FORMAT(subscribed_at, '%m/%d/%Y'). */
+function formatMonthDayYear(isoTimestamp: string): string {
+  const d = new Date(isoTimestamp);
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${mm}/${dd}/${d.getUTCFullYear()}`;
 }

@@ -5,6 +5,55 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 3 continued: tax, tax sweep, subscribers)
+
+**`src/tax.ts` and `src/subscribers.ts` written and wired.** Scoped down from the plan's full
+`tax.ts`/`shipping.ts` modules after checking what's actually there:
+- **`api/fetch_tax.php`** (Square API tax reconciliation) and **`api/tn_tax.php`** (confirmed
+  dead — queries a dropped table, finding 2) deliberately NOT ported — genuinely payment-adjacent
+  or dead code.
+- **`shipping.ts` has no backend business logic to port at all.** `usps.php`/
+  `validate_tracking.php` are a live USPS OAuth2 integration needing real credentials we don't
+  have (deferred alongside payments); the shipping-rate calculation (`shipping_config`'s zone
+  rates/weight tiers) turns out to be pure client-side JS in `js/store.js` — the backend only
+  ever stored it as an opaque blob, which `settings.ts` already handles generically. No module
+  written; nothing was skipped by omission, there was nothing there.
+
+**`src/tax.ts`** ports `api/tn_city_tax.php` (public GET/search, admin POST upsert/DELETE) and
+`api/tax_sweep.php` (pending-orders summary, sweep history, create/edit/delete a sweep record).
+One correctness note worth flagging: the upsert conflict target is the **`(city, county)` pair**
+(matching MySQL's `UNIQUE KEY city_county`), not `city` alone — caught and fixed a bug in the
+first draft of the in-memory fake before it reached the real adapter, where it matched on `city`
+only. Also: `tax_sweeps.order_ids` is stored as **JSON** (`json_encode()` in the live PHP), not
+comma-separated despite what the migration's own column comment says — the wire format from the
+live PHP is the source of truth, not the comment, and this is called out explicitly in the code
+and tested.
+
+**`src/subscribers.ts`** ports `api/subscribers.php`'s GET (admin list)/POST (public subscribe,
+with the same 5-attempts/15-minute rate-limit shape `auth.ts` already established for
+login)/DELETE (admin unsubscribe). The rate-limit key is hashed with SHA-256 in
+`src/routes/subscribers.ts` rather than MD5 (WebCrypto has no MD5) — fine since it's purely an
+internal bucket key, never compared against a PHP-generated value.
+
+`src/db.ts` gained `SupabaseTaxStore` and `SupabaseSubscribersStore`. New routes:
+`GET/POST/DELETE /api/tn_city_tax.php`, `GET/POST/PUT/DELETE /api/tax_sweep.php`,
+`GET/POST/DELETE /api/subscribers.php`.
+
+**Live-verified against staging with real data**, read AND write paths:
+- `GET /api/tn_city_tax.php` — all 52 real cities, correctly sorted; `?search=nash` correctly
+  returns only Nashville.
+- `GET /api/subscribers.php` (admin) — both real subscribers, dates formatted `MM/DD/YYYY`
+  matching the PHP exactly.
+- `GET /api/tax_sweep.php` (admin) — correctly identified the 2 real unswept orders
+  (`ORD-MR57UJ0A`/`ORD-MR581NLT`), summed tax ($9.76), correct date range.
+- **`POST /api/tax_sweep.php`** — created a real sweep record against live staging data; verified
+  pending then correctly shows none, and history shows the sweep with the right JSON-encoded
+  `order_ids`, matching the live PHP's actual wire format.
+
+`npm test`: 149/149 passing. `tsc --noEmit`: clean.
+
+---
+
 ## Current state — 2026-08-01 (Phase 3 continued: orders read endpoint)
 
 **`src/orders.ts` written and wired** — ports `api/orders.php`'s `GET` action (admin-only order

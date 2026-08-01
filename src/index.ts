@@ -17,6 +17,8 @@ import { cors } from "./lib/cors";
 import { adminRoute } from "./routes/admin";
 import { productsRoute } from "./routes/products";
 import { ordersRoute } from "./routes/orders";
+import { taxRoute } from "./routes/tax";
+import { subscribersRoute } from "./routes/subscribers";
 import { mediaRoute } from "./routes/media";
 import { renderStorefront } from "./shell";
 import version from "../version.json";
@@ -29,6 +31,8 @@ app.use("/api/*", cors);
 app.route("/", adminRoute);
 app.route("/", productsRoute);
 app.route("/", ordersRoute);
+app.route("/", taxRoute);
+app.route("/", subscribersRoute);
 app.route("/", mediaRoute);
 
 // Legacy bookmarks and cached links — carried over from .htaccess lines 8-10.
