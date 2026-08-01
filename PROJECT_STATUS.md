@@ -5,6 +5,34 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 9 checklist step 7 done: both carried-over Phase 0 security fixes)
+
+**`regression_test.php`'s `rt_token` rotated on the live production PHP site** — a different
+system than everything else this session touched (still the real Hostinger MySQL app serving
+customers today, pre-cutover). User provided a real admin session token; called the live
+`admin.php`'s `set_setting` action with a freshly-generated value, piped straight in and never
+echoed. Verified the old plaintext value from `Claude.md` now 403s, without printing the new one.
+`Claude.md` no longer hardcodes any real token value.
+
+**`staging-login.html` deleted outright, not just rotated — a real finding changed the plan
+mid-task.** Its Basic Auth credentials turned out to already be vestigial: staging's real
+`.htaccess` has a deliberate override (with its own comment) granting the whole directory to
+everyone, since staging is intentionally fully public (`noindex` is the actual gate). Didn't just
+assume this from reading the comment — rotated the `.htpasswd` hash via FTP first (generated a
+fresh SHA-512-crypt hash with `openssl passwd -6`, matching Hostinger's existing format) and
+confirmed both the old and new passwords produced the identical result against a real request,
+proving auth genuinely isn't enforced. Deleted the file from git, and from the live server via FTP
+`DELE` — first attempt used the wrong path (assumed it lived under `staging/`; it's actually at the
+site root), caught by checking the real directory listing rather than trusting the command's exit
+code.
+
+`npm test`: 497/497 (unaffected). `tsc --noEmit`: clean.
+
+`docs/phase-9-cutover-checklist.md` step 7 is now fully done. Remaining before cutover: the last
+pieces of step 5 (`RESEND_API_KEY`, USPS, `SQUARE_WEBHOOK_SIG_KEY`), and step 8 itself.
+
+---
+
 ## Current state — 2026-08-01 (Phase 9 checklist step 6 done: first real production deploy, real live charge verified)
 
 **`npx wrangler deploy` (no `--env`) — production's first redeploy since the Phase 0 scaffold.**

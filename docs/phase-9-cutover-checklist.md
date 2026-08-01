@@ -225,16 +225,27 @@ in-stock item ("ETCC Logo Crossbody," $35) to cart, and paid with a real card.
 
 ---
 
-## 7. 👤 Two security fixes carried over from Phase 0, still not done
+## 7. ✅ Two security fixes carried over from Phase 0 — DONE
 
-`docs/phase-0-checklist.md` step 8 flagged both of these as "live today" and independent of the
-migration timeline — they're still outstanding:
+**Completed 2026-08-01.** `docs/phase-0-checklist.md` step 8 flagged both as "live today" and
+independent of the migration timeline:
 
-1. Rotate `regression_test.php`'s token (`Claude.md:57`, plaintext in a tracked file). Folds into
-   the `SMOKE_TOKEN` rotation above if that endpoint is being replaced; do it regardless if not.
-2. `staging-login.html:61` still hardcodes staging's Basic Auth credentials in a tracked, deployed
-   file. Cloudflare Access (Phase 0 checklist step 7) was recommended as the replacement — confirm
-   whether that ever got set up; if not, at minimum rotate the password.
+1. **`regression_test.php`'s `rt_token` rotated on the LIVE production PHP site** (still the real
+   system serving customers today, pre-cutover — a different database than anything else this
+   session touched). User provided a live admin session token; called the real `admin.php`'s
+   `set_setting` action with a freshly-generated value, never echoed into chat. Verified by
+   confirming the *old* plaintext token from `Claude.md` now 403s against `regression_test.php`,
+   without ever printing the new one. `Claude.md` updated to stop hardcoding the value at all —
+   points at looking it up via an authenticated `get_setting` call instead.
+2. **`staging-login.html` deleted, not just rotated** — investigating turned up that its Basic Auth
+   credentials were already vestigial. Staging's actual `.htaccess` has a deliberate override,
+   with its own explanatory comment, granting the whole directory to everyone (staging is
+   intentionally fully public; only `noindex` keeps search engines out). Confirmed this genuinely
+   was the case (not assumed) by rotating the `.htpasswd` hash via FTP first and testing both the
+   old and new passwords against a real request — both got the same result either way, proving
+   auth isn't enforced at all. Deleted the file locally, from git, and from the live server (FTP
+   `DELE`) — first got the path wrong (it lives at the site root, not inside `staging/`), caught by
+   checking the directory listing rather than assuming the delete worked.
 
 ---
 
@@ -274,7 +285,8 @@ Only after every item above is confirmed:
 - [x] `npx wrangler deploy` (production) succeeds; a full browser walkthrough against the
       `workers.dev` hostname worked end to end, including one real refunded live charge
       (done 2026-08-01 — ORD-MSAT7Q4O, real Square payment + refund IDs)
-- [ ] `regression_test.php` token and staging Basic Auth password rotated (or Cloudflare Access live)
+- [x] `regression_test.php` token rotated on live production (done 2026-08-01); `staging-login.html`
+      deleted (its Basic Auth was already vestigial — staging is deliberately fully public)
 - [ ] TTL lowered 48h+ before the nameserver change
 - [ ] `routes` uncommented, nameservers repointed, Square production webhook live,
       read-only freeze observed during propagation

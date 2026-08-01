@@ -25,9 +25,12 @@ production while the current branch is `main`. It does not apply. Specifically:
 
 Remove this banner only after Hostinger is retired (Phase 10).
 
-Also note, independent of the migration: `Claude.md:57` below contains a live production token in
-plaintext and **should be rotated**, and `staging-login.html:61` hardcodes the staging Basic Auth
-credentials in a tracked, deployed file.
+Also note, independent of the migration: the `regression_test.php` token that used to sit in
+plaintext here was rotated 2026-08-01 (see Regression Tests section below — do not put a real
+value back in this file). `staging-login.html` was deleted the same day — its Basic Auth password
+turned out to be vestigial (staging's `.htaccess` deliberately overrides the hPanel Basic Auth
+block to grant the whole directory access, since staging is intentionally fully public), so there
+was nothing left for that file's credentials to protect.
 
 ---
 
@@ -85,7 +88,8 @@ credentials in a tracked, deployed file.
 - FTP credentials in `.ftp-credentials` — NEVER commit this file
 - FTP: host=ftp.handmadedesignsbysuzi.com, user=u541882440.handmadedesignsbysuzi
 - `regression_test.php` protected by `?token=` matching `rt_token` in settings DB
-- Current token: `9f21953ce5be66f40203791c4cf8055e` (treat as sensitive — do not log publicly)
+- Token rotated 2026-08-01 (was previously plaintext in this file — do not put the real value
+  here again; look it up via `get_setting`/`rt_token` with a valid admin session instead)
 - GitHub API: private repo BWERepo/HDBS, token stored in `github_token` setting
 
 ## API Conventions
@@ -142,7 +146,8 @@ credentials in a tracked, deployed file.
 - `api/square-webhook.php` handles async payment status callbacks from Square
 
 ## Regression Tests
-- Run: `curl "https://handmadedesignsbysuzi.com/regression_test.php?token=9f21953ce5be66f40203791c4cf8055e"`
+- Run: `curl "https://handmadedesignsbysuzi.com/regression_test.php?token=<rt_token>"` — look up the
+  current `rt_token` via an authenticated `get_setting` call rather than hardcoding it here
 - Only run on an explicit "test" command (not after every change, not on checkpoint). On a test command: update the tests first, then run. See Workflow Triggers.
 
 ## Deploy
