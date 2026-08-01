@@ -5,6 +5,61 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 3 continued: order mutations)
+
+**`src/orders.ts` extended with POST (create)/PUT (update)/DELETE (single + all)**, completing
+`api/orders.php`'s full port (GET was done earlier this session). Three things needed solving
+that the read-only pass didn't:
+
+1. **No real multi-table transaction.** The PHP wraps order + item inserts + stock decrements in
+   one MySQL transaction, rolled back on any failure. PostgREST has no client-side equivalent —
+   each REST call commits independently. Rather than move this business logic into a stored
+   procedure (which would duplicate the trust-boundary/pricing logic in two languages, breaking
+   the pattern this whole migration follows), `createOrder` does an explicit **compensating
+   rollback** on partial failure: delete the order (cascades to any items already inserted) and
+   restore stock for any items already decremented. Same end state as a real rollback, achieved at
+   the application level instead of the database level. **Live-verified for real**: ordering an
+   already-out-of-stock item correctly failed with the exact error and left zero trace of the
+   order — the rollback actually works against the real database, not just the fake.
+
+2. **Atomic stock arithmetic needs a Postgres function.** PostgREST can't express
+   `stock = stock - $1 WHERE stock >= $1` as a plain column update (no computed expressions, no
+   branching on the result in one round trip). Added
+   `supabase/migrations/0010_stock_adjustment_functions.sql`
+   (`decrement_stock_if_available`/`increment_stock`, called via `.rpc()`) — deliberately narrow:
+   only the arithmetic PostgREST can't do moved into SQL, none of the business logic.
+
+3. **Cancel-token HMAC replaced.** `ORDER_TOKEN_SECRET` (32 random bytes) generated and set on
+   staging, replacing the `DB_PASS`-keyed HMAC at `api/orders.php:222`. Also fixed, not just
+   ported: the original truncates to 24 hex chars; this port uses the full 64-char HMAC-SHA256
+   output and domain-separates it (`"cancel:" + orderId`), per the migration plan's general
+   guidance on this HMAC pattern — free to fix since the secret change already invalidates every
+   existing cancel token regardless of length.
+
+**One deliberate correction, not a literal port**: the PHP's stale-order reclaim compares
+`order_date < cutoff`, but `order_date` is a DATE column (no time-of-day) compared against a full
+timestamp — MySQL treats the date as its midnight instant, so that condition is true for
+essentially every order placed earlier the same day, not just ones genuinely 2+ hours old. Read
+as an accidental near-tautology rather than the intended 2-hour freshness window, so this port
+compares against `created_at` (a real timestamp) instead — documented in `orders.ts` with the
+reasoning, not silently changed.
+
+**Live-verified against staging, full write path**: created a real test order (admin-trusted, one
+real product decremented 1→0 stock), confirmed a second order for the now-out-of-stock item
+correctly fails with `"Item is out of stock: <name>"` and leaves no phantom order row, updated the
+order via PUT (status + tracking number both took), then deleted it via DELETE and confirmed it's
+gone. Test residue: that one product's stock is still `0` (deleting an order doesn't restock,
+faithfully matching the PHP) — `node scripts/migrate-data.mjs --write` would reset it along with
+everything else if pristine staging data is wanted again.
+
+`npm test`: 174/174 passing (36 new). `tsc --noEmit`: clean.
+
+**Not yet done**: `customers.ts` (zero real rows in prod, low urgency), `email.ts` (the
+in-person-paid confirmation-email hook in `createOrder` is a documented no-op TODO until then),
+payments (deliberately last).
+
+---
+
 ## Current state — 2026-08-01 (Phase 3 continued: tax, tax sweep, subscribers)
 
 **`src/tax.ts` and `src/subscribers.ts` written and wired.** Scoped down from the plan's full

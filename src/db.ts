@@ -18,7 +18,7 @@ import type { Env } from "./types";
 import type { AdminAuthStore, AdminSession } from "./auth";
 import type { SettingsStore } from "./settings";
 import type { ProductsStore, ProductRow } from "./products";
-import type { OrdersStore, OrderRow, OrderItemRow } from "./orders";
+import type { OrdersStore, OrderRow, OrderItemRow, OrderInsert, OrderUpdatableFields } from "./orders";
 import type { TaxStore, TnCityTaxRow, PendingTaxOrder, TaxSweepRow } from "./tax";
 import type { SubscribersStore, SubscriberRow } from "./subscribers";
 
@@ -143,6 +143,86 @@ export class SupabaseOrdersStore implements OrdersStore {
       .select("order_id, product_id, product_name, price, quantity");
     checkError("listOrderItems", error);
     return (data ?? []) as OrderItemRow[];
+  }
+
+  async getProduct(id: string): Promise<{ name: string; price: number } | null> {
+    const { data, error } = await this.db.from("products").select("name, price").eq("id", id).maybeSingle();
+    checkError("getProduct", error);
+    return data ? { name: data.name, price: Number(data.price) } : null;
+  }
+
+  async decrementStock(id: string, qty: number): Promise<boolean> {
+    const { data, error } = await this.db.rpc("decrement_stock_if_available", { p_product_id: id, p_qty: qty });
+    checkError("decrementStock", error);
+    return data === true;
+  }
+
+  async restoreStock(id: string, qty: number): Promise<void> {
+    const { error } = await this.db.rpc("increment_stock", { p_product_id: id, p_qty: qty });
+    checkError("restoreStock", error);
+  }
+
+  async insertOrder(order: OrderInsert): Promise<void> {
+    const { error } = await this.db.from("orders").insert(order);
+    checkError("insertOrder", error);
+  }
+
+  async insertOrderItem(item: OrderItemRow): Promise<void> {
+    const { error } = await this.db.from("order_items").insert(item);
+    checkError("insertOrderItem", error);
+  }
+
+  async deleteOrder(id: string): Promise<void> {
+    const { error } = await this.db.from("orders").delete().eq("id", id);
+    checkError("deleteOrder", error);
+  }
+
+  async deleteAllOrders(): Promise<void> {
+    // order_items cascades via the FK; deleting every order is enough.
+    const { error } = await this.db.from("orders").delete().not("id", "is", null);
+    checkError("deleteAllOrders", error);
+  }
+
+  async updateOrderFields(id: string, fields: Partial<OrderUpdatableFields>): Promise<void> {
+    const { error } = await this.db.from("orders").update(fields).eq("id", id);
+    checkError("updateOrderFields", error);
+  }
+
+  async findStaleAwaitingOrders(cutoffIso: string): Promise<{ id: string }[]> {
+    const { data, error } = await this.db
+      .from("orders")
+      .select("id")
+      .eq("status", "Awaiting Payment")
+      .lt("created_at", cutoffIso);
+    checkError("findStaleAwaitingOrders", error);
+    return (data ?? []) as { id: string }[];
+  }
+
+  async getOrderItemsForRestore(orderId: string): Promise<{ product_id: string; quantity: number }[]> {
+    const { data, error } = await this.db
+      .from("order_items")
+      .select("product_id, quantity")
+      .eq("order_id", orderId)
+      .neq("product_id", "_ship");
+    checkError("getOrderItemsForRestore", error);
+    return (data ?? []) as { product_id: string; quantity: number }[];
+  }
+
+  async getOrderRateLimit(key: string): Promise<{ attempts: number; lastAt: number } | null> {
+    const { data, error } = await this.db
+      .from("customer_login_attempts")
+      .select("attempts, last_at")
+      .eq("email_hash", key)
+      .maybeSingle();
+    checkError("getOrderRateLimit", error);
+    return data ? { attempts: Number(data.attempts), lastAt: Number(data.last_at) } : null;
+  }
+
+  async setOrderRateLimit(key: string, attempts: number, lastAt: number): Promise<void> {
+    const { error } = await this.db
+      .from("customer_login_attempts")
+      .upsert({ email_hash: key, attempts, last_at: lastAt });
+    checkError("setOrderRateLimit", error);
   }
 }
 
