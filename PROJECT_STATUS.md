@@ -5,6 +5,18 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 9 checklist step 3 done: production R2 buckets created)
+
+`npx wrangler r2 bucket create hdbs-public`/`hdbs-private` — both didn't exist before this (per the
+readiness audit below). Confirmed both are private (`wrangler r2 bucket dev-url get` reports r2.dev
+public access disabled for each, same as the staging buckets). Bucket names already matched
+`wrangler.jsonc`'s existing production bindings, so no config change needed.
+
+Buckets are empty — migrating the real product/logo/studio media into them is step 4 of
+`docs/phase-9-cutover-checklist.md`, not done yet.
+
+---
+
 ## Current state — 2026-08-01 (Phase 9 checklist steps 1-2 done: production Supabase is schema- and data-complete)
 
 Working through `docs/phase-9-cutover-checklist.md` (see that file for the full ordered plan; this

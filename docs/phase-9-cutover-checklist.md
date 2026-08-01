@@ -17,7 +17,7 @@ confirmed, per `docs/production-isolation.md`'s one-way-door warning.
 | | Staging | Production |
 |---|---|---|
 | Last code deploy | Continuous, every session | **2026-08-01T12:31:33 — Phase 0 scaffold, never since** |
-| R2 buckets | `hdbs-public-staging`, `hdbs-private-staging` exist | **Neither `hdbs-public` nor `hdbs-private` exist yet** |
+| R2 buckets | `hdbs-public-staging`, `hdbs-private-staging` exist | ✅ `hdbs-public`/`hdbs-private` created 2026-08-01, both private; still **empty** (media not migrated, step 4) |
 | Supabase schema | migrations `0001`-`0011` | ✅ `0001`-`0011`, all applied and confirmed live 2026-08-01 |
 | Supabase data | Real prod snapshot loaded (`scripts/migrate-data.mjs`, Phase 1) | ✅ Real snapshot loaded 2026-08-01, verified row-for-row against all 12 tables |
 | Secrets present | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` | **Only `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`** |
@@ -71,15 +71,19 @@ themselves (step 4 — R2 is still empty) and live payment/API credentials (step
 
 ---
 
-## 3. 👤 Provision production R2 buckets
+## 3. ✅ Provision production R2 buckets — DONE
 
-Staging's buckets auto-provisioned on first `wrangler deploy --env staging`. Production's will do
-the same on first real `wrangler deploy` (no `--env`) — but confirm the bucket names in
-`wrangler.jsonc` (`hdbs-public`, `hdbs-private`) match what `docs/phase-0-checklist.md` step 4
-specified, and that **neither is public**, before that deploy happens.
+**Completed 2026-08-01.** Created explicitly rather than waiting for an implicit first-deploy
+provision: `npx wrangler r2 bucket create hdbs-public` / `hdbs-private`. Names match
+`wrangler.jsonc`'s existing `r2_buckets` bindings for production, so no config change needed.
 
-- 👤 Optionally create them explicitly first via `npx wrangler r2 bucket create hdbs-public` /
-  `hdbs-private`, if you'd rather provision deliberately than let a deploy do it implicitly.
+Confirmed neither is publicly accessible: `npx wrangler r2 bucket dev-url get <name>` reports
+"Public access via the r2.dev URL is disabled" for both — matching `hdbs-public-staging`/
+`hdbs-private-staging`'s same private-by-default state, and matching the requirement that
+`hdbs-public` is only ever served *through* the Worker (so the existing `/product_images/...` URL
+shape survives) and `hdbs-private` stays admin-gated.
+
+Buckets are currently **empty** — see step 4.
 
 ---
 
@@ -185,7 +189,8 @@ Only after every item above is confirmed:
 - [x] Production Supabase schema matches staging, `0001`-`0011` (done 2026-08-01)
 - [x] Production Supabase has the real, current data snapshot, `0009` normalized (done 2026-08-01,
       independently re-verified row-for-row and by absolute-URL count)
-- [ ] `hdbs-public`/`hdbs-private` R2 buckets exist, neither public, full media migrated
+- [x] `hdbs-public`/`hdbs-private` R2 buckets exist, neither public (done 2026-08-01)
+- [ ] Full media migrated into those buckets (step 4 — still empty)
 - [ ] All 13 secrets set on production with **live** (not sandbox) payment values;
       `npm run check:secrets` passes
 - [ ] `npx wrangler deploy` (production) succeeds; a full browser walkthrough against the
