@@ -25,6 +25,8 @@ import type { CustomersStore, CustomerRow } from "./customers";
 import type { ReviewsStore, ReviewRow, FaqsStore, FaqRow } from "./content";
 import type { ContactStore } from "./contact";
 import type { StudioStore, StudioItemRow, StudioInquiryRow, StudioNoteRow } from "./studio";
+import type { CapitalEquipmentStore, CapitalEquipmentRow, BusinessDocsFileStore } from "./business";
+import type { EmailLogStore, EmailLogRow } from "./ops";
 
 export function createDb(env: Env): SupabaseClient {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -615,5 +617,117 @@ export class SupabaseStudioStore implements StudioStore {
   }
   logEmail(entry: { emailType: string; sentTo: string; subject: string; status: "sent" | "failed" | "sink"; body: string }) {
     return insertEmailLog(this.db, entry);
+  }
+}
+
+// ── R2_PRIVATE-backed file storage, shared shape for capital_equipment receipts and business_docs ──
+async function r2Put(r2: R2Bucket, key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+  await r2.put(key, bytes, { httpMetadata: { contentType } });
+}
+async function r2Get(r2: R2Bucket, key: string): Promise<Uint8Array | null> {
+  const obj = await r2.get(key);
+  if (!obj) return null;
+  return new Uint8Array(await obj.arrayBuffer());
+}
+async function r2Delete(r2: R2Bucket, key: string): Promise<void> {
+  await r2.delete(key);
+}
+
+/** Wires business.ts's CapitalEquipmentStore to the `capital_equipment` table (Supabase) and
+ *  R2_PRIVATE (receipt files) — the only store in this file backed by two different bindings. */
+export class SupabaseCapitalEquipmentStore implements CapitalEquipmentStore {
+  constructor(
+    private db: SupabaseClient,
+    private r2: R2Bucket
+  ) {}
+
+  async listItems(): Promise<CapitalEquipmentRow[]> {
+    const { data, error } = await this.db
+      .from("capital_equipment")
+      .select("id, description, purchase_date, purchase_price, receipt_filename, receipt_orig_name, created_at")
+      .order("purchase_date", { ascending: false })
+      .order("id", { ascending: false });
+    checkError("listItems", error);
+    return (data ?? []) as CapitalEquipmentRow[];
+  }
+  async getItem(id: number): Promise<CapitalEquipmentRow | null> {
+    const { data, error } = await this.db.from("capital_equipment").select("*").eq("id", id).maybeSingle();
+    checkError("getItem", error);
+    return data as CapitalEquipmentRow | null;
+  }
+  async insertItem(description: string, purchaseDate: string, price: number): Promise<number> {
+    const { data, error } = await this.db
+      .from("capital_equipment")
+      .insert({ description, purchase_date: purchaseDate, purchase_price: price })
+      .select("id")
+      .single();
+    checkError("insertItem", error);
+    return (data as { id: number }).id;
+  }
+  async updateItem(id: number, description: string, purchaseDate: string, price: number): Promise<void> {
+    const { error } = await this.db.from("capital_equipment").update({ description, purchase_date: purchaseDate, purchase_price: price }).eq("id", id);
+    checkError("updateItem", error);
+  }
+  async deleteItem(id: number): Promise<void> {
+    const { error } = await this.db.from("capital_equipment").delete().eq("id", id);
+    checkError("deleteItem", error);
+  }
+  async setReceiptMeta(id: number, filename: string | null, origName: string | null): Promise<void> {
+    const { error } = await this.db.from("capital_equipment").update({ receipt_filename: filename, receipt_orig_name: origName }).eq("id", id);
+    checkError("setReceiptMeta", error);
+  }
+  putReceiptFile(key: string, bytes: Uint8Array, contentType: string) {
+    return r2Put(this.r2, key, bytes, contentType);
+  }
+  getReceiptFile(key: string) {
+    return r2Get(this.r2, key);
+  }
+  deleteReceiptFile(key: string) {
+    return r2Delete(this.r2, key);
+  }
+}
+
+/** Wires business.ts's BusinessDocsFileStore to R2_PRIVATE. Metadata lives in `settings` via
+ *  SupabaseSettingsStore, already built — this only handles the file bytes. */
+export class R2BusinessDocsFileStore implements BusinessDocsFileStore {
+  constructor(private r2: R2Bucket) {}
+
+  putReceiptFile(key: string, bytes: Uint8Array, contentType: string) {
+    return r2Put(this.r2, key, bytes, contentType);
+  }
+  getReceiptFile(key: string) {
+    return r2Get(this.r2, key);
+  }
+  deleteReceiptFile(key: string) {
+    return r2Delete(this.r2, key);
+  }
+}
+
+/** Wires ops.ts's EmailLogStore to `email_log`. */
+export class SupabaseEmailLogStore implements EmailLogStore {
+  constructor(private db: SupabaseClient) {}
+
+  async listEmailLog(filters: { orderId?: string; type?: string }): Promise<EmailLogRow[]> {
+    let query = this.db.from("email_log").select("*").order("sent_at", { ascending: false }).limit(500);
+    if (filters.orderId) query = query.eq("order_id", filters.orderId);
+    if (filters.type) query = query.eq("email_type", filters.type);
+    const { data, error } = await query;
+    checkError("listEmailLog", error);
+    return (data ?? []) as EmailLogRow[];
+  }
+  async insertEmailLogEntry(entry: { emailType: string; sentTo: string; orderId: string; subject: string; status: string; errorMsg: string | null }): Promise<void> {
+    const { error } = await this.db.from("email_log").insert({
+      email_type: entry.emailType,
+      sent_to: entry.sentTo,
+      order_id: entry.orderId,
+      subject: entry.subject,
+      status: entry.status,
+      error_msg: entry.errorMsg,
+    });
+    checkError("insertEmailLogEntry", error);
+  }
+  async clearEmailLog(): Promise<void> {
+    const { error } = await this.db.from("email_log").delete().not("id", "is", null);
+    checkError("clearEmailLog", error);
   }
 }

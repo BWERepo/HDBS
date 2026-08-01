@@ -5,6 +5,60 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 3 continued: business.ts + ops.ts)
+
+**`src/business.ts` (capital_equipment + business_docs) and `src/ops.ts` (email_log) written and
+wired.** Scoped down from the plan's full `ops.ts` after checking what's actually there —
+confirmed with the user before proceeding:
+- **`deploy_log.php`** writes to a local file and auto-bumps `minor_version` for the old
+  FTP-deploy pipeline (`deploy.ps1`/`watch.ps1`). That pipeline doesn't exist in the Cloudflare
+  architecture — deploys are `wrangler deploy`, versioning is `version.json` + git history — so
+  this endpoint has nothing left to serve. Not a gap, just obsolete.
+- **`github_log.php`** is a live external API integration (GitHub commits) with its own
+  filesystem cache. Deferred, same reasoning as USPS tracking — lower priority than core
+  storefront/admin functionality, not because it's hard.
+
+**`business.ts` is fully implemented, not deferred like earlier image uploads** — both
+`capital_equipment.php` (equipment ledger + PDF/JPG/PNG receipt upload) and `business_docs.php`
+(resale certificate / business license) now actually write to **R2_PRIVATE**, unlike products.ts/
+studio.ts's placeholder "not yet available" responses. This was possible because R2_PRIVATE
+already exists (auto-provisioned alongside R2_PUBLIC) and needs no external credentials — the
+earlier deferrals were about not having R2 wired up yet, which is no longer true. Shared,
+pure/testable helpers (`decodeDataUrl`, `detectFileType` — magic-byte validation, not
+client-reported mime type — `sanitizeFilename`, `sanitizeDispositionName`) do the same
+validation every upload path in this codebase needs.
+
+One correction to the migration plan's own notes: `docs/schema-reconciliation.md` says
+`business_docs.php` has "no database metadata at all" — actually reading the PHP shows its
+metadata lives in a `biz_documents` JSON blob in the `settings` table (confirmed against the real
+migrated data, which has exactly this key). Reused `settings.ts`'s `SettingsStore` rather than
+inventing a new interface for it.
+
+**`ops.ts`** ports `email_log.php`'s list (with `order_id`/`type` filters, capped at 500 rows)/
+log/clear — straightforward CRUD.
+
+`src/db.ts` gained `SupabaseCapitalEquipmentStore` (the only store in the file backed by two
+different bindings — Supabase for the table, `R2Bucket` for receipt files), `R2BusinessDocsFileStore`,
+and `SupabaseEmailLogStore`.
+
+**Live-verified against staging, real data and a real R2 round-trip**: all 13 real capital-
+equipment rows (confirmed `has_receipt` reflects real migrated metadata, though the actual
+receipt files themselves were never pulled off Hostinger per Phase 0's known gap); the real
+`biz_documents` blob (resale certificate + business license) via `business_docs.php`'s list
+action; all 9 real `email_log` rows (7 migrated + 2 from this session's own contact/studio
+testing). Uploaded a real test PDF receipt to R2_PRIVATE, downloaded it back, and confirmed the
+bytes match exactly byte-for-byte — genuine end-to-end proof the private-bucket file path works,
+not just the metadata layer. Deliberately did NOT test-upload against `business_docs.php` (would
+have overwritten Suzi's real license/certificate files on staging) — that path is covered by unit
+tests instead. Test capital-equipment item and its receipt cleaned up afterward.
+
+`npm test`: 315/315 passing (39 new: 32 business + 7 ops). `tsc --noEmit`: clean.
+
+**Everything in the plan's endpoint-port table is now done except `email.ts` (Resend/logo-splice/
+sending-domain — Phase 4 proper) and payments (deliberately last).**
+
+---
+
 ## Current state — 2026-08-01 (Phase 3 continued: content, contact, studio)
 
 **`src/content.ts` (reviews + faqs), `src/contact.ts`, and `src/studio.ts` written and wired.**
