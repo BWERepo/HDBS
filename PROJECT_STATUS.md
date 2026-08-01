@@ -5,6 +5,36 @@
 
 ---
 
+## Current state — 2026-08-01 (Cutover conversation: no maintenance mode, low-traffic window, rollback plan agreed)
+
+**Talked through step 8 (the actual DNS/routes cutover) before scheduling it — not executed this
+session.** One real gap surfaced by checking rather than assuming: neither the PHP site nor the
+Worker has any maintenance/read-only mode. `docs/production-isolation.md`'s "short read-only
+freeze" language was always aspirational, never actually built.
+
+**Decision: no maintenance-mode build, accept a brief dual-availability window at a 300s TTL,
+schedule phase B during a deliberately low-traffic window instead.** Reasoning: this is a
+low-volume handmade-goods storefront, not high-traffic — the realistic exposure during DNS
+propagation is a few minutes where some resolvers still reach Hostinger while others reach
+Cloudflare, not a sustained double-serving problem. Building a real cross-stack maintenance toggle
+would be new scope disproportionate to that risk.
+
+**Rollback plan and triggers agreed in advance, not left to improvise mid-cutover**: phase A (TTL
+lower + Cloudflare zone) is fully reversible with zero customer impact. Phase B rollback = repoint
+nameservers back to Hostinger *first*, then pull `routes` back out of `wrangler.jsonc` *second* —
+reversing that order briefly 522s visitors instead of falling back cleanly. Hostinger's PHP site is
+never touched this whole migration, so it's instantly functional the moment DNS points back.
+Rollback triggers: checkout failing for real customers, 5xx on the real domain, orders
+not saving or saving wrong, or any sign of a double-processed order/payment.
+
+**`docs/phase-9-cutover-checklist.md` step 8 rewritten** with this decision baked in, split into
+phase A (prep, do anytime) and phase B (the actual cutover, low-traffic window) with the
+rollback plan spelled out inline rather than left as a vague warning.
+
+**Not yet scheduled to an actual date/time** — user wants to pick that separately.
+
+---
+
 ## Current state — 2026-08-01 (USPS + Square webhook done — step 5 is now completely closed)
 
 **USPS**: user already had Developer Portal credentials. Set on both Workers (USPS has no sandbox

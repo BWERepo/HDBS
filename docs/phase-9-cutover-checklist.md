@@ -314,25 +314,56 @@ independent of the migration timeline:
 ✅ **The email blocker flagged here earlier is resolved** — switched to Brevo (step 5), production
 is back on `EMAIL_MODE=live`, verified with a real send through the real deployed code.
 
+### Pre-cutover decision, made 2026-08-01
+
+**No maintenance/read-only mode exists in either codebase** (checked — the "short read-only
+freeze" language in `docs/production-isolation.md` was always aspirational, never actually built).
+Discussed the options rather than building one under time pressure during the actual cutover:
+build a real `maintenance_mode` toggle both stacks check (real new scope), accept the brief
+dual-availability window at a 300s TTL without a hard freeze, or pick a genuinely low-traffic
+window to shrink that risk without building anything. **Decision: accept the window, no
+maintenance-mode build, do phase B during a deliberately low-traffic time.** This is a low-volume
+handmade-goods storefront, not a high-traffic operation — the realistic exposure is a handful of
+minutes where some resolvers still send visitors to Hostinger while others reach Cloudflare, not a
+sustained double-serving problem.
+
+**Rollback plan, decided in advance rather than improvised**:
+- Phase A (TTL lower + add Cloudflare zone) is fully reversible with zero customer impact — no
+  traffic moves. Simply not proceeding to phase B is a complete "rollback."
+- Phase B rollback = repoint nameservers back to Hostinger **first**, then comment `routes` back
+  out in `wrangler.jsonc` and redeploy **second** — reversing that order briefly 522s visitors on a
+  routeless Worker instead of falling back to Hostinger. Hostinger's PHP site is never stopped or
+  modified this whole migration, so it's fully functional the instant DNS points back at it.
+- **Rollback triggers, decided now, not mid-cutover**: checkout failing for real customers, the
+  real domain returning 5xx, orders not saving or saving with wrong data, or any sign of an order/
+  payment processing twice (the actual risk the dual-availability window creates).
+
+### The steps themselves
+
 Only after every item above is confirmed:
 
-- 👤 Lower `handmadedesignsbysuzi.com`'s DNS TTL to 300s, wait a full 48h (per
-  `docs/production-isolation.md`'s one-way-doors section — this is what makes the nameserver change
-  a minutes-long rollback instead of a slow one).
-- 👤 Add the zone to Cloudflare (safe only while the registrar still points at Hostinger — adding a
-  zone doesn't move traffic, changing nameservers does).
-- 🤖 Uncomment the two `routes` lines in `wrangler.jsonc`, redeploy production. **This is the
-  cutover** — the moment `handmadedesignsbysuzi.com` can be reachable through Cloudflare.
-- 👤 Change the registrar's nameservers to Cloudflare's.
-- 👤 Update the existing Square webhook subscription's `notification_url` (Square Developer
-  Dashboard, or `PUT /v2/webhooks/subscriptions/{id}`) from the `workers.dev` URL to
-  `https://handmadedesignsbysuzi.com/api/square-webhook.php` — the subscription and
-  `SQUARE_WEBHOOK_SIG_KEY` already exist and are verified (step 5, done 2026-08-01); only the URL
-  needs to change.
-- 👤 A short read-only freeze on both systems while DNS propagates, per
-  `docs/production-isolation.md` — "Orders placed on the Worker after cutover exist only in
-  Postgres, which is why Phase 9 uses a short read-only freeze rather than letting both systems
-  take orders."
+- 👤 **Phase A** (do this first, starts the 48h clock, zero customer-visible effect):
+  - Re-run `scripts/pull-media.ps1` against live Hostinger once more, then
+    `node scripts/push-media-to-r2.mjs --write` to catch anything uploaded since the last sync.
+  - Lower `handmadedesignsbysuzi.com`'s DNS TTL to 300s (per
+    `docs/production-isolation.md`'s one-way-doors section — this is what makes the nameserver
+    change a minutes-long rollback instead of a slow one). **Wait a full 48h before phase B.**
+  - Add the zone to Cloudflare (safe only while the registrar still points at Hostinger — adding a
+    zone doesn't move traffic, changing nameservers does).
+- 👤 **Phase B** (after the 48h wait, during a deliberately low-traffic window, per the decision
+  above):
+  - 🤖 Uncomment the two `routes` lines in `wrangler.jsonc`, redeploy production. **This is the
+    cutover** — the moment `handmadedesignsbysuzi.com` can be reachable through Cloudflare.
+  - 👤 Change the registrar's nameservers to Cloudflare's.
+  - 👤 Update the existing Square webhook subscription's `notification_url` (Square Developer
+    Dashboard, or `PUT /v2/webhooks/subscriptions/{id}`) from the `workers.dev` URL to
+    `https://handmadedesignsbysuzi.com/api/square-webhook.php` — the subscription and
+    `SQUARE_WEBHOOK_SIG_KEY` already exist and are verified (step 5, done 2026-08-01); only the URL
+    needs to change.
+  - 👤 Monitor both systems during propagation (target a few minutes to an hour at a 300s TTL, per
+    the decision above) — watch for any of the rollback triggers listed above. `wrangler tail`
+    against production plus a normal browser check of the real domain from a few different
+    networks/devices is enough; no special tooling needed.
 
 ---
 
@@ -357,9 +388,12 @@ Only after every item above is confirmed:
       (done 2026-08-01 — ORD-MSAT7Q4O, real Square payment + refund IDs)
 - [x] `regression_test.php` token rotated on live production (done 2026-08-01); `staging-login.html`
       deleted (its Basic Auth was already vestigial — staging is deliberately fully public)
-- [ ] TTL lowered 48h+ before the nameserver change
-- [ ] `routes` uncommented, nameservers repointed, Square production webhook live,
-      read-only freeze observed during propagation
+- [x] Cutover plan decided (2026-08-01): no maintenance-mode build, accept a brief
+      dual-availability window at 300s TTL, do phase B during low-traffic hours; rollback plan and
+      triggers agreed in advance
+- [ ] Media re-synced, TTL lowered 48h+, Cloudflare zone added (phase A)
+- [ ] `routes` uncommented, nameservers repointed, Square webhook URL updated, propagation
+      monitored for the agreed rollback triggers (phase B)
 
 Only the last checkbox is the actual, irreversible-without-a-DNS-rollback cutover. Everything above
 it is exactly as reversible as "do nothing" — this checklist can be worked through incrementally,
