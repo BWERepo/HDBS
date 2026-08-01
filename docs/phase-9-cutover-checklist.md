@@ -18,7 +18,7 @@ confirmed, per `docs/production-isolation.md`'s one-way-door warning.
 |---|---|---|
 | Last code deploy | Continuous, every session | **2026-08-01T12:31:33 — Phase 0 scaffold, never since** |
 | R2 buckets | `hdbs-public-staging`, `hdbs-private-staging` exist | **Neither `hdbs-public` nor `hdbs-private` exist yet** |
-| Supabase schema | migrations `0001`-`0011` | **`0001`-`0008` only** (per Phase 2 session note — reconfirm before relying on this) |
+| Supabase schema | migrations `0001`-`0011` | ✅ `0001`-`0008`, `0010`, `0011` now applied (confirmed live 2026-08-01); `0009` deliberately held until real data is loaded |
 | Supabase data | Real prod snapshot loaded (`scripts/migrate-data.mjs`, Phase 1) | **Schema only, zero rows** |
 | Secrets present | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` | **Only `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`** |
 | Missing on *both* | `SMOKE_TOKEN`, `SQUARE_APP_ID`, `SQUARE_WEBHOOK_SIG_KEY`, `USPS_CONSUMER_KEY`/`_SECRET`, `RESEND_API_KEY` | (same) |
@@ -30,19 +30,19 @@ list` (both Workers), `bash scripts/check-secret-parity.sh`, and this file's own
 
 ---
 
-## 1. 👤🤖 Bring production Supabase's schema current
+## 1. ✅ Bring production Supabase's schema current — DONE for schema, `0009` still held back
 
-Production stopped at migration `0008`. Staging has run through `0011` (`app_log`, this session).
+**Completed 2026-08-01.** Confirmed fresh (not the stale Phase 2 note) via a read-only diagnostic:
+production had the base schema (`0001`-`0008`, tables existed) but zero rows anywhere — not even
+`settings` — and neither `app_log` (`0011`) nor the stock-adjustment functions (`0010`) existed.
 
-- 👤 Confirm which migrations production actually has — the `0008` figure is from an earlier
-  session and hasn't been re-checked since. Open production's Supabase SQL editor and check
-  `select * from supabase_migrations.schema_migrations` if that tracking table was ever used, or
-  just diff `information_schema.tables` against staging's table list.
-- 👤 Run migrations `0009_normalize_image_urls.sql` through `0011_app_log.sql` against
-  **production**'s Supabase project (`ckiyvsejstptrnwkinir`), via the SQL editor — same process as
-  every staging migration this session, just pointed at the other project. Use the `/Supabase`
-  skill and explicitly confirm it's targeting production before running anything (it defaults to
-  asking which project when more than one exists).
+Ran `0010_stock_adjustment_functions.sql` and `0011_app_log.sql` against production
+(`ckiyvsejstptrnwkinir`) via the SQL editor. Re-verified afterward, not just trusted the success
+toast: `has_app_log_table=1`, `has_stock_functions=1`.
+
+⚠️ `0009_normalize_image_urls.sql` is **deliberately still not run** — it's a data normalizer, not
+a schema change, and its own header says it must run after real data is loaded (step 2 below), not
+against an empty schema. Run it as the last step of step 2, not here.
 - ⚠️ `0009_normalize_image_urls.sql` is a data normalizer, not a schema change — it needs to run
   **after** real data is loaded (step 2), not before, per its own header. Sequence matters here:
   run `0001`-`0008`/whatever's missing and `0010`/`0011` (schema-only) first, load data, then run
@@ -177,7 +177,8 @@ Only after every item above is confirmed:
 
 ## Definition of done
 
-- [ ] Production Supabase schema matches staging (`0001`-`0011`, `0009` run last after data load)
+- [x] Production Supabase schema matches staging through `0008`/`0010`/`0011` (done 2026-08-01);
+      `0009` still deliberately pending until data load
 - [ ] Production Supabase has the real, current data snapshot (not the Phase 1 staging snapshot)
 - [ ] `hdbs-public`/`hdbs-private` R2 buckets exist, neither public, full media migrated
 - [ ] All 13 secrets set on production with **live** (not sandbox) payment values;
