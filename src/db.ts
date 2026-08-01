@@ -21,6 +21,7 @@ import type { ProductsStore, ProductRow } from "./products";
 import type { OrdersStore, OrderRow, OrderItemRow, OrderInsert, OrderUpdatableFields } from "./orders";
 import type { TaxStore, TnCityTaxRow, PendingTaxOrder, TaxSweepRow } from "./tax";
 import type { SubscribersStore, SubscriberRow } from "./subscribers";
+import type { CustomersStore, CustomerRow } from "./customers";
 
 export function createDb(env: Env): SupabaseClient {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -208,6 +209,18 @@ export class SupabaseOrdersStore implements OrdersStore {
     return (data ?? []) as { product_id: string; quantity: number }[];
   }
 
+  async getOrderStatus(id: string): Promise<string | null> {
+    const { data, error } = await this.db.from("orders").select("status").eq("id", id).maybeSingle();
+    checkError("getOrderStatus", error);
+    return data?.status ?? null;
+  }
+
+  async orderBelongsToEmail(orderId: string, email: string): Promise<boolean> {
+    const { data, error } = await this.db.from("orders").select("id").eq("id", orderId).ilike("customer_email", email).maybeSingle();
+    checkError("orderBelongsToEmail", error);
+    return data !== null;
+  }
+
   async getOrderRateLimit(key: string): Promise<{ attempts: number; lastAt: number } | null> {
     const { data, error } = await this.db
       .from("customer_login_attempts")
@@ -349,4 +362,76 @@ function formatMonthDayYear(isoTimestamp: string): string {
   const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(d.getUTCDate()).padStart(2, "0");
   return `${mm}/${dd}/${d.getUTCFullYear()}`;
+}
+
+const CUSTOMER_COLUMNS = "id, first_name, last_name, email, password_hash, phone, sec_question, sec_answer, order_count, joined_at";
+
+/** Wires customers.ts's CustomersStore to the `customers` and `customer_login_attempts` tables. */
+export class SupabaseCustomersStore implements CustomersStore {
+  constructor(private db: SupabaseClient) {}
+
+  async listCustomers(): Promise<CustomerRow[]> {
+    const { data, error } = await this.db.from("customers").select(CUSTOMER_COLUMNS).order("joined_at", { ascending: false });
+    checkError("listCustomers", error);
+    return (data ?? []) as CustomerRow[];
+  }
+
+  async findByEmail(email: string): Promise<CustomerRow | null> {
+    const { data, error } = await this.db.from("customers").select(CUSTOMER_COLUMNS).ilike("email", email).maybeSingle();
+    checkError("findByEmail", error);
+    return data as CustomerRow | null;
+  }
+
+  async findById(id: string): Promise<CustomerRow | null> {
+    const { data, error } = await this.db.from("customers").select(CUSTOMER_COLUMNS).eq("id", id).maybeSingle();
+    checkError("findById", error);
+    return data as CustomerRow | null;
+  }
+
+  async insertCustomer(row: Omit<CustomerRow, "order_count" | "joined_at">): Promise<void> {
+    const { error } = await this.db.from("customers").insert(row);
+    checkError("insertCustomer", error);
+  }
+
+  async updateCustomerFields(id: string, fields: Partial<Pick<CustomerRow, "first_name" | "last_name" | "email" | "phone">>): Promise<void> {
+    const { error } = await this.db.from("customers").update(fields).eq("id", id);
+    checkError("updateCustomerFields", error);
+  }
+
+  async updatePasswordHash(id: string, hash: string): Promise<void> {
+    const { error } = await this.db.from("customers").update({ password_hash: hash }).eq("id", id);
+    checkError("updatePasswordHash", error);
+  }
+
+  async updateSecAnswer(id: string, hash: string): Promise<void> {
+    const { error } = await this.db.from("customers").update({ sec_answer: hash }).eq("id", id);
+    checkError("updateSecAnswer", error);
+  }
+
+  async incrementOrderCount(email: string): Promise<void> {
+    // Read-then-write, not atomic like the stock decrement's RPC — accepted here because a
+    // customer's own order_count being off-by-one under concurrent requests (extremely unlikely:
+    // it fires once per real, already-placed order) has none of oversell's financial/inventory
+    // consequences. Not worth another RPC for a display counter.
+    const cust = await this.findByEmail(email);
+    if (!cust) return;
+    const { error } = await this.db.from("customers").update({ order_count: cust.order_count + 1 }).eq("id", cust.id);
+    checkError("incrementOrderCount", error);
+  }
+
+  async deleteCustomer(id: string): Promise<void> {
+    const { error } = await this.db.from("customers").delete().eq("id", id);
+    checkError("deleteCustomer", error);
+  }
+
+  async getAttempt(key: string): Promise<{ attempts: number; lastAt: number } | null> {
+    const { data, error } = await this.db.from("customer_login_attempts").select("attempts, last_at").eq("email_hash", key).maybeSingle();
+    checkError("getAttempt", error);
+    return data ? { attempts: Number(data.attempts), lastAt: Number(data.last_at) } : null;
+  }
+
+  async setAttempt(key: string, attempts: number, lastAt: number): Promise<void> {
+    const { error } = await this.db.from("customer_login_attempts").upsert({ email_hash: key, attempts, last_at: lastAt });
+    checkError("setAttempt", error);
+  }
 }

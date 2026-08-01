@@ -5,6 +5,61 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 3 continued: customer accounts)
+
+**`src/customers.ts` written and wired**, completing `api/customers.php`'s full port:
+register/login/get_sec_question/reset_password/change_password/inc_orders, admin
+add_customer/update_customer/delete_customer/list, and cancel_order (public, cancel-token
+authenticated).
+
+**`customers` has ZERO real rows in production** (finding 1) — no legacy data to preserve
+byte-compatibility with, so new registrations use `hashPassword()` (PBKDF2) directly rather than
+needing a bcrypt-compat write path, same as how the admin flow generates new PBKDF2 hashes.
+Reused `password.ts`'s `hashPassword`/`verifyPassword` wholesale — same bcrypt-tolerant,
+transparent-rehash-on-login functions `auth.ts` already established for the admin account.
+
+**Added `src/lib/order-token.ts`** — the shared signed-token module (`makeOrderToken`/
+`verifyOrderToken`, `ports api/order_token.php`) used for the account order-view token, and later
+by guest order lookup. Same `ORDER_TOKEN_SECRET` fix as the cancel token: full 64-char
+HMAC-SHA256 output, not the original's 32-char truncation — the migration plan's general guidance
+on this HMAC pattern, applied consistently everywhere it appears.
+
+**One deliberate parity addition, not in the original PHP**: `resetCustomerPassword`'s
+security-answer check now self-heals a legacy plaintext answer to a hash on successful
+verification, matching `auth.ts`'s admin equivalent (which already does this and documents why).
+Free to add since there are zero real customer accounts for it to affect — closes the same
+"verified-correct answer left in plaintext forever" gap.
+
+**`cancelOrder` reuses `orders.ts`'s `makeCancelToken`** directly — the same function that issues
+the token at order creation also verifies it here, so issuer and verifier can never drift out of
+sync. Extended `OrdersStore` with two small methods (`getOrderStatus`, `orderBelongsToEmail`)
+rather than duplicating order-table access in a second adapter.
+
+**One accepted non-atomicity**: `incrementOrderCount` is read-then-write, not atomic like the
+stock decrement's RPC — deliberately not worth another Postgres function for a low-stakes display
+counter (unlike stock, an off-by-one here has no financial/inventory consequence).
+
+`src/db.ts` gained `SupabaseCustomersStore`. New route: `GET (?action=list)/POST
+/api/customers.php`, action-dispatched exactly like `admin.php` (matches every JS call site:
+`js/auth.js`, `js/admin-orders.js`, `js/admin-misc.js`, `js/store.js`).
+
+**Live-verified against staging, every action, real writes**: registered a real customer,
+logged in, fetched the security question, reset the password via the security answer and
+confirmed login with the new password, admin-listed/added/updated/deleted customers (confirmed
+`update_customer`'s always-overwrite-all-four-fields behavior — a real PHP quirk, faithfully
+preserved, not "fixed" into a partial update), and both the negative (wrong token → 403) and
+positive (correct token → cancels, restores implied via the shared code path, blocks a
+double-cancel) `cancel_order` cases against a real order.
+
+`npm test`: 221/221 passing (47 new: 8 order-token + 39 customers). `tsc --noEmit`: clean.
+
+**Not yet done**: `email.ts` (still just the documented no-op TODO in `createOrder`), payments
+(deliberately last). That's now every module in the plan's endpoint-port table except payments,
+email, and the back-office long tail (`content.ts`/`contact.ts`/`studio.ts`/`business.ts`/
+`ops.ts`).
+
+---
+
 ## Current state — 2026-08-01 (Phase 3 continued: order mutations)
 
 **`src/orders.ts` extended with POST (create)/PUT (update)/DELETE (single + all)**, completing

@@ -118,8 +118,14 @@ export interface OrdersStore {
   /** Orders with status='Awaiting Payment' whose created_at is before `cutoffIso` — see
    *  reclaimStaleOrders' comment for why this compares created_at, not order_date. */
   findStaleAwaitingOrders(cutoffIso: string): Promise<{ id: string }[]>;
-  /** Non-shipping line items for one order, for stock restoration during stale cleanup. */
+  /** Non-shipping line items for one order, for stock restoration during stale cleanup AND for
+   *  customers.ts's cancelOrder (same restore-stock-then-cancel shape, different trigger). */
   getOrderItemsForRestore(orderId: string): Promise<{ product_id: string; quantity: number }[]>;
+  /** Used by customers.ts's cancelOrder to check the order exists and is still cancellable. */
+  getOrderStatus(id: string): Promise<string | null>;
+  /** Used by customers.ts's incrementOrderCount — ties the count bump to a real order the caller
+   *  just placed, not a bare email, so it can't be used to inflate a stranger's order count. */
+  orderBelongsToEmail(orderId: string, email: string): Promise<boolean>;
 
   /** Ports orders.php's reuse of customer_login_attempts for the per-IP order-creation throttle. */
   getOrderRateLimit(key: string): Promise<{ attempts: number; lastAt: number } | null>;
@@ -483,6 +489,12 @@ export class OrdersStoreFake implements OrdersStore {
     return this.items
       .filter((i) => i.order_id === orderId && i.product_id !== SHIP_PRODUCT_ID)
       .map((i) => ({ product_id: i.product_id!, quantity: Number(i.quantity ?? 0) }));
+  }
+  async getOrderStatus(id: string): Promise<string | null> {
+    return this.orders.find((o) => o.id === id)?.status ?? null;
+  }
+  async orderBelongsToEmail(orderId: string, email: string): Promise<boolean> {
+    return this.orders.some((o) => o.id === orderId && o.customer_email?.toLowerCase() === email.toLowerCase());
   }
 
   async getOrderRateLimit(key: string): Promise<{ attempts: number; lastAt: number } | null> {
