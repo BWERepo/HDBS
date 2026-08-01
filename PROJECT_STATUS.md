@@ -5,6 +5,37 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 9 checklist steps 1-2 done: production Supabase is schema- and data-complete)
+
+Working through `docs/phase-9-cutover-checklist.md` (see that file for the full ordered plan; this
+is just the running log). **Steps 1 and 2 are both done and independently re-verified, not just
+run:**
+
+- **Step 1 (schema):** ran `0010_stock_adjustment_functions.sql` and `0011_app_log.sql` against
+  production (`ckiyvsejstptrnwkinir`) via the `/Supabase` skill's browser flow. A pre-check
+  diagnostic found production had zero rows anywhere (not even `settings`) — worse than the stale
+  "schema through 0008" note assumed, good to have checked rather than trusted it.
+- **Step 2 (data):** the user ran `node scripts/migrate-data.mjs --write --allow-prod` themselves,
+  in their own terminal, with production's real `SUPABASE_SERVICE_ROLE_KEY` — the key never passed
+  through chat, same rule as every other secret handled this session. Loaded the freshest daily
+  backup (`202608010000HDBS.sql`). Then ran `0009_normalize_image_urls.sql` (held back until now,
+  per its own header).
+- **Every claim re-verified independently**, not trusted from tool output: a diagnostic query
+  confirmed `has_app_log_table=1`/`has_stock_functions=1` after step 1; a 12-table count query
+  matched the dry-run preview exactly after step 2 (63 settings, 47 products, 2 orders, 4
+  order_items, 1 refund, 1 review, 11 faqs, 7 email_log, 2 subscribers, 52 tn_city_tax, 17
+  studio_items, 13 capital_equipment); a targeted absolute-URL count confirmed zero remaining
+  after `0009` and all 47 products now have root-relative `/product_images/...` paths.
+- Chrome extension wasn't connected this session, so every SQL run/verification was done by the
+  user pasting results back rather than me driving the browser directly — still fully verified,
+  just via a different mechanic than the `/Supabase` skill's normal flow.
+
+**Production Supabase is now schema- and data-complete.** Remaining before cutover, per the
+checklist: R2 buckets/media (step 3-4), live payment/API secrets (step 5), first real production
+deploy (step 6), carried-over security fixes (step 7), and the actual DNS/routes flip (step 8).
+
+---
+
 ## Current state — 2026-08-01 (Phase 10/9 cutover readiness audit: production is still Phase-0-era)
 
 **Started a cutover readiness review and found production is far less ready than "everything's

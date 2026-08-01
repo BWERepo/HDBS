@@ -18,8 +18,8 @@ confirmed, per `docs/production-isolation.md`'s one-way-door warning.
 |---|---|---|
 | Last code deploy | Continuous, every session | **2026-08-01T12:31:33 — Phase 0 scaffold, never since** |
 | R2 buckets | `hdbs-public-staging`, `hdbs-private-staging` exist | **Neither `hdbs-public` nor `hdbs-private` exist yet** |
-| Supabase schema | migrations `0001`-`0011` | ✅ `0001`-`0008`, `0010`, `0011` now applied (confirmed live 2026-08-01); `0009` deliberately held until real data is loaded |
-| Supabase data | Real prod snapshot loaded (`scripts/migrate-data.mjs`, Phase 1) | **Schema only, zero rows** |
+| Supabase schema | migrations `0001`-`0011` | ✅ `0001`-`0011`, all applied and confirmed live 2026-08-01 |
+| Supabase data | Real prod snapshot loaded (`scripts/migrate-data.mjs`, Phase 1) | ✅ Real snapshot loaded 2026-08-01, verified row-for-row against all 12 tables |
 | Secrets present | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` | **Only `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`** |
 | Missing on *both* | `SMOKE_TOKEN`, `SQUARE_APP_ID`, `SQUARE_WEBHOOK_SIG_KEY`, `USPS_CONSUMER_KEY`/`_SECRET`, `RESEND_API_KEY` | (same) |
 | `npm run check:secrets` | — | **Fails today** — run it, this is the live output as of this audit |
@@ -43,26 +43,31 @@ toast: `has_app_log_table=1`, `has_stock_functions=1`.
 ⚠️ `0009_normalize_image_urls.sql` is **deliberately still not run** — it's a data normalizer, not
 a schema change, and its own header says it must run after real data is loaded (step 2 below), not
 against an empty schema. Run it as the last step of step 2, not here.
-- ⚠️ `0009_normalize_image_urls.sql` is a data normalizer, not a schema change — it needs to run
-  **after** real data is loaded (step 2), not before, per its own header. Sequence matters here:
-  run `0001`-`0008`/whatever's missing and `0010`/`0011` (schema-only) first, load data, then run
-  `0009` last.
 
 ---
 
-## 2. 👤🤖 Load real data into production Supabase
+## 2. ✅ Load real data into production Supabase — DONE
 
-`scripts/migrate-data.mjs` has never been run with `--write --allow-prod`. Its own header
-comment calls this out explicitly: *"Never run --write against the PRODUCTION Supabase project
-[...] unless --allow-prod is also passed, as a second guard beyond 'just don't type that URL'."*
+**Completed 2026-08-01.** `scripts/migrate-data.mjs` had never been run with `--write --allow-prod`
+before this. Dry-run against the freshest backup (`202608010000HDBS.sql`, today's) matched Phase 1's
+original staging counts exactly, so the parser was trusted to write for real.
 
-- 👤 Pull the **freshest** daily backup from `Z:\Backup\Websites\HDBS\Backup\` (not the one used for
-  staging back in Phase 1 — get current orders/products/customers, not a week-old snapshot).
-- 🤖 Dry-run first: `node scripts/migrate-data.mjs --source <latest.sql>` (no `--write`) against
-  production's connection details, confirm row counts look sane before committing.
-- 👤 Explicit go-ahead required before the real run: `node scripts/migrate-data.mjs --source
-  <latest.sql> --write --allow-prod`.
-- 🤖 Then run `0009_normalize_image_urls.sql` (held back until now, see step 1).
+The user ran `--write --allow-prod` themselves in their own terminal — the production
+`SUPABASE_SERVICE_ROLE_KEY` never passed through chat, same rule as every other secret this
+migration has handled. Verified independently afterward (not just the script's own printed
+summary) via a fresh count query against all 12 tables in the production SQL editor: 63 settings,
+47 products, 2 orders, 4 order_items, 1 refund, 1 review, 11 faqs, 7 email_log, 2 subscribers,
+52 tn_city_tax, 17 studio_items, 13 capital_equipment — exact match to the dry-run preview.
+
+Then ran `0009_normalize_image_urls.sql` (held back until now) against production. Re-verified with
+a targeted query rather than trusting the "no rows returned" success message: zero products,
+zero `studio_items`, and zero `biz_profile` settings rows still contain an absolute
+`handmadedesignsbysuzi.com`/`staging.handmadedesignsbysuzi.com` URL; all 47 products now have
+root-relative `/product_images/...` paths.
+
+**Production Supabase is now schema- and data-complete** (migrations `0001`-`0011`, all run against
+the real project, all independently re-verified). What's NOT yet in production: the media files
+themselves (step 4 — R2 is still empty) and live payment/API credentials (step 5).
 
 ---
 
@@ -177,9 +182,9 @@ Only after every item above is confirmed:
 
 ## Definition of done
 
-- [x] Production Supabase schema matches staging through `0008`/`0010`/`0011` (done 2026-08-01);
-      `0009` still deliberately pending until data load
-- [ ] Production Supabase has the real, current data snapshot (not the Phase 1 staging snapshot)
+- [x] Production Supabase schema matches staging, `0001`-`0011` (done 2026-08-01)
+- [x] Production Supabase has the real, current data snapshot, `0009` normalized (done 2026-08-01,
+      independently re-verified row-for-row and by absolute-URL count)
 - [ ] `hdbs-public`/`hdbs-private` R2 buckets exist, neither public, full media migrated
 - [ ] All 13 secrets set on production with **live** (not sandbox) payment values;
       `npm run check:secrets` passes
