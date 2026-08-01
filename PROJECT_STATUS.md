@@ -5,6 +5,40 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 10/9 cutover readiness audit: production is still Phase-0-era)
+
+**Started a cutover readiness review and found production is far less ready than "everything's
+ported" implied.** Every module this whole migration has built was verified against **staging**
+only — checked the actual state of the production Worker/Supabase/R2 rather than assuming, and it
+hasn't been touched since the very first scaffold deploy:
+
+- `npx wrangler deployments list` (production): exactly one code deploy, from Phase 0
+  (2026-08-01T12:31:33), plus two secret-change events. Nothing since.
+- `npx wrangler r2 bucket list`: only `hdbs-public-staging`/`hdbs-private-staging` exist.
+  **Production's `hdbs-public`/`hdbs-private` don't exist yet.**
+- Production Supabase (`ckiyvsejstptrnwkinir`): schema only through migration `0008` (per the
+  Phase 2 note below — not re-verified since, worth confirming fresh). **Zero real data** —
+  `scripts/migrate-data.mjs` has only ever been run against staging (Phase 1 entry below says so
+  explicitly: "real prod data now lives on staging Supabase").
+- `npx wrangler secret list` (production): only `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`. Missing
+  `ORDER_TOKEN_SECRET`, all Square/PayPal keys, `RESEND_API_KEY`, `SMOKE_TOKEN`, USPS keys —
+  `bash scripts/check-secret-parity.sh` fails today, confirmed by actually running it rather than
+  assuming parity.
+
+**Wrote `docs/phase-9-cutover-checklist.md`** — a full ordered runbook (schema catch-up → real data
+load → R2 provisioning → media migration → live secrets → first real production deploy → security
+fixes carried over from Phase 0 → the actual DNS/routes cutover), 👤/🤖-tagged like
+`docs/phase-0-checklist.md`. Deliberately a **plan document only** — nothing in it was executed
+this session; the user chose "write the runbook" over "start executing" when asked. See that file
+for the full ordered checklist; don't re-derive it here.
+
+**The one-sentence version for a future session**: "every PHP endpoint is ported" (the milestone
+several entries below) was true and still is, but it answered a different question than "is
+production ready to cut over." Those are not the same claim, and conflating them is exactly the
+mistake this audit exists to catch before it becomes a live incident.
+
+---
+
 ## Current state — 2026-08-01 (PayPal capture closed the loop: all four payment endpoints now fully live-verified)
 
 **The one gap left by the milestone below — a real PayPal capture — is now closed too.** A real
