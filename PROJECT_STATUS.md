@@ -5,6 +5,51 @@
 
 ---
 
+## Current state — 2026-08-01
+
+**Both Supabase projects now exist**, under the "Business Web Express" org, same as the sibling
+project (a deliberate deviation from that plan note — HDBS still gets two separate projects, just
+hosted in the same org):
+
+- **Prod**: "Handmade Designs By Suzi - Production", `https://ckiyvsejstptrnwkinir.supabase.co`,
+  us-east-1. Migrations `0001`-`0008` run (0009 deliberately held back — it's the image-URL
+  normalizer and must run after data load, not against an empty schema).
+- **Staging**: `https://ukzhnizosofbkwcpuvye.supabase.co`, migrations `0001`-`0008` also run.
+
+Both projects use Supabase's newer `sb_publishable_...`/`sb_secret_...` key format rather than the
+legacy JWT `anon`/`service_role` pair (both still available under Settings → API Keys → "Legacy"
+tab). Using the `sb_secret_...` key as `SUPABASE_SERVICE_ROLE_KEY` — same bypass-RLS privilege,
+non-deprecated path forward.
+
+**Not yet done:** `wrangler secret put SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` (plain, then
+`--env staging`) — four commands, to be run by the user directly since the key must never pass
+through chat or get logged. R2 buckets and the Resend domain still do not exist.
+
+**`src/db.ts` written** — the Supabase service-role client factory plus adapter classes
+(`SupabaseAdminAuthStore`, `SupabaseSettingsStore`, `SupabaseProductsStore`) wiring `auth.ts`,
+`settings.ts`, and `products.ts`'s store interfaces to the real `settings`/`admin_sessions`/
+`products` tables. Deliberately not unit-tested (no live project in CI, and mocking supabase-js's
+query builder buys little over the real thing) — the business logic it wires up is already
+covered against fakes, which is what makes this adapter layer thin enough to trust by inspection.
+Real verification is `wrangler dev` + `curl` per the Phase 2 lesson in this file.
+
+**`src/routes/admin.ts` and `src/routes/products.ts` written and mounted in `src/index.ts`** —
+first real `/api/*` routes. `POST /api/admin.php` stays one action-dispatch path (not
+REST-per-action) because the front end calls it that way unchanged
+(`js/auth.js:159`); only the actions ported so far (login/logout/change_password/
+get_sec_question/verify_sec_answer/reset_password/save_sec_question/get_setting/set_setting)
+are wired, everything else 501s so it's visibly unimplemented rather than a bare 404.
+`GET /api/products.php` is wired read-only; `POST`/`DELETE` still 501 pending R2 image handling.
+`src/lib/cors.ts` is now actually mounted on `/api/*` in `index.ts` (it existed but was unmounted
+before this session).
+
+Both `wrangler deploy --dry-run` (prod) and `--dry-run --env staging` build clean with correct
+bindings. `npm test` 109/109, `tsc --noEmit` clean. **Not yet verified against the real
+Supabase projects** — that needs the secrets set locally (see above) and a `wrangler dev` + curl
+pass, which is the next thing to do once the user has run the four `wrangler secret put` calls.
+
+---
+
 ## Current state — 2026-07-30
 
 **Supabase projects, R2 buckets, and Resend domain still do not exist** (confirmed with the user
