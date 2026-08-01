@@ -5,6 +5,26 @@
 
 ---
 
+## Current state — 2026-08-01 (PayPal capture closed the loop: all four payment endpoints now fully live-verified)
+
+**The one gap left by the milestone below — a real PayPal capture — is now closed too.** A real
+PayPal order (`6DN58399PH770464S`) was approved via a genuine browser walkthrough of PayPal's own
+sandbox checkout (`https://www.sandbox.paypal.com/checkoutnow?token=...`), logged into by the user
+with their own sandbox buyer account (not something this session could do itself — entering a
+password is off-limits even for a sandbox account). The subsequent capture succeeded for real:
+`payment_id 13128007K2948142B`, `$57.29` total including the `$2.41` surcharge, order landed `Paid`
+with `pay: "PayPal"`, correct fee/tax, confirmation email logged. Test order (`TESTPP-CAP-1`)
+cleaned up afterward, consuming one more product's stock (`p1782310425206`) — same accepted
+"deleting doesn't restock" residue as the milestone below.
+
+**Every one of the four payment/refund endpoints has now been proven against a real processor
+sandbox, not just fakes or auth-gate checks**: Square charge, Square refund, PayPal create, and
+now PayPal capture. This is the first time in the whole migration that "live-verified" for payments
+means a real charge actually moved (simulated) money, not just "failed gracefully with no
+credentials."
+
+---
+
 ## Current state — 2026-08-01 (First real payment credentials: Square + PayPal sandbox live-verified end-to-end)
 
 **The "no live credentials exist yet" caveat repeated at every prior payments-related milestone is
