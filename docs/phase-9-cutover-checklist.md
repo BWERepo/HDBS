@@ -20,9 +20,9 @@ confirmed, per `docs/production-isolation.md`'s one-way-door warning.
 | R2 buckets | Created, private, real product/logo media loaded (159+1 files) | ✅ Same — created 2026-08-01, private, 159 product images + 1 logo loaded and verified |
 | Supabase schema | migrations `0001`-`0011` | ✅ `0001`-`0011`, all applied and confirmed live 2026-08-01 |
 | Supabase data | Real prod snapshot loaded (`scripts/migrate-data.mjs`, Phase 1) | ✅ Real snapshot loaded 2026-08-01, verified row-for-row against all 12 tables |
-| Secrets present | Same 8 names as production, sandbox/inert values | ✅ `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SMOKE_TOKEN`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`, `BREVO_API_KEY` — Square/PayPal/Brevo all verified genuinely live against their own real APIs, 2026-08-01 |
+| Secrets present | Same 10 names as production (no `SQUARE_WEBHOOK_SIG_KEY` — production-only, see step 5) | ✅ `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SMOKE_TOKEN`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `SQUARE_WEBHOOK_SIG_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`, `BREVO_API_KEY`, `USPS_CONSUMER_KEY`, `USPS_CONSUMER_SECRET` — every one verified genuinely live against its real provider's own API, 2026-08-01 |
 | Email | `EMAIL_MODE=sink` (never calls Brevo) | ✅ `EMAIL_MODE=live`, Brevo wired, verified with a real send through the real deployed code (`send_confirm.php` → `ORD-MSAT7Q4O`), 2026-08-01 |
-| Missing on *both* | `SQUARE_APP_ID` (likely vestigial, see step 5), `SQUARE_WEBHOOK_SIG_KEY` (needs live DNS, step 8), `USPS_CONSUMER_KEY`/`_SECRET` | (same) |
+| Missing on *both* | `SQUARE_APP_ID` (likely vestigial dead config, see step 5) | (same) |
 | `npm run check:secrets` | — | ✅ Name-parity passes as of 2026-08-01 (was failing at audit time) |
 
 Confirmed via `npx wrangler deployments list`, `npx wrangler r2 bucket list`, `npx wrangler secret
@@ -149,12 +149,10 @@ point is identical secret *names*, deliberately different *values*.
     2), not this secret. Likely vestigial. Worth removing from `src/types.ts`/the parity script's
     `EXPECTED` list rather than chasing a value for a secret nothing reads — flagged, not fixed,
     since removing declared-but-unused config is a separate small cleanup from this checklist.
-  - Still outstanding: the **production webhook subscription**, pointed at
-    `https://handmadedesignsbysuzi.com/api/square-webhook.php` for `SQUARE_WEBHOOK_SIG_KEY` — can
-    only be created once DNS cutover (step 8) is live, so this is the one secret that comes *after*
-    cutover, not before. Creates a brief window where the webhook backstop isn't configured; the
-    plan already accepts an initial short read-only order freeze (per
-    `docs/production-isolation.md`'s one-way-doors section) which covers this.
+  - The **webhook subscription** originally assumed to need DNS cutover first turned out not to —
+    see the dedicated `SQUARE_WEBHOOK_SIG_KEY` entry below, done 2026-08-01 against the current
+    `workers.dev` URL. Only the subscription's URL needs updating in Square's dashboard after
+    cutover (step 8), not the secret itself.
 - ✅ **PayPal — done 2026-08-01.** Live `PAYPAL_CLIENT_ID` + `PAYPAL_SECRET` set on production.
   Verified for real: requested a live OAuth token from `https://api-m.paypal.com/v1/oauth2/token`
   (the live host) with these credentials — got a real token back with a real `app_id`
@@ -201,11 +199,41 @@ point is identical secret *names*, deliberately different *values*.
     credentials regression (re-verified `SQUARE_TOKEN`/`SQUARE_LOCATION_ID` directly against
     Square's live API, still fine) — just the wrong tool for testing a live charge headlessly.
     Order deleted, product stock restored via a real full-record update, same as prior test cleanups.
-- 👤 USPS `CONSUMER_KEY`/`CONSUMER_SECRET`, if shipment tracking should work at cutover (currently
-  unset on both Workers — always a lower-priority deferred item, still true here).
-- 🤖 `bash scripts/check-secret-parity.sh` — **name-parity between staging and production, confirmed
-  2026-08-01.** Remaining "MISSING from hdbs" items are exactly `SQUARE_APP_ID` (likely vestigial),
-  `SQUARE_WEBHOOK_SIG_KEY` (needs live DNS), and both USPS keys — not a parity bug.
+- ✅ **USPS — done 2026-08-01.** User had credentials already (USPS Developer Portal, an account
+  only they could create). Set on both Workers (USPS has no sandbox tier — same real credentials
+  everywhere, confirmed by this project's own earlier finding that USPS tracking data isn't
+  reachable in any sandbox mode on this product tier). Verified genuinely live twice: a direct
+  OAuth token request to `https://apis.usps.com/oauth2/v3/token` returned a real Bearer token, then
+  the actual deployed `validate_tracking.php` route was called with a real historical order's
+  tracking number and returned real USPS status (`"Delivered, Front Door/Porch"`) — no redeploy
+  needed since the route was already ported and live, only the secret was missing.
+- ✅ **`SQUARE_WEBHOOK_SIG_KEY` — done 2026-08-01, and it turned out DNS wasn't actually a
+  prerequisite.** This checklist originally assumed the webhook subscription needed the real
+  `handmadedesignsbysuzi.com` domain to exist first (step 8). Rechecked the code before waiting:
+  `routes/payments.ts`'s `callbackUrl` is derived dynamically from the incoming request's own
+  origin (`new URL(c.req.url).origin`), not hardcoded — so a webhook subscription can point at the
+  current `workers.dev` URL right now, and Square's dashboard URL can simply be updated after
+  cutover with no code change needed then.
+  - Created a real Square webhook subscription via the API (`POST
+    /v2/webhooks/subscriptions`) pointed at
+    `https://hdbs.muddy-resonance-c828.workers.dev/api/square-webhook.php`, got a real
+    `signature_key` back, set it as the secret.
+  - **Verified with Square's own webhook-testing endpoint** (`POST
+    /v2/webhooks/subscriptions/{id}/test`), not a real charge (a real live charge would have hit
+    the same sandbox-nonce dead end as the email test above) — got back `status_code: 200`,
+    confirming HMAC signature verification against the real signing key works. Cross-checked
+    against `app_log`: a real `"COMPLETED but no order ID found"` line landed in `webhook_log.txt`
+    (expected — Square's canned test payload references a fake order id, not one of this store's
+    real orders), proving the full handler path executed correctly, not just the signature check.
+    Test log entry cleared afterward.
+  - **Deliberately production-only, not a parity gap**: staging doesn't get its own
+    `SQUARE_WEBHOOK_SIG_KEY` since that would require a second, separate Square Sandbox webhook
+    subscription this checklist never asked for — `check-secret-parity.sh`'s "Only on production"
+    flag for this one name is expected and fine.
+- 🤖 `bash scripts/check-secret-parity.sh` — **all real gaps closed as of 2026-08-01.** The only
+  remaining "MISSING from hdbs" item is `SQUARE_APP_ID`, already flagged as likely-vestigial dead
+  config (the real value comes from the `settings` table, not this env binding) — worth a small
+  separate cleanup, not a blocker.
 
 ---
 
@@ -296,8 +324,11 @@ Only after every item above is confirmed:
 - 🤖 Uncomment the two `routes` lines in `wrangler.jsonc`, redeploy production. **This is the
   cutover** — the moment `handmadedesignsbysuzi.com` can be reachable through Cloudflare.
 - 👤 Change the registrar's nameservers to Cloudflare's.
-- 👤 Set up the Square production webhook subscription now (deferred from step 5) and set
-  `SQUARE_WEBHOOK_SIG_KEY`.
+- 👤 Update the existing Square webhook subscription's `notification_url` (Square Developer
+  Dashboard, or `PUT /v2/webhooks/subscriptions/{id}`) from the `workers.dev` URL to
+  `https://handmadedesignsbysuzi.com/api/square-webhook.php` — the subscription and
+  `SQUARE_WEBHOOK_SIG_KEY` already exist and are verified (step 5, done 2026-08-01); only the URL
+  needs to change.
 - 👤 A short read-only freeze on both systems while DNS propagates, per
   `docs/production-isolation.md` — "Orders placed on the Worker after cutover exist only in
   Postgres, which is why Phase 9 uses a short read-only freeze rather than letting both systems
@@ -316,7 +347,8 @@ Only after every item above is confirmed:
       Hostinger (never rescued in Phase 0 — optional, owner's call before cutover)
 - [x] Square + PayPal live secrets set and verified genuinely live (done 2026-08-01);
       `ORDER_TOKEN_SECRET`/`SMOKE_TOKEN` self-generated fresh; name-parity passes
-- [ ] `SQUARE_WEBHOOK_SIG_KEY` (after DNS, step 8), USPS keys still outstanding
+- [x] `SQUARE_WEBHOOK_SIG_KEY` and USPS keys done and verified (2026-08-01) — webhook didn't
+      actually need to wait for DNS, since the callback URL is derived dynamically per-request
 - [x] Email live and verified — switched Resend → Brevo (done 2026-08-01), `BREVO_API_KEY` set,
       `mail.handmadedesignsbysuzi.com` authenticated/verified, `EMAIL_MODE=live`, confirmed with a
       real send through the real deployed code

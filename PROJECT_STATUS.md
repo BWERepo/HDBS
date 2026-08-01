@@ -5,6 +5,37 @@
 
 ---
 
+## Current state — 2026-08-01 (USPS + Square webhook done — step 5 is now completely closed)
+
+**USPS**: user already had Developer Portal credentials. Set on both Workers (USPS has no sandbox
+tier — same real credentials everywhere, a finding from earlier in this migration). Verified twice:
+a direct OAuth token request to USPS's real API succeeded, then the actual deployed
+`validate_tracking.php` route returned a real historical order's real status ("Delivered, Front
+Door/Porch") — no redeploy needed, only the missing secret was blocking it.
+
+**Square webhook — a real assumption in the checklist turned out to be wrong, caught by rereading
+the code instead of waiting.** The checklist said the webhook subscription needed DNS cutover
+first. Rechecked `routes/payments.ts` before accepting that: `callbackUrl` is computed dynamically
+from the incoming request's own origin, not hardcoded — so the subscription could be created
+against the current `workers.dev` URL right now, with only its `notification_url` needing to
+change after cutover, not the secret or any code.
+
+Created a real subscription via Square's API, got a real signing key, set it. **Verified without
+a real charge** (which would have hit the same live-vs-sandbox-nonce dead end as the earlier email
+test) — used Square's own `POST .../test` endpoint instead: `status_code: 200`, confirming HMAC
+verification against the real key works. Cross-checked `app_log`: a real `"COMPLETED but no order
+ID found"` line landed in `webhook_log.txt` (expected, since Square's canned test payload
+references a fake order id), proving the full handler executed, not just the signature check.
+
+`bash scripts/check-secret-parity.sh` now reports **zero real gaps** — the only remaining "missing"
+item is `SQUARE_APP_ID`, already flagged as likely-vestigial dead config in an earlier entry.
+
+`docs/phase-9-cutover-checklist.md` step 5 is now **fully closed, all sub-items done and
+independently verified**. The only remaining checklist item is step 8 itself — the actual DNS/routes
+cutover, which now only needs a URL update in Square's dashboard afterward, not a new secret.
+
+---
+
 ## Current state — 2026-08-01 (Email switched from Resend to Brevo — production live, verified end-to-end)
 
 **Closes the email gap deferred earlier this session.** Investigated whether Brevo's free plan had
