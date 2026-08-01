@@ -5,6 +5,46 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase 9 checklist step 6 done: first real production deploy, real live charge verified)
+
+**`npx wrangler deploy` (no `--env`) — production's first redeploy since the Phase 0 scaffold.**
+Bindings confirmed correct on deploy: real `hdbs-public`/`hdbs-private` R2 buckets,
+`ENVIRONMENT=production`, `EMAIL_MODE=live`.
+
+**Cron trigger registration failed (`Error 10072`, account-wide 5-cron Free-plan cap already hit by
+sibling projects) — investigated, then deliberately deferred rather than fixed.** Found `hdbs` has
+no `scheduled()` handler anywhere in `src/` at all, so the two declared cron expressions currently
+have nothing to call — the registration failure has zero functional impact today. Put to the user
+rather than assumed: they chose to defer rather than disable a sibling's cron or upgrade the plan.
+
+**Automated checks**: `/api/health` (200, `phase: 0` noted as a cosmetic Phase-0 leftover),
+`/api/products.php` (real 47-product catalog), `/api/admin.php` (correctly 401s, confirming the
+full admin surface including this session's log-viewer work is live).
+
+**A real live charge through the actual browser checkout UI — the first time this entire migration
+has verified the real frontend against a live payment, not an API curl.** User opened the
+`workers.dev` storefront, bought the $35 "ETCC Logo Crossbody" with a real card. A Permissions-
+Policy console violation appeared during checkout (`payment=(self)` in
+`src/lib/security-headers.ts`) — investigated rather than assumed benign, confirmed harmless only
+once the charge actually succeeded (Square's manual card entry doesn't need the Payment Request
+API, only Apple/Google Pay detection does). Real order `ORD-MSAT7Q4O` landed `Paid` with a real
+Square payment id, correct $48.41 total. Refunded immediately after as planned — real refund id,
+order moved to `Refunded`. `email_sent: false` on the refund, expected since `RESEND_API_KEY` isn't
+set yet.
+
+**One real-data cleanup, different from every disposable staging test order this session**: the
+refund didn't restock the real product (refunds never restock, a faithfully-preserved PHP quirk) —
+but this is Suzi's actual catalog, not throwaway data, so it was flagged to the user rather than
+silently left or silently fixed. Restored to stock `1` via a real `POST /api/products.php`
+full-record update, verified afterward that images/other fields were untouched.
+
+`docs/phase-9-cutover-checklist.md` step 6 is now fully done. Remaining before cutover: step 7
+(carried-over security fixes), the last pieces of step 5 (`RESEND_API_KEY`, USPS, and
+`SQUARE_WEBHOOK_SIG_KEY` which needs live DNS first), and step 8 itself (the actual DNS/routes
+flip).
+
+---
+
 ## Current state — 2026-08-01 (Phase 9 checklist step 5, in progress: Square + PayPal now live on production)
 
 **Live Square and PayPal credentials are now set on the production Worker** — the first real

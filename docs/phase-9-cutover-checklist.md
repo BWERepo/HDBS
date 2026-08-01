@@ -16,7 +16,7 @@ confirmed, per `docs/production-isolation.md`'s one-way-door warning.
 
 | | Staging | Production |
 |---|---|---|
-| Last code deploy | Continuous, every session | **2026-08-01T12:31:33 — Phase 0 scaffold, never since** |
+| Last code deploy | Continuous, every session | ✅ Redeployed 2026-08-01 (first time since the Phase 0 scaffold); real live charge + refund verified through the actual browser checkout UI |
 | R2 buckets | Created, private, real product/logo media loaded (159+1 files) | ✅ Same — created 2026-08-01, private, 159 product images + 1 logo loaded and verified |
 | Supabase schema | migrations `0001`-`0011` | ✅ `0001`-`0011`, all applied and confirmed live 2026-08-01 |
 | Supabase data | Real prod snapshot loaded (`scripts/migrate-data.mjs`, Phase 1) | ✅ Real snapshot loaded 2026-08-01, verified row-for-row against all 12 tables |
@@ -177,19 +177,51 @@ point is identical secret *names*, deliberately different *values*.
 
 ---
 
-## 6. 🤖 First real production deploy
+## 6. ✅ First real production deploy — DONE, including a real live charge
 
-- 🤖 `npx wrangler deploy` (no `--env` — deploys to `hdbs`, still routeless, still unreachable from
-  the real domain per `wrangler.jsonc`'s comment).
-- 🤖 Verify against the `workers.dev` hostname only, exactly like every staging verification this
-  whole migration has done: `GET /api/health`, `GET /api/products.php` (real catalog now, not
-  empty), `POST /api/admin.php` login with the **real production admin password** (migrated in
-  Phase 1, never written down — same gap noted in the Phase 3 product-image milestone).
-- 👤 A full walkthrough in a browser against the `workers.dev` URL — storefront loads, cart works,
-  a real `$1`-or-less live Square charge (refunded immediately after) — mirrors what
-  `docs/production-isolation.md`'s "things that could still bite" section already calls out as
-  "the first point at which anything real happens." This is the production equivalent of the
-  Square/PayPal sandbox verification already done on staging this session.
+**Completed 2026-08-01.** `npx wrangler deploy` (no `--env`) — production Worker deployed for the
+first time since the Phase 0 scaffold. Still routeless, still unreachable from the real domain, per
+`wrangler.jsonc`'s comment — verified only against `workers.dev`.
+
+**One real deploy-time problem, diagnosed and deliberately deferred, not silently ignored**: the
+Worker code deployed successfully, but the two cron triggers failed with `Error 10072` — this
+Cloudflare account has already hit the Workers Free plan's 5-cron-trigger cap across sibling
+projects (BusinessWebExpress, FacebookLeadFinder, hdbs-staging). Investigated before deciding
+anything: `hdbs` has **no `scheduled()` handler implemented anywhere in `src/`** — the two cron
+expressions in `wrangler.jsonc` have nothing to call yet, so the registration failure has zero
+functional impact right now. Put to the user rather than assumed: deferred entirely rather than
+disabling a sibling project's cron or upgrading the plan, since there's nothing for hdbs's own
+cron to run yet. Revisit once a real `scheduled()` handler exists.
+
+Automated verification against `https://hdbs.muddy-resonance-c828.workers.dev`:
+- `GET /api/health` → `200 {"ok":true,"environment":"production",...}`. (Found in passing:
+  `phase: 0` in that response is a static Phase-0-scaffold leftover, `src/index.ts:78` — cosmetic,
+  not a bug, worth deleting in a future cleanup.)
+- `GET /api/products.php` → real catalog, 47 products, real names — not the empty/placeholder
+  response every prior "production" check would have gotten before step 2.
+- `POST /api/admin.php` unauthenticated → correctly 401s (not the old 501 stub), confirming this
+  session's full admin route surface — including the log viewer built earlier — is live.
+
+**A real, full-price live charge through the actual browser checkout UI — the first time this
+whole migration has verified the real storefront frontend against a live payment, not just an API
+curl**: user opened `https://hdbs.muddy-resonance-c828.workers.dev`, added the cheapest real
+in-stock item ("ETCC Logo Crossbody," $35) to cart, and paid with a real card.
+- A real Permissions-Policy console violation (`payment is not allowed in this document`) appeared
+  during checkout — investigated before assuming it was fine: `src/lib/security-headers.ts`'s
+  `payment=(self)` policy. Turned out to be benign — Square's manual card-entry iframe doesn't need
+  the Payment Request API, only Apple/Google Pay detection does — confirmed by the charge actually
+  succeeding, not by reasoning alone.
+- Confirmed via the real order record: `ORD-MSAT7Q4O`, `status: "Paid"`, real
+  `square_payment_id: 18L3n3FM8ryB8hTuzAhN0sW7QNKZY`, `$48.41` total ($35 + $10 shipping + $3.41
+  tax, correct math), confirmation email logged.
+- Refunded immediately after, as planned: real `square_refund_id`, order moved to `Refunded`.
+  `email_sent: false` on the refund confirmation — expected, not a bug, since `RESEND_API_KEY`
+  isn't set yet (step 5).
+- **One real-data cleanup, unlike every disposable test order this session**: the refund didn't
+  restock the real "ETCC Logo Crossbody" product (same faithfully-preserved PHP quirk as every
+  staging test), but this is Suzi's actual catalog, not throwaway test data — flagged to the user
+  rather than silently left, then restored to stock `1` via a real `POST /api/products.php` full-
+  record update, verified images/other fields were untouched by the update.
 
 ---
 
@@ -239,8 +271,9 @@ Only after every item above is confirmed:
 - [x] Square + PayPal live secrets set and verified genuinely live (done 2026-08-01);
       `ORDER_TOKEN_SECRET`/`SMOKE_TOKEN` self-generated fresh; name-parity passes
 - [ ] `SQUARE_WEBHOOK_SIG_KEY` (after DNS, step 8), `RESEND_API_KEY`, USPS keys still outstanding
-- [ ] `npx wrangler deploy` (production) succeeds; a full browser walkthrough against the
-      `workers.dev` hostname works end to end, including one real refunded live charge
+- [x] `npx wrangler deploy` (production) succeeds; a full browser walkthrough against the
+      `workers.dev` hostname worked end to end, including one real refunded live charge
+      (done 2026-08-01 — ORD-MSAT7Q4O, real Square payment + refund IDs)
 - [ ] `regression_test.php` token and staging Basic Auth password rotated (or Cloudflare Access live)
 - [ ] TTL lowered 48h+ before the nameserver change
 - [ ] `routes` uncommented, nameservers repointed, Square production webhook live,
