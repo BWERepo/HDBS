@@ -5,6 +5,60 @@
 
 ---
 
+## Current state — 2026-08-01 (First real payment credentials: Square + PayPal sandbox live-verified end-to-end)
+
+**The "no live credentials exist yet" caveat repeated at every prior payments-related milestone is
+now closed for Square and PayPal.** The user obtained real sandbox credentials and handed them over
+in chat; set via `wrangler secret put --env staging`: `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`,
+`PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`. (GitHub/USPS credentials still not provided — those endpoints
+remain auth/config-gated only, as before.)
+
+**One real credential mix-up caught and self-corrected, not the user's fault**: the location id
+first given (`sandbox-sq0idb-...`) turned out to be an Application-ID-shaped value, not a location
+id — Square rejected the charge with `Not authorized to take payments with location_id=...`.
+Diagnosed by calling Square's own `GET /v2/locations` directly with the token rather than guessing,
+which returned the token's real sandbox location (`LVD15H6H5R4NW`, "Default Test Account").
+Corrected the secret and the charge succeeded on retry — worth remembering that Square's own
+dashboard surfaces several similarly-shaped ids (app id, location id, access token) and only the
+API itself can confirm which one actually pairs with a given token.
+
+**All three real money-movement paths now proven against real processor sandboxes, not fakes**:
+- **Square charge** (`process_payment.php`): created a real order, charged it with Square's own
+  published test nonce (`cnon:card-nonce-ok`), got a real payment id
+  (`N2gUA259kBbYGFnUULTeFH97FL9YY`) back, confirmed the order landed `Paid` with that id attached
+  and a confirmation email logged.
+- **Square refund** (`refund.php`): charged a second real order, then fully refunded it — real
+  Square refund id back, order correctly moved to `Refunded`, confirmation email sent.
+- **PayPal create** (`paypal_create.php`): created a real PayPal sandbox order
+  (`90906452V67284825`) against a real Supabase order row, correct surcharge/total math.
+  **PayPal capture** couldn't complete headlessly — pre-approval capture is normal PayPal behavior,
+  not a bug — but the attempt returned PayPal's own real rejection message
+  (`"Payer has not yet approved the Order..."`), which is itself useful: it confirms
+  `paypal_capture.php`'s error-surfacing is correct against a real API response, not just a
+  fake's canned string.
+
+**Also closes the one remaining unverified leg from the admin-log-viewer milestone above**: that
+PayPal capture failure produced a REAL `PP-CAPTURE-FAIL` row in the real `app_log` table (not
+`AppLogStoreFake`), confirmed readable back out through `read_log` in the exact
+`applog()`-matching text format
+(`"2026-08-01 2:26:36 PM EDT | PP-CAPTURE-FAIL | Order: TESTPP-1 | ..."`). The insert path is no
+longer only unit-tested.
+
+Three test orders created and fully cleaned up afterward (`TESTPP-1`, `TESTSQ-1`,
+`TESTREFUND-1` — deleted via `DELETE /api/orders.php`, and the test `app_log` row cleared via
+`clear_log`). Two of this session's storefront products (`p1780859837233`, `p1782399703619`,
+`p1782562281099`) had their stock consumed by these real orders and were **not** restocked, since
+deleting an order doesn't restock (a documented, faithfully-preserved PHP quirk, not new residue) —
+worth a `node scripts/migrate-data.mjs --write` reset if pristine catalog stock numbers matter
+before this data is shown to anyone.
+
+**What's still not exercised end-to-end**: a real PayPal *capture* (needs either a headless
+sandbox-buyer-approval flow or a manual browser walkthrough of PayPal's own checkout UI — not
+something a server-side script can complete alone), and anything gated on GitHub/USPS credentials
+(still not provided).
+
+---
+
 ## Current state — 2026-08-01 (Admin log viewer: a real Supabase table replaces the disk files)
 
 **`api/admin.php`'s `read_log`/`clear_log`/`get_error_log` actions are ported** — the last
