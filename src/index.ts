@@ -27,6 +27,7 @@ import { businessRoute } from "./routes/business";
 import { opsRoute } from "./routes/ops";
 import { emailRoute } from "./routes/email";
 import { mediaRoute } from "./routes/media";
+import { paymentsRoute } from "./routes/payments";
 import { renderStorefront } from "./shell";
 import { createDb, SupabaseSettingsStore } from "./db";
 import version from "../version.json";
@@ -49,6 +50,7 @@ app.route("/", businessRoute);
 app.route("/", opsRoute);
 app.route("/", emailRoute);
 app.route("/", mediaRoute);
+app.route("/", paymentsRoute);
 
 // Legacy bookmarks and cached links — carried over from .htaccess lines 8-10.
 app.get("/index.html", (c) => c.redirect("/", 301));

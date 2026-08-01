@@ -2,12 +2,12 @@
 // admin"). This is the template api/orders.php's createOrder() actually calls for its
 // in-person-paid confirmation (via a curl to send_confirm.php in the PHP) — NOT
 // api/order_confirm_email.php's sendOrderConfirmation(), which is a separate, simpler template
-// used only by the Square/PayPal payment processors (process_payment.php/paypal_capture.php),
-// neither of which exist yet. That one is deferred alongside payments.
+// used only by the Square/PayPal payment processors. That second template is ported further down
+// this file (buildPaymentReceivedEmailHtml/sendPaymentReceivedEmail) now that payments.ts exists.
 //
 // notify.php (internal "New Order Received" alert to Suzi) and order_confirm.php (a third,
-// client-triggered variant) are also deferred — both are secondary to the customer-facing
-// confirmation, and their actual triggers (a completed live payment) don't exist yet either.
+// client-triggered variant) are still deferred — both are secondary to the customer-facing
+// confirmation.
 
 import type { EmailSender } from "./lib/email-sender";
 import { spliceLogoHeader } from "./lib/email-format";
@@ -197,4 +197,119 @@ export async function sendOrderConfirmationEmail(
   await store.logEmail({ emailType: "Order Confirmation", sentTo: logTo, orderId, subject: `Order Confirmation - #${orderId}`, status: result.status, body: result.html });
 
   return { ok: result.sent, error: result.sent ? undefined : String(result.status), data: { to: logTo } };
+}
+
+// ── Payment-received confirmation (api/order_confirm_email.php) ──
+// A separate, simpler template from buildOrderConfirmationEmailHtml above — used only right after
+// a live Square/PayPal charge completes (src/payments.ts), never for an admin resend/preview.
+// Always mails BOTH the customer and the admin inbox (order_confirm_email.php's `$recipients`
+// has no "no customer email" branch like send_confirm.php's, because a payment can't complete
+// without a customer email having been collected at checkout).
+
+export interface PaymentOrderSummary {
+  id: string;
+  customer_name: string | null;
+  customer_email: string | null;
+  shipping_address: string | null;
+  payment_method: string | null;
+  check_number: string | null;
+}
+
+export interface PaymentLineItem {
+  product_id: string | null;
+  product_name: string | null;
+  price: number;
+  quantity: number;
+}
+
+const PAYMENT_ADMIN_INBOX = "handmadedesignsbysuzi@yahoo.com";
+
+/** Ports api/order_confirm_email.php's inline HTML template exactly (a plain string builder, no
+ *  header component like buildOrderConfirmationEmailHtml's spliced-later logo — spliceLogoHeader
+ *  still runs on send, same as every other template, via EmailSender). */
+export function buildPaymentReceivedEmailHtml(
+  bizName: string,
+  bizEmail: string,
+  order: PaymentOrderSummary,
+  items: PaymentLineItem[],
+  total: number,
+  shipping: number,
+  tax: number,
+  paymentId: string,
+  surcharge = 0
+): string {
+  let itemHtml = "";
+  for (const it of items) {
+    if (it.product_id === "_ship") continue;
+    const lineTotal = (it.price * it.quantity).toFixed(2);
+    itemHtml += `<tr><td style='padding:.3rem .5rem'>${it.product_name ?? ""} &times;${it.quantity}</td><td style='padding:.3rem .5rem;text-align:right'>$${lineTotal}</td></tr>\n`;
+  }
+
+  const firstName = (order.customer_name ?? "").split(" ")[0] ?? "";
+  const surchargeRow =
+    surcharge > 0
+      ? `<tr><td style='padding:.3rem .5rem'>PayPal/Venmo Processing Fee</td><td style='padding:.3rem .5rem;text-align:right'>$${surcharge.toFixed(2)}</td></tr>`
+      : "";
+  const checkSuffix = order.check_number ? ` (Check #${order.check_number})` : "";
+
+  return `<!DOCTYPE html><html><body>
+<div style='font-family:sans-serif;max-width:560px;margin:0 auto'>
+<div style='background:#2d2220;padding:20px 28px'>
+  <h1 style='color:#d4a017;margin:0;font-size:1.4rem'>${bizName}</h1>
+</div>
+<div style='padding:28px'>
+  <h2 style='color:#a07810;margin-top:0'>Order Confirmed! 🎉</h2>
+  <p>Hi ${firstName}, thank you for your order! Your payment has been received and your order is being prepared with care.</p>
+  <div style='background:#fffdf0;border:1px solid #e8e0b8;border-radius:10px;padding:16px;margin:16px 0'>
+    <table style='width:100%;border-collapse:collapse;font-size:.9rem;table-layout:fixed;word-wrap:break-word'>
+      ${itemHtml}
+      <tr><td style='padding:.3rem .5rem;border-top:1px solid #e8e0b8'>Shipping</td><td style='padding:.3rem .5rem;text-align:right;border-top:1px solid #e8e0b8'>${shipping > 0 ? `$${shipping.toFixed(2)}` : "Free"}</td></tr>
+      <tr><td style='padding:.3rem .5rem'>Tax (9.75%)</td><td style='padding:.3rem .5rem;text-align:right'>$${tax.toFixed(2)}</td></tr>
+      ${surchargeRow}
+      <tr style='font-weight:700'><td style='padding:.5rem .5rem;border-top:2px solid #d4a017'>Total Charged</td><td style='padding:.5rem .5rem;text-align:right;border-top:2px solid #d4a017;color:#a07810'>$${total.toFixed(2)}</td></tr>
+    </table>
+  </div>
+  <p><strong>Paid by:</strong> ${order.payment_method ?? "Credit Card"}${checkSuffix}</p>
+  <p><strong>Shipping to:</strong> ${order.shipping_address ?? ""}</p>
+  <p>We'll send you a shipping confirmation with tracking info when your order is on its way!</p>
+  <p style='color:#6b6040;font-size:.85rem'>Order #${order.id} &bull; Payment ID: ${paymentId}</p>
+</div>
+<div style='background:#2d2220;padding:16px 28px;text-align:center'>
+  <div style='color:rgba(255,255,255,.6);font-size:.8rem'>
+    ${bizName} &bull; Knoxville, TN<br>
+    <a href='https://handmadedesignsbysuzi.com' style='color:#d4a017'>handmadedesignsbysuzi.com</a><br>
+    Questions? <a href='mailto:${bizEmail}' style='color:#d4a017'>${bizEmail}</a>
+  </div>
+</div>
+</div></body></html>`;
+}
+
+/** Ports api/order_confirm_email.php's sendOrderConfirmation(): builds + sends + logs. Never
+ *  throws on a send failure — a charge that already succeeded must not be undone by an email
+ *  hiccup, same rule as every other payment-adjacent email in this codebase. */
+export async function sendPaymentReceivedEmail(
+  store: Pick<EmailOrderStore, "logEmail">,
+  sender: EmailSender,
+  bizName: string,
+  bizEmail: string,
+  order: PaymentOrderSummary,
+  items: PaymentLineItem[],
+  total: number,
+  shipping: number,
+  tax: number,
+  paymentId: string,
+  surcharge = 0
+): Promise<void> {
+  const html = buildPaymentReceivedEmailHtml(bizName, bizEmail, order, items, total, shipping, tax, paymentId, surcharge);
+  const subject = `Order Confirmed — ${order.id}`;
+  const recipients = order.customer_email ? [order.customer_email, PAYMENT_ADMIN_INBOX] : [PAYMENT_ADMIN_INBOX];
+  const result = await sender.send(recipients, subject, html);
+  await store.logEmail({
+    emailType: "Order Confirmation",
+    sentTo: order.customer_email ?? PAYMENT_ADMIN_INBOX,
+    orderId: order.id,
+    subject,
+    status: result.status,
+    body: result.html,
+  });
 }

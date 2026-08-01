@@ -5,7 +5,99 @@
 
 ---
 
-## Current state — 2026-08-01 (Phase 3: the last two deferred image uploads — biz_profile + studio)
+## Current state — 2026-08-01 (Payments: Square charge + PayPal create/capture + webhook)
+
+**The single largest remaining migration gap is now closed in code**: `api/process_payment.php`
+(Square charge), `api/paypal.php` + `paypal_create.php` + `paypal_capture.php` (PayPal Orders v2),
+and `api/square-webhook.php` (async status backstop) are all ported. Every other checkout-blocking
+gap identified in this session's full-migration audit is resolved:
+
+- **Three open decisions confirmed by the user, all "drop"**: `checkout.php` (legacy admin-gated
+  Square hosted links), `order_lookup.php` (guest magic-link lookup — production's own
+  `order_lookup_requests` table has never existed), and `admin.php`'s arbitrary-SQL DB browser
+  (superseded by Supabase's own SQL editor). None of the three are ported; see "Open decisions"
+  above, now marked resolved.
+- Everything else (products, orders, customers, subscribers, tax, content, contact, studio,
+  business docs, settings/biz_profile, admin auth) was already ported before this session.
+- Deliberately still deferred, lower-stakes than a working checkout: `refund.php` (admin-initiated
+  post-purchase refunds), the three admin reporting screens (`paypal_payments.php`,
+  `paypal_status.php`, `square_payments.php`), `applog.php`, `repo_stats.php`, `github_log.php`,
+  `products_csv.php`, `usps.php`/`validate_tracking.php`, `db_backup.php`.
+
+**Architecture decision, not a literal port**: the PHP branches sandbox-vs-live at request time
+(`square_mode` DB setting, `pp_env()` hostname sniff). This migration already committed to a
+different model — identical secret *names* across both Workers, different *values*
+(src/types.ts's own header) — so `src/lib/square-gateway.ts`/`src/lib/paypal-gateway.ts` take
+already-resolved credentials + base URL (via `apiHosts(env)`) rather than re-implementing the
+branch. One real consequence: `SQUARE_SANDBOX_LOCATION_ID` (a second constant PHP used only in
+test mode) has no equivalent — there's only ever one location id per Worker now.
+
+**A genuine, easy-to-miss inconsistency between the three PHP files' `test_mode` bypass, preserved
+exactly rather than unified**: `process_payment.php`'s test_mode returns *before* the atomic
+Awaiting-Payment→Processing claim; `paypal_create.php`'s returns *before even loading the order
+row* (create never mutates order state); `paypal_capture.php`'s test_mode runs *after* the atomic
+claim, so a test-mode capture still briefly locks the order to Processing. Verified with dedicated
+tests per function rather than assuming they'd all behave the same way.
+
+**MD5 → SHA-256 substitution**: Square's idempotency key was `md5($source_id)` truncated to 8
+hex chars — Workers' Web Crypto has no MD5. Substituted a SHA-256 prefix (same reasoning as
+routes/orders.ts's existing sha256Hex helper for rate-limit keys) — nothing anywhere compares this
+value against a stored PHP-generated one, so the substitution is invisible to Square's own
+idempotency semantics.
+
+**square-webhook.php's order-identification has two fallback paths that likely never fire in
+practice, ported as-is rather than fixed**: fallback #1 regexes for `"Order XXXX"` in the payment
+note, but `process_payment.php` sets `note` to the *bare* order id with no "Order " prefix.
+Fallback #3 queries `WHERE square_payment_id = payment.order_id` — comparing a column that always
+holds a *payment* id against Square's *separate* order-id identifier space. Only fallback #2
+(match the most recent non-final order by amount) is realistically effective for payments this
+codebase's own checkout creates — Square Terminal/POS sales might still populate `note`
+differently, which is why fallback #1 wasn't simply deleted. Not a security issue, so not fixed
+per this migration's standing policy — documented in `src/payments.ts`'s own header instead.
+
+**New shared infrastructure**: `src/lib/square-gateway.ts` and `src/lib/paypal-gateway.ts` (real
+`fetch`-based API clients behind an interface, same injection pattern as
+`src/lib/email-sender.ts`, with `Fake*Gateway` test doubles in `src/payments.ts`). `OrdersStore`
+(orders.ts) gained `getOrder`/`getOrderItems`/`claimForProcessing`/`releaseFromProcessing`/
+`findOrderByAmount`/`findOrderBySquarePaymentId`, and `OrderUpdatableFields` gained
+`square_payment_id`/`paypal_capture_id`/`paypal_surcharge`/`confirm_sent_at`. `email.ts` gained a
+second, simpler confirmation template (`buildPaymentReceivedEmailHtml`/`sendPaymentReceivedEmail`,
+porting `order_confirm_email.php`) distinct from its existing `send_confirm.php`-derived one — the
+two were already documented as separate PHP templates before this session, this just fills in the
+one that didn't exist yet. `src/routes/payments.ts` wires all four endpoints; all four are public
+(no admin token required for a real charge — only the `test_mode` regression-suite bypass is
+admin-gated, inside `src/payments.ts` itself, matching the PHP's own `requireAdmin()` placement).
+
+`npm test`: 418/418 passing (35 new, all in `payments.test.ts`). `tsc --noEmit`: clean.
+
+**Live-verified on redeployed staging, but only the code-path/error-handling surface — no real
+charge has been attempted.** Checked `wrangler secret list --env staging` first: **none of the
+payment secrets exist yet** — only `ORDER_TOKEN_SECRET` and the two Supabase secrets are set.
+`SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `SQUARE_WEBHOOK_SIG_KEY`, `PAYPAL_CLIENT_ID`,
+`PAYPAL_SECRET`, and `RESEND_API_KEY` are all still unset on staging (`RESEND_API_KEY` doesn't
+block anything today since `EMAIL_MODE=sink` there). Despite that, every route was confirmed to
+degrade exactly the way the PHP would with missing credentials, not crash:
+- Created a real order (`TESTPAY-1`, guest checkout, a real in-stock product) directly against
+  staging's live Supabase.
+- `POST /api/process_payment.php` against it returned `{"error":"Payment not configured"}` —
+  correctly failed at the credentials check, after successfully loading the order and recomputing
+  its total from real line items.
+- `POST /api/paypal_create.php` against it returned `{"error":"PayPal is not configured. Please
+  choose another payment method."}` — same story.
+- `POST /api/square-webhook.php` with no signature returned `"Webhook key not configured"` (500),
+  matching the PHP's own `if (!defined('SQUARE_WEBHOOK_SIG_KEY'))` guard exactly.
+- All four endpoints' missing-field validation (`Missing source_id or order_id`, `Missing
+  order_id`) also confirmed correct.
+
+**What's actually left before a real payment can be tested**: real Square Sandbox and PayPal
+Sandbox credentials, which only the account owner can obtain (Square Developer Dashboard sandbox
+access token + sandbox location id; PayPal Developer Dashboard sandbox REST app client
+id/secret; a Square webhook subscription pointed at
+`https://hdbs-staging.muddy-resonance-c828.workers.dev/api/square-webhook.php` for its signing
+key) — then `wrangler secret put <NAME> --env staging` for each. Once set, a real sandbox card
+charge and a real sandbox PayPal/Venmo capture are the next verification step, mirroring how the
+original PHP-era PayPal go-live worked (see this file's much earlier PayPal integration history).
+
 
 **Closes both remaining "no meaning without R2" deferrals called out in Phase 3's product-image
 entry below**: `settings.ts`'s biz_profile logo/hero_image/about_picture uploads, and
@@ -1053,14 +1145,16 @@ likely returning 403 in production today. The migration fixes it incidentally.
 
 ## Open decisions
 
-- **`version.json` is a placeholder at `0.1.0`.** The live version lives in the `major_version` /
-  `minor_version` rows of the `settings` table and renders in four footers via
-  `.site-version-line`. Before Phase 2, read the real value and set `version.json` to match, so the
-  site doesn't appear to regress after cutover.
-- Whether `checkout.php` (admin-gated legacy Square hosted links) is still used. Plan says drop.
-- Whether guest order lookup (finding 4) is wanted at all.
-- Whether `api/admin.php`'s arbitrary-SQL DB browser is dropped (plan strongly recommends dropping;
-  Supabase's own SQL editor replaces it).
+- ~~`version.json` is a placeholder at `0.1.0`~~ — **Resolved 2026-08-01**: set to the real `4.27.0`
+  during the `window.BIZ_VERSION` fix (see that Incident entry above).
+- ~~Whether `checkout.php` (admin-gated legacy Square hosted links) is still used~~ — **Resolved
+  2026-08-01: drop it**, confirmed by the user. Not ported; superseded by the embedded Square Web
+  Payments SDK flow (`process_payment.php`'s port).
+- ~~Whether guest order lookup (finding 4) is wanted at all~~ — **Resolved 2026-08-01: drop it**,
+  confirmed by the user. Production's `order_lookup_requests` table has never existed (finding 4),
+  meaning the feature has never actually been used. Not ported.
+- ~~Whether `api/admin.php`'s arbitrary-SQL DB browser is dropped~~ — **Resolved 2026-08-01: drop
+  it**, confirmed by the user. Supabase's own SQL editor replaces it. Not ported.
 
 ---
 

@@ -182,6 +182,65 @@ export class SupabaseOrdersStore implements OrdersStore {
     return (data ?? []) as OrderItemRow[];
   }
 
+  async getOrder(id: string): Promise<OrderRow | null> {
+    const { data, error } = await this.db
+      .from("orders")
+      .select(
+        "id, customer_name, customer_email, customer_phone, shipping_address, shipping_carrier, tracking_number, confirm_sent_at, shipping_sent_at, total, payment_method, status, square_payment_id, order_date, created_at, tax_amount, tax_swept_date, order_type, transaction_fee, payment_configuration, check_number, refunded_amount, paypal_capture_id, paypal_surcharge"
+      )
+      .eq("id", id)
+      .maybeSingle();
+    checkError("getOrder", error);
+    return data as OrderRow | null;
+  }
+
+  async getOrderItems(id: string): Promise<OrderItemRow[]> {
+    const { data, error } = await this.db
+      .from("order_items")
+      .select("order_id, product_id, product_name, price, quantity")
+      .eq("order_id", id);
+    checkError("getOrderItems", error);
+    return (data ?? []) as OrderItemRow[];
+  }
+
+  async claimForProcessing(id: string): Promise<boolean> {
+    const { data, error } = await this.db
+      .from("orders")
+      .update({ status: "Processing" })
+      .eq("id", id)
+      .eq("status", "Awaiting Payment")
+      .select("id");
+    checkError("claimForProcessing", error);
+    return (data ?? []).length > 0;
+  }
+
+  async releaseFromProcessing(id: string): Promise<void> {
+    const { error } = await this.db.from("orders").update({ status: "Awaiting Payment" }).eq("id", id).eq("status", "Processing");
+    checkError("releaseFromProcessing", error);
+  }
+
+  async findOrderByAmount(amountDollars: number): Promise<{ id: string } | null> {
+    // PostgREST has no direct ABS(total - x) < 0.01 expression filter, so this widens to a small
+    // range instead — equivalent for currency amounts, which never need sub-cent precision.
+    const { data, error } = await this.db
+      .from("orders")
+      .select("id, total")
+      .not("status", "in", "(Paid,Cancelled)")
+      .gte("total", amountDollars - 0.01)
+      .lte("total", amountDollars + 0.01)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    checkError("findOrderByAmount", error);
+    return data ? { id: data.id as string } : null;
+  }
+
+  async findOrderBySquarePaymentId(value: string): Promise<{ id: string } | null> {
+    const { data, error } = await this.db.from("orders").select("id").eq("square_payment_id", value).maybeSingle();
+    checkError("findOrderBySquarePaymentId", error);
+    return data ? { id: data.id as string } : null;
+  }
+
   async getProduct(id: string): Promise<{ name: string; price: number } | null> {
     const { data, error } = await this.db.from("products").select("name, price").eq("id", id).maybeSingle();
     checkError("getProduct", error);

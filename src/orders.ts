@@ -103,6 +103,28 @@ export interface OrdersStore {
   listOrders(): Promise<OrderRow[]>;
   listOrderItems(): Promise<OrderItemRow[]>;
 
+  /** Single-order lookup, used by the payment flow (process_payment.php/paypal_create.php/
+   *  paypal_capture.php all `SELECT * FROM orders WHERE id = ?` rather than pulling every order). */
+  getOrder(id: string): Promise<OrderRow | null>;
+  /** Non-shipping AND shipping line items for one order, for the payment flow's server-side total
+   *  recompute and confirmation email — distinct from getOrderItemsForRestore, which excludes
+   *  shipping since stock restoration only ever applies to real products. */
+  getOrderItems(id: string): Promise<OrderItemRow[]>;
+  /** Atomic: `UPDATE orders SET status='Processing' WHERE id=? AND status='Awaiting Payment'`.
+   *  True iff the row was actually claimed — the payment flow's guard against a double-charge from
+   *  concurrent requests (process_payment.php/paypal_capture.php's identical guard). */
+  claimForProcessing(id: string): Promise<boolean>;
+  /** The reverse: only takes effect if the order is still 'Processing' (a charge that failed after
+   *  the claim rolls the order back to 'Awaiting Payment' so the customer can retry). */
+  releaseFromProcessing(id: string): Promise<void>;
+
+  /** Square webhook fallback #2 (square-webhook.php): find the most recent non-final order whose
+   *  total matches a completed payment's amount, when the note didn't carry an order id. */
+  findOrderByAmount(amountDollars: number): Promise<{ id: string } | null>;
+  /** Square webhook fallback #3, ported as-is even though it looks like it can never match in
+   *  practice — see src/payments.ts's webhook section for why. */
+  findOrderBySquarePaymentId(value: string): Promise<{ id: string } | null>;
+
   getProduct(id: string): Promise<{ name: string; price: number } | null>;
   /** Atomic: true if stock was available and decremented, false if insufficient (no-op on false). */
   decrementStock(id: string, qty: number): Promise<boolean>;
@@ -196,6 +218,10 @@ export type OrderUpdatableFields = Pick<
   | "shipping_carrier"
   | "tracking_number"
   | "tax_swept_date"
+  | "square_payment_id"
+  | "paypal_capture_id"
+  | "paypal_surcharge"
+  | "confirm_sent_at"
 >;
 
 export interface OrdersResult<T = Record<string, never>> {
@@ -442,6 +468,33 @@ export class OrdersStoreFake implements OrdersStore {
   }
   async listOrderItems(): Promise<OrderItemRow[]> {
     return this.items;
+  }
+
+  async getOrder(id: string): Promise<OrderRow | null> {
+    return this.orders.find((o) => o.id === id) ?? null;
+  }
+  async getOrderItems(id: string): Promise<OrderItemRow[]> {
+    return this.items.filter((i) => i.order_id === id);
+  }
+  async claimForProcessing(id: string): Promise<boolean> {
+    const order = this.orders.find((o) => o.id === id);
+    if (!order || order.status !== "Awaiting Payment") return false;
+    order.status = "Processing";
+    return true;
+  }
+  async releaseFromProcessing(id: string): Promise<void> {
+    const order = this.orders.find((o) => o.id === id);
+    if (order && order.status === "Processing") order.status = "Awaiting Payment";
+  }
+  async findOrderByAmount(amountDollars: number): Promise<{ id: string } | null> {
+    const match = this.orders
+      .filter((o) => o.status !== "Paid" && o.status !== "Cancelled" && Math.abs(Number(o.total ?? 0) - amountDollars) < 0.01)
+      .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))[0];
+    return match ? { id: match.id } : null;
+  }
+  async findOrderBySquarePaymentId(value: string): Promise<{ id: string } | null> {
+    const match = this.orders.find((o) => o.square_payment_id === value);
+    return match ? { id: match.id } : null;
   }
 
   async getProduct(id: string): Promise<{ name: string; price: number } | null> {
