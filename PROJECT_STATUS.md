@@ -83,6 +83,67 @@ Production has NOT been deployed or touched — only staging.
 
 ---
 
+## Current state — 2026-08-01 (Phase 1: data migration)
+
+**`scripts/migrate-data.mjs` written and run against staging — real prod data now lives on
+staging Supabase.** Source: the daily automated backup at
+`Z:\Backup\Websites\HDBS\Backup\202608010000HDBS.sql` (produced by `api/db_backup.php`, which
+escapes every value with PDO's real `quote()` — well-defined MySQL string-literal escaping, not
+an ad-hoc format, which is what made a small hand-written tokenizer reliable here instead of a
+generic SQL parser).
+
+**12 tables migrated**, matching row-for-row between dry-run and the real write:
+settings (63), products (47), orders (2), order_items (4), refunds (1), reviews (1), faqs (11),
+email_log (7), subscribers (2), tn_city_tax (52), studio_items (17), capital_equipment (13).
+
+**Deliberately excluded** (see the script's header comment for full reasoning):
+- `admin_sessions`, `customer_login_attempts`, `rate_limits` — ephemeral security/session
+  bookkeeping tied to production IPs and tokens, meaningless on staging.
+- `prompt_log` — orphaned table (finding 3), not even in the target schema.
+- `customers`, `studio_inquiries`, `studio_project_notes`, `tax_sweeps` — confirmed empty in
+  production, nothing to migrate.
+
+**Idempotency strategy varies by table** because most int-id tables use
+`bigint generated always as identity`, which PostgREST cannot accept explicit values for (no
+`OVERRIDING SYSTEM VALUE` from the REST API) — so the original MySQL ids couldn't be preserved as
+conflict targets:
+- `settings` (key_name), `products`/`orders` (id), `subscribers` (email), `tn_city_tax`
+  (city+county) kept a real natural key — genuine upsert, safe to re-run.
+- `order_items`/`refunds` — scoped delete (matching the order_ids in this batch) then insert.
+- `reviews`/`faqs`/`email_log`/`studio_items`/`capital_equipment` — delete-all-then-insert (small
+  standalone content tables; safe because this is a one-time snapshot load into a disposable
+  staging project, not a live incremental sync).
+
+**A real timezone bug would have shipped without empirical verification** — `orders`/`products`
+timestamps default to `current_timestamp()`, which this MySQL server returns in UTC, EXCEPT
+`email_log.sent_at`, which `api/db_backup.php`'s sibling code deliberately stores in
+America/New_York via `CONVERT_TZ(NOW(),'+00:00','-04:00')`. Confirmed empirically rather than
+assumed: order `ORD-MR57UJ0A`'s `confirm_sent_at` (`2026-07-03 17:39:22`, treated as UTC) and its
+matching `email_log` row's `sent_at` (`2026-07-03 13:39:24`, converted from America/New_York)
+land within 2 seconds of each other — the same real event. The script applies a DST-aware
+NY→UTC conversion (the standard double-`toLocaleString` trick) only to `email_log.sent_at`; every
+other migrated timestamp is treated as already-UTC.
+
+**Per the user's explicit decision**, sensitive settings (`github_token`, `smtp_pass`,
+`square_access_token`, `admin_password`, `admin_sec_answer`, etc.) were migrated as-is, not
+scrubbed. Consequence: staging's admin login now requires Suzi's **real** production password,
+not the test password bootstrapped earlier this session. Risk is contained because the ported
+code reads Square/email credentials from Worker secrets (`SQUARE_TOKEN`, `RESEND_API_KEY`, not
+yet set on staging) rather than from the `settings` table the old PHP used — so these copied
+values are currently inert data, not live credentials the new code will act on, unless a future
+phase's route wiring reads `settings` for these instead of the correct Worker secret.
+
+**Live-verified:** `GET /api/products.php` on staging now returns all 47 real products with
+correct data — boolean coercion (`sell`/`coming_soon` as `0`/`1`) and the admin-only `cogm` gate
+both confirmed working against real data, not just fakes.
+
+**Not yet done:** migration `0009` (normalizing product/business image URLs from absolute
+`https://handmadedesignsbysuzi.com/...` to root-relative) — deliberately deferred until after
+data load per the plan; images currently still point at the absolute prod domain. R2 media itself
+also hasn't been populated yet (`media-mirror/` → `hdbs-public`/`hdbs-public-staging`).
+
+---
+
 ## Current state — 2026-07-30
 
 **Supabase projects, R2 buckets, and Resend domain still do not exist** (confirmed with the user
