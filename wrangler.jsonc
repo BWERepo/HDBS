@@ -46,14 +46,11 @@
 
   "vars": {
     "ENVIRONMENT": "production",
-    // Deliberately "sink", not "live", as of 2026-08-01 — RESEND_API_KEY is set and genuinely
-    // valid, but mail.handmadedesignsbysuzi.com isn't verified in Resend yet (adding a second
-    // domain needs a $20/mo plan upgrade, deferred pending a provider decision — see
-    // docs/phase-9-cutover-checklist.md step 5). "live" would silently fail every real send
-    // (LiveEmailSender doesn't throw, just logs status:"failed") rather than sinking cleanly, which
-    // reads as a real bug rather than a known, deliberate gap. Flip back to "live" once a sending
-    // domain is actually verified.
-    "EMAIL_MODE": "sink"
+    // Switched from Resend to Brevo 2026-08-01 (see src/lib/email-sender.ts's header) after
+    // Resend's one-verified-domain-per-account free-tier limit turned out to already be used by a
+    // sibling project. mail.handmadedesignsbysuzi.com is authenticated and verified on Brevo,
+    // confirmed with a real test send (Brevo's own delivery event log, not just an API 200).
+    "EMAIL_MODE": "live"
   },
 
   // Routes are intentionally COMMENTED OUT until Phase 9 (DNS cutover). Until then the

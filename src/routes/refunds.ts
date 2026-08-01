@@ -41,7 +41,7 @@ refundsRoute.post("/api/refund.php", async (c) => {
     createSquareGateway(c.env.SQUARE_TOKEN, apiHosts(c.env).square),
     createPaypalGateway(c.env.PAYPAL_CLIENT_ID, c.env.PAYPAL_SECRET, apiHosts(c.env).paypal),
     new SupabaseEmailOrderStore(db),
-    createEmailSender(c.env.EMAIL_MODE, c.env.RESEND_API_KEY, biz.name),
+    createEmailSender(c.env.EMAIL_MODE, c.env.BREVO_API_KEY, biz.name),
     biz.name,
     biz.email,
     {

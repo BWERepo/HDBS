@@ -81,7 +81,7 @@ ordersRoute.post("/api/orders.php", async (c) => {
       const biz = resolveBizProfile(bizProfileRaw);
       await sendOrderConfirmationEmail(
         new SupabaseEmailOrderStore(db),
-        createEmailSender(c.env.EMAIL_MODE, c.env.RESEND_API_KEY, biz.name),
+        createEmailSender(c.env.EMAIL_MODE, c.env.BREVO_API_KEY, biz.name),
         biz.name,
         biz.email,
         orderId

@@ -5,6 +5,46 @@
 
 ---
 
+## Current state — 2026-08-01 (Email switched from Resend to Brevo — production live, verified end-to-end)
+
+**Closes the email gap deferred earlier this session.** Investigated whether Brevo's free plan had
+the same one-domain-per-account cap that blocked Resend, rather than trusting marketing copy:
+**confirmed it doesn't**, by actually adding a second domain via Brevo's API and getting a clean
+success. User signed up for Brevo themselves (account creation isn't something this session does),
+added `mail.handmadedesignsbysuzi.com`, and added its 4 DNS records at Hostinger (2 DKIM CNAMEs, a
+verification TXT, a DMARC TXT — all scoped under `mail.`, never the apex). One hiccup along the
+way: the domain briefly vanished from Brevo's list between adding it and checking propagation —
+re-added it (no data lost), then re-triggered authentication: `authenticated: true, verified: true`.
+
+**Rewired `src/lib/email-sender.ts`'s `LiveEmailSender`** from Resend's API to Brevo's
+`POST /v3/smtp/email` (different request shape — `to`/`replyTo` as `{email}` objects, `htmlContent`
+not `html`). Renamed `RESEND_API_KEY` → `BREVO_API_KEY` in `src/types.ts` and all 6 route call
+sites, and in `scripts/check-secret-parity.sh`. `npm test`: 497/497 unaffected. `tsc --noEmit`:
+clean. Set the real key on both Workers (Brevo has no sandbox/live split), deleted the now-unused
+`RESEND_API_KEY` from production, flipped `wrangler.jsonc`'s production `EMAIL_MODE` back to
+`"live"` (it had been reverted to `"sink"` earlier this session), redeployed.
+
+**Verified with two independent real sends, not just an API 200** — a direct Brevo API test first
+(event log: `requests → delivered → opened`), then the one that actually matters: triggering
+`send_confirm.php`'s real admin resend against a real order (`ORD-MSAT7Q4O`) through the actual
+deployed production Worker, confirmed via Brevo's event log showing that exact order's subject
+line delivered and opened. First time this whole migration has verified a real email send through
+the real code path end to end, not a direct provider-API test.
+
+**One diagnosed-not-just-retried failure along the way**: an attempt to test-charge a fresh order
+(`TESTEMAIL-1`) to trigger a payment-confirmation email failed with "Payment configuration error."
+Root cause: Square's published `cnon:card-nonce-ok` test nonce only works against Square's
+**Sandbox** API — it was never going to work against the live Payments API used in production.
+Re-verified `SQUARE_TOKEN`/`SQUARE_LOCATION_ID` directly against Square's live API to rule out a
+credentials regression (still fine) before concluding this. Order deleted, real product stock
+restored via a full-record update — same cleanup pattern as every other real-data test this
+session.
+
+`docs/phase-9-cutover-checklist.md` step 5 is now fully closed. Remaining before cutover: USPS
+credentials (optional), `SQUARE_WEBHOOK_SIG_KEY` (needs live DNS), and step 8 itself.
+
+---
+
 ## Current state — 2026-08-01 (Email provider decision deferred; production flipped back to EMAIL_MODE=sink)
 
 Resend's free tier only covers one verified domain per account, and this Cloudflare/Resend account

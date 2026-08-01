@@ -59,7 +59,7 @@ studioRoute.post("/api/studio.php", async (c) => {
     const bizName = resolveBizProfile(bizProfileRaw).name;
     const result = await submitStudioInquiry(
       store,
-      createEmailSender(c.env.EMAIL_MODE, c.env.RESEND_API_KEY, bizName),
+      createEmailSender(c.env.EMAIL_MODE, c.env.BREVO_API_KEY, bizName),
       bizName,
       {
         name: body.name as string | undefined,

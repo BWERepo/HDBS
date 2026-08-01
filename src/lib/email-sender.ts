@@ -1,5 +1,5 @@
-// EMAIL_MODE dispatch + the actual Resend call. Extracted because contact.ts, studio.ts, and now
-// email.ts's order-confirmation resend all need to send an outbound email, and none should
+// EMAIL_MODE dispatch + the actual live-send call. Extracted because contact.ts, studio.ts, and
+// now email.ts's order-confirmation resend all need to send an outbound email, and none should
 // duplicate this decision or the logo-splice/CRLF-guard contract mailer.php's sendEmail()
 // applies to literally everything.
 //
@@ -11,10 +11,16 @@
 //
 // Sending domain per the migration plan: mail.handmadedesignsbysuzi.com (not the apex — isolates
 // reputation from Hostinger mail), Reply-To the real mailbox so replies still reach Suzi.
-// Requires RESEND_API_KEY + a verified sending domain, neither of which exist yet — the `live`
-// path is real, working code, but genuinely untestable until those exist. `sink` mode (already
-// running on staging) needs neither and is what every live-verification in this project has used
-// so far.
+//
+// ── Resend -> Brevo, 2026-08-01 ──
+// Originally built against Resend, but Resend's free tier caps an account at one verified
+// sending domain, and this Cloudflare/Resend account already had one from a sibling project — a
+// second domain needs a $20/mo plan upgrade. Brevo's free plan has no such per-account domain cap
+// (confirmed by actually adding a second domain via their API, not by reading marketing copy) and
+// covers this project's volume (300 emails/day free), so `LiveEmailSender` now calls Brevo's
+// `POST /v3/smtp/email` instead of Resend's `/emails`. `BREVO_API_KEY` replaces `RESEND_API_KEY`
+// in `Env`; `mail.handmadedesignsbysuzi.com` is authenticated and verified on Brevo, confirmed
+// with a real test send (Brevo's own event log showed requests -> delivered -> opened).
 
 import { spliceLogoHeader, stripCrlf } from "./email-format";
 
@@ -36,7 +42,7 @@ export class SinkEmailSender implements EmailSender {
   }
 }
 
-const RESEND_FROM_ADDRESS = "orders@mail.handmadedesignsbysuzi.com";
+const SEND_FROM_ADDRESS = "orders@mail.handmadedesignsbysuzi.com";
 const REPLY_TO = "handmadedesignsbysuzi@yahoo.com";
 
 export class LiveEmailSender implements EmailSender {
@@ -52,15 +58,15 @@ export class LiveEmailSender implements EmailSender {
     const safeFromName = stripCrlf(this.fromName);
 
     try {
-      const res = await fetch("https://api.resend.com/emails", {
+      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
         method: "POST",
-        headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
+        headers: { "api-key": this.apiKey, "Content-Type": "application/json" },
         body: JSON.stringify({
-          from: `${safeFromName} <${RESEND_FROM_ADDRESS}>`,
-          to: safeTo,
-          reply_to: REPLY_TO,
+          sender: { name: safeFromName, email: SEND_FROM_ADDRESS },
+          to: safeTo.map((email) => ({ email })),
+          replyTo: { email: REPLY_TO },
           subject: safeSubject,
-          html: finalHtml,
+          htmlContent: finalHtml,
         }),
       });
       return { sent: res.ok, status: res.ok ? "sent" : "failed", html: finalHtml };

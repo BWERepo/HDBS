@@ -42,7 +42,8 @@ export interface Env {
   USPS_CONSUMER_KEY: string;
   USPS_CONSUMER_SECRET: string;
 
-  RESEND_API_KEY: string;
+  // Switched from Resend to Brevo 2026-08-01 — see src/lib/email-sender.ts's header for why.
+  BREVO_API_KEY: string;
 }
 
 export type AppBindings = { Bindings: Env };

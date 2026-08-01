@@ -20,8 +20,9 @@ confirmed, per `docs/production-isolation.md`'s one-way-door warning.
 | R2 buckets | Created, private, real product/logo media loaded (159+1 files) | ✅ Same — created 2026-08-01, private, 159 product images + 1 logo loaded and verified |
 | Supabase schema | migrations `0001`-`0011` | ✅ `0001`-`0011`, all applied and confirmed live 2026-08-01 |
 | Supabase data | Real prod snapshot loaded (`scripts/migrate-data.mjs`, Phase 1) | ✅ Real snapshot loaded 2026-08-01, verified row-for-row against all 12 tables |
-| Secrets present | Same 7 names as production, sandbox values | ✅ `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SMOKE_TOKEN`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` — Square/PayPal verified genuinely live against Square's/PayPal's own production APIs, 2026-08-01 |
-| Missing on *both* | `SQUARE_APP_ID` (likely vestigial, see step 5), `SQUARE_WEBHOOK_SIG_KEY` (needs live DNS, step 8), `USPS_CONSUMER_KEY`/`_SECRET` | 🟡 `RESEND_API_KEY` now set but sending domain unverified (403 on real send) — see step 5 |
+| Secrets present | Same 8 names as production, sandbox/inert values | ✅ `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SMOKE_TOKEN`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`, `BREVO_API_KEY` — Square/PayPal/Brevo all verified genuinely live against their own real APIs, 2026-08-01 |
+| Email | `EMAIL_MODE=sink` (never calls Brevo) | ✅ `EMAIL_MODE=live`, Brevo wired, verified with a real send through the real deployed code (`send_confirm.php` → `ORD-MSAT7Q4O`), 2026-08-01 |
+| Missing on *both* | `SQUARE_APP_ID` (likely vestigial, see step 5), `SQUARE_WEBHOOK_SIG_KEY` (needs live DNS, step 8), `USPS_CONSUMER_KEY`/`_SECRET` | (same) |
 | `npm run check:secrets` | — | ✅ Name-parity passes as of 2026-08-01 (was failing at audit time) |
 
 Confirmed via `npx wrangler deployments list`, `npx wrangler r2 bucket list`, `npx wrangler secret
@@ -164,31 +165,47 @@ point is identical secret *names*, deliberately different *values*.
   across environments, per `docs/phase-0-checklist.md` step 6's explicit warning. `SMOKE_TOKEN`
   additionally rotates the plaintext value that was sitting in `Claude.md:57` — worth deleting that
   stale value from `Claude.md` now that the real one lives only in Cloudflare's secret store.
-- 🟡 `RESEND_API_KEY` — set on production 2026-08-01. Confirmed genuinely valid (a real key returns
-  Resend's "restricted to only send emails" 401, not an "invalid API key" error — correctly scoped
-  send-only, appropriate least-privilege for a production secret). **But the sending domain itself
-  is NOT verified yet** — a real send attempt to `orders@mail.handmadedesignsbysuzi.com` (the exact
-  from-address `src/lib/email-sender.ts` uses) returned Resend's own `403 domain_not_verified`.
-  **Blocked on cost, not just DNS**: Resend's free tier only covers one verified domain per
-  account, and this account already has one (a sibling project); a second domain needs a $20/mo
-  plan upgrade. User is deciding between paying, reusing the existing verified domain (less
-  on-brand — mail would come from a shared address), switching providers (e.g. Brevo — genuine free
-  tier, but needs a new `EmailSender` implementation since `LiveEmailSender` is Resend-specific
-  today), or deferring. **Decision as of 2026-08-01: defer.**
-  - 🤖 **`wrangler.jsonc`'s production `EMAIL_MODE` flipped from `"live"` back to `"sink"`**, and
-    redeployed — confirmed via the deploy output (`env.EMAIL_MODE ("sink")`). Reasoning documented
-    inline in `wrangler.jsonc`: `LiveEmailSender` doesn't throw on a failed Resend call, it just
-    returns `status: "failed"` — so leaving `EMAIL_MODE=live` with an unverified domain wouldn't
-    crash anything, it would silently fail *every* real send and log it in a way that reads like a
-    bug rather than a known, deliberate gap. `sink` is the honest state until a provider decision
-    is made. **Revisit before actually flipping routes live in step 8** — cutover with `EMAIL_MODE`
-    still on `sink` means real customers get zero order-confirmation emails.
+- ✅ **Email — done 2026-08-01, switched providers from Resend to Brevo.** Resend's free tier turned
+  out to cap an account at one verified domain, and this account already had one (a sibling
+  project) — a second domain needed a $20/mo upgrade. Investigated whether Brevo's free plan had
+  the same limit rather than assuming from marketing copy: **confirmed it doesn't**, by actually
+  adding a second domain via Brevo's API and getting a clean success, not a plan-tier error.
+  - Signed up for Brevo (user did this directly — account creation is something this session
+    doesn't do), added `mail.handmadedesignsbysuzi.com`, walked through adding its 4 DNS records
+    (2 DKIM CNAMEs, a Brevo verification TXT, a DMARC TXT) at Hostinger — on the `mail.` subdomain
+    only, never the apex. One hiccup: the domain briefly vanished from Brevo's domain list between
+    adding it and checking DNS propagation (re-added it, no data lost) — re-triggered
+    authentication afterward: `authenticated: true, verified: true`.
+  - **Rewired `src/lib/email-sender.ts`'s `LiveEmailSender`** from Resend's `POST /emails` to
+    Brevo's `POST /v3/smtp/email` (different request shape — Brevo wants `to`/`replyTo` as
+    `{email}` objects, not bare strings, and `htmlContent` not `html`). Renamed the env binding
+    `RESEND_API_KEY` → `BREVO_API_KEY` in `src/types.ts` and all 6 route call sites
+    (`contact.ts`/`email.ts`/`orders.ts`/`payments.ts`×2/`refunds.ts`/`studio.ts`), and in
+    `scripts/check-secret-parity.sh`'s expected-secrets list. `npm test`: 497/497 unaffected
+    (no unit tests exercised the Resend-specific internals directly). `tsc --noEmit`: clean.
+  - Set `BREVO_API_KEY` on both Workers (same real key on both — Brevo has no sandbox/live split
+    the way Square/PayPal do; staging never calls it since it stays on `EMAIL_MODE=sink`), deleted
+    the now-unused `RESEND_API_KEY` from production. **Flipped `wrangler.jsonc`'s production
+    `EMAIL_MODE` back to `"live"`** (was reverted to `"sink"` earlier this session while the
+    provider decision was pending) and redeployed — confirmed via the deploy output
+    (`env.EMAIL_MODE ("live")`).
+  - **Verified with two independent real sends, not just an API 200**: a direct Brevo API test
+    (event log showed `requests → delivered → opened`), then — the one that actually matters —
+    triggering `send_confirm.php`'s real admin resend against a real order (`ORD-MSAT7Q4O`) through
+    the actual deployed production code, confirmed via Brevo's event log showing that exact
+    order's subject line delivered and opened. This is the first time this migration has verified
+    a real email send through the real code path end to end, not a direct provider-API test.
+  - One earlier live-payment test (`TESTEMAIL-1`) failed with "Payment configuration error" —
+    diagnosed, not just retried: Square's published `cnon:card-nonce-ok` test nonce only works
+    against Square's Sandbox API, not the live one, so it correctly failed there. Not a
+    credentials regression (re-verified `SQUARE_TOKEN`/`SQUARE_LOCATION_ID` directly against
+    Square's live API, still fine) — just the wrong tool for testing a live charge headlessly.
+    Order deleted, product stock restored via a real full-record update, same as prior test cleanups.
 - 👤 USPS `CONSUMER_KEY`/`CONSUMER_SECRET`, if shipment tracking should work at cutover (currently
   unset on both Workers — always a lower-priority deferred item, still true here).
-- 🤖 `bash scripts/check-secret-parity.sh` — **now reports name-parity between staging and
-  production** (re-run 2026-08-01 to confirm). Remaining "MISSING from hdbs" items are exactly the
-  four above (`SQUARE_APP_ID`, `SQUARE_WEBHOOK_SIG_KEY`, both USPS keys, `RESEND_API_KEY`), not a
-  parity bug.
+- 🤖 `bash scripts/check-secret-parity.sh` — **name-parity between staging and production, confirmed
+  2026-08-01.** Remaining "MISSING from hdbs" items are exactly `SQUARE_APP_ID` (likely vestigial),
+  `SQUARE_WEBHOOK_SIG_KEY` (needs live DNS), and both USPS keys — not a parity bug.
 
 ---
 
@@ -266,11 +283,8 @@ independent of the migration timeline:
 
 ## 8. 👤 The cutover itself — DNS + routes
 
-⚠️ **Open item as of 2026-08-01: production `EMAIL_MODE` is deliberately `sink`, not `live`** (see
-step 5 — Resend's second-domain cost, provider decision deferred). Cutting over with this unresolved
-means real customers place real orders and get **zero confirmation emails**. Resolve the email
-provider decision and flip `EMAIL_MODE` back to `"live"` (redeploy) before proceeding past this
-point, or explicitly accept that gap for an initial window — don't let it happen silently.
+✅ **The email blocker flagged here earlier is resolved** — switched to Brevo (step 5), production
+is back on `EMAIL_MODE=live`, verified with a real send through the real deployed code.
 
 Only after every item above is confirmed:
 
@@ -303,8 +317,9 @@ Only after every item above is confirmed:
 - [x] Square + PayPal live secrets set and verified genuinely live (done 2026-08-01);
       `ORDER_TOKEN_SECRET`/`SMOKE_TOKEN` self-generated fresh; name-parity passes
 - [ ] `SQUARE_WEBHOOK_SIG_KEY` (after DNS, step 8), USPS keys still outstanding
-- [ ] `RESEND_API_KEY` set (done) but sending domain not yet verified — real email will 403 until
-      `mail.handmadedesignsbysuzi.com`'s DKIM/SPF records are added at Hostinger DNS
+- [x] Email live and verified — switched Resend → Brevo (done 2026-08-01), `BREVO_API_KEY` set,
+      `mail.handmadedesignsbysuzi.com` authenticated/verified, `EMAIL_MODE=live`, confirmed with a
+      real send through the real deployed code
 - [x] `npx wrangler deploy` (production) succeeds; a full browser walkthrough against the
       `workers.dev` hostname worked end to end, including one real refunded live charge
       (done 2026-08-01 — ORD-MSAT7Q4O, real Square payment + refund IDs)

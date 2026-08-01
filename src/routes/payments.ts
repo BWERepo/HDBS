@@ -35,7 +35,7 @@ paymentsRoute.post("/api/process_payment.php", async (c) => {
     createSquareGateway(c.env.SQUARE_TOKEN, apiHosts(c.env).square),
     new SupabaseCustomersStore(db),
     new SupabaseEmailOrderStore(db),
-    createEmailSender(c.env.EMAIL_MODE, c.env.RESEND_API_KEY, biz.name),
+    createEmailSender(c.env.EMAIL_MODE, c.env.BREVO_API_KEY, biz.name),
     biz,
     c.env.SQUARE_LOCATION_ID,
     { order_id: body.order_id as string | undefined, source_id: body.source_id as string | undefined, test_mode: !!body.test_mode },
@@ -76,7 +76,7 @@ paymentsRoute.post("/api/paypal_capture.php", async (c) => {
     new SupabaseCustomersStore(db),
     new SupabaseSettingsStore(db, c.env.R2_PUBLIC),
     new SupabaseEmailOrderStore(db),
-    createEmailSender(c.env.EMAIL_MODE, c.env.RESEND_API_KEY, biz.name),
+    createEmailSender(c.env.EMAIL_MODE, c.env.BREVO_API_KEY, biz.name),
     biz,
     {
       order_id: body.order_id as string | undefined,
