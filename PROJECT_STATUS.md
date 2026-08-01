@@ -44,9 +44,25 @@ are wired, everything else 501s so it's visibly unimplemented rather than a bare
 before this session).
 
 Both `wrangler deploy --dry-run` (prod) and `--dry-run --env staging` build clean with correct
-bindings. `npm test` 109/109, `tsc --noEmit` clean. **Not yet verified against the real
-Supabase projects** — that needs the secrets set locally (see above) and a `wrangler dev` + curl
-pass, which is the next thing to do once the user has run the four `wrangler secret put` calls.
+bindings. `npm test` 109/109, `tsc --noEmit` clean.
+
+**Live-verified against the real staging Supabase project.** All four secrets set
+(`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`, prod + `--env staging`). R2 had to be enabled on the
+Cloudflare account first (billing screen, $0 due — free tier covers HDBS's tiny footprint easily);
+`wrangler deploy --env staging` then auto-provisioned `hdbs-public-staging`/`hdbs-private-staging`
+and deployed to `https://hdbs-staging.muddy-resonance-c828.workers.dev`. Curled for real:
+- `GET /api/products.php` → real Supabase query, `{"products":[]}` (empty — schema-only, no data
+  loaded yet).
+- CORS: OPTIONS preflight returns 200 with the right headers; GET responses carry
+  `Access-Control-Allow-Origin`.
+- `POST /api/admin.php`: unknown action → 501 (not a bare 404); `get_setting` on `debug_mode`
+  (one of the PHP's original public keys) auto-defaults to `"0"` and persists it — first real
+  write to the live `settings` table; `login` correctly reports "Admin password not configured"
+  since the fresh database has no `admin_password` row yet.
+
+**Not yet done:** setting a real `admin_password` in the staging settings table (so login can
+actually be exercised end-to-end) — a deliberate business decision, not done without asking.
+Production has NOT been deployed or touched — only staging.
 
 ---
 
