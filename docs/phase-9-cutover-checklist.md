@@ -385,8 +385,9 @@ Only after every item above is confirmed:
   - **Explicitly stopped before Cloudflare's own "replace your nameservers" wizard step** — that
     step *is* the phase B cutover trigger, not part of phase A, and the 48h TTL wait hasn't
     elapsed. Cloudflare's own UI even offers to skip it for exactly this reason.
-- 🟡 **Phase B — IN PROGRESS, started 2026-08-02.** User explicitly chose to proceed ~14h into the
-  48h TTL wait rather than the full window (decision recorded, not silently done).
+- ✅ **Phase B — COMPLETE, 2026-08-02.** User explicitly chose to proceed ~14h into the 48h TTL
+  wait rather than the full window (decision recorded, not silently done). **The cutover is done —
+  `handmadedesignsbysuzi.com` is now live on Cloudflare Workers, serving real customer traffic.**
   - ✅ Uncommented the two `routes` lines in `wrangler.jsonc`, redeployed production.
     **Hit a real, diagnosed error on the first attempt**: Cloudflare rejected the Custom Domain
     creation with code `100117` ("Hostname already has externally managed DNS records") —
@@ -399,25 +400,30 @@ Only after every item above is confirmed:
     `arturo.ns.cloudflare.com`/`rayne.ns.cloudflare.com`. Verified via direct DNS query (`nslookup
     ... 1.1.1.1`) — propagated fast, root domain correctly resolving to Cloudflare's real edge IPs
     within minutes.
-  - 🟡 **HTTPS not yet live — a real, diagnosed, self-resolving gap, not a rollback trigger.**
-    `https://handmadedesignsbysuzi.com` fails at the TLS handshake (curl error 35, fatal alert,
-    fails even with cert validation disabled — meaning no certificate exists yet for this SNI, not
-    a trust issue). Diagnosed methodically before concluding it's benign: confirmed DNS is clean
-    (no leftover Hostinger record — an initial `1.1.1.1` query briefly showed one, gone on
-    recheck, just edge propagation lag), confirmed **plain HTTP already works and serves real
-    data** (`GET /api/health` → 200, `GET /api/products.php` → real 47-product catalog), and
-    confirmed via the Cloudflare dashboard's SSL/TLS → Edge Certificates tab that all three
-    certificates (Universal + 2 Advanced) show **"Pending Validation (TXT)"** — Cloudflare
-    self-validates domain ownership via DNS TXT record now that it controls DNS, typically
-    completing within 15–60 minutes. **Does not meet any of the agreed rollback triggers**
-    (checkout/payment/order failures) — the underlying app is proven healthy, this is normal
-    post-cutover certificate provisioning lag. Monitoring until HTTPS is live.
-  - 👤 Still outstanding: update the existing Square webhook subscription's `notification_url`
-    (Square Developer Dashboard, or `PUT /v2/webhooks/subscriptions/{id}`) from the `workers.dev`
-    URL to `https://handmadedesignsbysuzi.com/api/square-webhook.php` — do this once HTTPS is
-    confirmed live, not before (Square will itself validate the endpoint).
-  - 👤 Continue monitoring both systems for the agreed rollback triggers once HTTPS is live and a
-    full real browser check is possible.
+  - ✅ **HTTPS came up on its own, as expected.** Between the DNS-switch and route fixes,
+    `https://handmadedesignsbysuzi.com` briefly 500'd at the TLS layer (curl error 35, fatal
+    alert, failed even with cert validation disabled — no certificate existed yet for this SNI,
+    not a trust issue). Diagnosed methodically rather than assumed benign: confirmed DNS was clean
+    (an initial `1.1.1.1` query briefly showed a leftover Hostinger IPv6 answer, gone on recheck —
+    just edge propagation lag, not a real leftover record), confirmed **plain HTTP already worked
+    and served real data** (`GET /api/health` → 200, `GET /api/products.php` → real 47-product
+    catalog) while HTTPS was still down, and confirmed via the Cloudflare dashboard's SSL/TLS →
+    Edge Certificates tab that all three certificates (Universal + 2 Advanced) showed **"Pending
+    Validation (TXT)"** — self-resolved within roughly 15 minutes, exactly the expected window for
+    Cloudflare's automatic DNS-based domain validation once it controls DNS. **Never met any
+    agreed rollback trigger** (checkout/payment/order failures) — the underlying app was proven
+    healthy over HTTP the whole time, this was purely certificate-provisioning lag.
+  - ✅ **Full HTTPS verification, real content**: storefront homepage `200` with the correct real
+    title tag, `/api/health` `200`, `/api/products.php` returning the real 47-product catalog,
+    `/api/admin.php` correctly `401`-gating (not a 5xx), the R2 media proxy serving a real image
+    `200`, and `www` correctly redirecting to the apex preserving path. **Also confirmed the old
+    PHP staging site is still reachable** (`https://staging.handmadedesignsbysuzi.com` → `200`) —
+    the CNAME fix from the DNS-review step survived the cutover intact.
+  - ✅ **Square webhook subscription's `notification_url` updated** from the `workers.dev` URL to
+    `https://handmadedesignsbysuzi.com/api/square-webhook.php` (`PUT
+    /v2/webhooks/subscriptions/{id}`). Re-verified with Square's own test-send endpoint against
+    the real domain: `status_code: 200`, confirming HMAC signature verification works end to end
+    through the real hostname, not just `workers.dev`.
 
 ---
 
@@ -451,8 +457,20 @@ Only after every item above is confirmed:
       fixed (`ftp` proxy status, `staging`'s snapshotted-IP ALIAS conversion) before activating;
       nameservers noted (`arturo.ns.cloudflare.com`, `rayne.ns.cloudflare.com`) for phase B — phase
       A is now fully complete, only the 48h wait remains before phase B
-- [ ] `routes` uncommented, nameservers repointed, Square webhook URL updated, propagation
-      monitored for the agreed rollback triggers (phase B)
+- [x] `routes` uncommented, nameservers repointed, Square webhook URL updated, HTTPS live,
+      full verification passed, no rollback trigger hit (done 2026-08-02) — **CUTOVER COMPLETE**
+
+## Post-cutover status
+
+**`handmadedesignsbysuzi.com` is live on Cloudflare Workers as of 2026-08-02.** Every module ported
+this whole migration is now serving real production traffic on the real domain. The old Hostinger
+PHP site is no longer receiving traffic at that hostname (DNS points elsewhere now) but has not
+been deleted or modified — it remains the rollback target per `docs/production-isolation.md`'s
+one-way-doors section (don't cancel the Hostinger plan for at least 60 days, per that doc).
+
+**Not yet done, deliberately out of scope for this checklist**: Phase 10 (retiring Hostinger
+outright, removing the production-freeze banner from `Claude.md`) is a separate, later decision —
+give the live cutover time to prove stable first.
 
 Only the last checkbox is the actual, irreversible-without-a-DNS-rollback cutover. Everything above
 it is exactly as reversible as "do nothing" — this checklist can be worked through incrementally,

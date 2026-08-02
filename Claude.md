@@ -2,28 +2,28 @@
 
 ---
 
-# 🛑 PRODUCTION IS FROZEN — Cloudflare migration in progress (since 2026-07-29)
+# 🛑 CUTOVER COMPLETE (2026-08-02) — Hostinger PHP retired from serving, not yet decommissioned
 
-**Do not deploy anything to production. Do not run `.\deploy.ps1` without `-staging`.**
+**`handmadedesignsbysuzi.com` now serves live production traffic from Cloudflare Workers +
+Supabase, not the Hostinger PHP site.** The Cloudflare migration's actual cutover
+(`docs/phase-9-cutover-checklist.md` Phase B) is done: DNS points at Cloudflare, `routes` in
+`wrangler.jsonc` are live, HTTPS/webhooks/checkout/email all verified against the real domain.
 
-This project is migrating from Hostinger PHP/MySQL to Cloudflare Workers + Supabase. The live site
-must keep being served by the existing PHP until a deliberate cutover. Read
-`docs/production-isolation.md` before touching deploy tooling, and `PROJECT_STATUS.md` for where
-the migration stands.
+**Hostinger's PHP site and MySQL database are still there, untouched, and still the rollback
+target** — per `docs/production-isolation.md`'s one-way-doors section, do not cancel that hosting
+plan or delete anything there for at least 60 days, and Suzi's real mailbox may still live on it.
+**Do not run `.\deploy.ps1` without `-staging`** — there is no reason to push PHP changes to
+Hostinger now that it's not what customers see, and doing so wouldn't affect the live site anyway
+except as a rollback measure.
 
-**The "Deploy" and "Workflow Triggers" sections below are SUSPENDED for the duration.** In
-particular, "a change is made to local disk → deploy that file immediately" would push to
-production while the current branch is `main`. It does not apply. Specifically:
+- New work is TypeScript under `src/`, deployed via `wrangler deploy` (no `--env` = production,
+  `--env staging` = staging), not `deploy.ps1`.
+- `watch.ps1` still defaults to **staging** for the old PHP/FTP workflow; that workflow is now
+  legacy, not the active development path.
+- Version numbers come from `version.json`, not the `major_version`/`minor_version` settings rows.
 
-- The PHP site is **not** being modified. New work is TypeScript under `src/`, and it is excluded
-  from FTP by `scripts/deploy-exclude.ps1`.
-- `watch.ps1` now defaults to **staging**; `-Prod` requires typing a confirmation.
-- The production Worker has **no routes** — `routes` stays commented out in `wrangler.jsonc` until
-  cutover. Uncommenting it *is* the cutover.
-- Version numbers now come from `version.json`, not the `major_version`/`minor_version` settings
-  rows.
-
-Remove this banner only after Hostinger is retired (Phase 10).
+**Remove this banner once Hostinger is actually retired (Phase 10)** — decommissioning the old
+hosting plan and database, not just the DNS cutover above.
 
 Also note, independent of the migration: the `regression_test.php` token that used to sit in
 plaintext here was rotated 2026-08-01 (see Regression Tests section below — do not put a real

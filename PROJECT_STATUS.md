@@ -5,6 +5,56 @@
 
 ---
 
+## 🎉 Current state — 2026-08-02 (CUTOVER COMPLETE — handmadedesignsbysuzi.com is live on Cloudflare Workers)
+
+**The migration's actual cutover happened.** `handmadedesignsbysuzi.com` now serves real customer
+traffic from Cloudflare Workers + Supabase, not Hostinger PHP. User explicitly chose to proceed
+~14h into the agreed 48h TTL wait rather than the full window — a deliberate, informed decision,
+not a corner cut silently.
+
+**Two real problems hit and diagnosed during the cutover, neither a rollback trigger:**
+
+1. **Custom Domain creation failed on the first deploy attempt** — Cloudflare error `100117`,
+   "Hostname already has externally managed DNS records." The root `A`/`AAAA`/`www` records
+   deliberately kept pointing at Hostinger during Phase A (so traffic wasn't disrupted while the
+   zone was inactive) conflicted with Custom Domain's own auto-managed record once routes were
+   uncommented. Fixed by deleting those three Cloudflare-side records (zero live effect at the
+   time — nameservers hadn't switched yet) and redeploying; both custom domains provisioned
+   cleanly on retry.
+2. **HTTPS briefly failed after the nameserver switch** — TLS handshake fatal alert, failed even
+   with certificate validation disabled, meaning no certificate existed yet for that SNI. Diagnosed
+   methodically rather than assumed benign: confirmed DNS was clean (a transient leftover-looking
+   IPv6 answer from one query turned out to just be edge propagation lag, gone on recheck),
+   confirmed plain HTTP already served real data the whole time (`/api/health`, real 47-product
+   catalog), and confirmed via Cloudflare's Edge Certificates tab that all three certificates
+   showed "Pending Validation (TXT)" — self-resolved within about 15 minutes, Cloudflare's normal
+   automatic domain-validation window once it controls DNS. Never met any of the agreed rollback
+   triggers (checkout/payment/order failures) since the app was proven healthy throughout.
+
+**Full verification passed on the real domain**: storefront homepage (real title tag), `/api/health`,
+real product catalog, admin auth correctly 401-gating, R2 media proxy serving real images, `www`
+redirecting to the apex correctly, and — confirmed explicitly — **the old PHP staging site is still
+reachable**, proving the earlier `staging` CNAME fix (replacing Cloudflare's broken IP-snapshot
+import) survived the cutover intact.
+
+**Square webhook subscription's `notification_url` updated** from the `workers.dev` URL to the real
+domain, re-verified with Square's own test-send endpoint against it: `status_code: 200`, real HMAC
+signature verification working end to end through the real hostname.
+
+**What's deliberately NOT done**: Phase 10 (retiring Hostinger's hosting/database outright,
+removing `Claude.md`'s production banner) is a separate, later decision — give the live cutover
+time to prove stable first. Hostinger's PHP site and MySQL database remain untouched as the
+rollback target, per `docs/production-isolation.md`'s 60-day minimum before cancelling that plan.
+
+**`Claude.md`'s banner rewritten** from "PRODUCTION IS FROZEN" to reflect the new reality: cutover
+complete, Hostinger no longer serves customers but isn't retired yet, `deploy.ps1` guidance updated
+accordingly.
+
+`docs/phase-9-cutover-checklist.md`'s Phase B and its definition-of-done are now fully checked off
+— **every item in the entire Phase 9 cutover checklist is done.**
+
+---
+
 ## Current state — 2026-08-01 (Session wrap-up: staging Worker hostname conflict is the one open decision)
 
 **End-of-session checkpoint, no new work beyond what's already logged below** — see the entries
