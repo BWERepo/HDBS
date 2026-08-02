@@ -5,6 +5,48 @@
 
 ---
 
+## Current state — 2026-08-01 (Session wrap-up: staging Worker hostname conflict is the one open decision)
+
+**End-of-session checkpoint, no new work beyond what's already logged below** — see the entries
+underneath this one for the full detail on everything accomplished (payments milestone, the admin
+log viewer, live Square/PayPal/Brevo/USPS credentials, and all of Phase A of the cutover). This
+entry exists to record the one thing left genuinely open and a small piece of prep work sitting
+uncommitted.
+
+**Open decision, not yet made**: the user asked to point `staging.handmadedesignsbysuzi.com` at
+the new `hdbs-staging` Worker. That's technically blocked until Phase B (Cloudflare Custom Domain
+routes only take effect once the zone is actually active — nameservers still point at Hostinger's
+`dns-parking.com`, not Cloudflare's, as of this entry). Prepped the config for whenever Phase B
+happens: a commented-out `routes` block for `env.staging` in `wrangler.jsonc`, mirroring the
+top-level production `routes` block's own commented-out pattern. **But caught a real conflict
+before finishing it**: `staging.handmadedesignsbysuzi.com` is *already* the old PHP staging site's
+hostname (the one this session just carefully preserved with a real CNAME to
+`staging.handmadedesignsbysuzi.com.cdn.hstgr.net`, replacing Cloudflare's broken IP-snapshot
+import). Pointing the new Worker at that same hostname would silently cut off the old PHP staging
+site. Asked the user whether to use a different hostname for the new Worker (e.g.
+`new-staging.handmadedesignsbysuzi.com`) or retire the old PHP staging site's URL outright — **not
+yet answered**. The prepped `wrangler.jsonc` block still has the literal
+`staging.handmadedesignsbysuzi.com` pattern in it and needs updating once this is decided; it's
+fully commented out so it has zero effect either way until then.
+
+**Also created/updated the `/BWEHDBSEnd` skill this session** (`C:\Users\Admin\.claude\skills\
+BWEHDBSEnd\SKILL.md`) — it existed already but from the pre-migration PHP/FTP era (`dev`/`main`
+branch promotion, `deploy.ps1`, `regression_test.php` conventions), all stale relative to this
+entire session's actual work on Cloudflare/Supabase/`wrangler` against the `cloudflare-migration`
+branch. Rewrote it to match current reality: tracks secrets by name only (never values), points at
+`docs/phase-9-cutover-checklist.md` for cutover-specific detail, pushes to `cloudflare-migration`
+instead of assuming `main`, and explicitly won't touch `deploy.ps1`/DNS/routes as a side effect of
+wrapping up a session, given the standing production freeze. (Attempting to invoke it via the
+Skill tool directly failed — "disabled for model invocation in skillOverrides settings" — so this
+wrap-up entry was written by manually following the skill's own instructions instead.)
+
+**Immediate next step for a future session**: get the user's answer on the staging hostname
+question above, finish the `wrangler.jsonc` block accordingly, and then it's just the 48h TTL
+wait (already running, started earlier today) before Phase B of
+`docs/phase-9-cutover-checklist.md` can happen.
+
+---
+
 ## Current state — 2026-08-01 (Phase A of the cutover fully complete — Cloudflare zone added, 2 real DNS bugs caught)
 
 **Added `handmadedesignsbysuzi.com` to Cloudflare via "Connect"** (registration stays at Hostinger;

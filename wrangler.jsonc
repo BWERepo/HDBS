@@ -80,6 +80,18 @@
         "ENVIRONMENT": "staging",
         "EMAIL_MODE": "sink"
       },
+      // Commented out for the same reason as the top-level `routes` block: the Cloudflare zone
+      // for handmadedesignsbysuzi.com isn't active yet (nameservers still point at Hostinger's
+      // dns-parking.com, not Cloudflare's) — Custom Domain routes only take effect once a zone is
+      // genuinely on Cloudflare. Uncomment this alongside the production routes block during
+      // Phase B of docs/phase-9-cutover-checklist.md, not before. Once active, Cloudflare manages
+      // the staging.handmadedesignsbysuzi.com DNS record automatically — no manual CNAME needed,
+      // unlike the staging.handmadedesignsbysuzi.com.cdn.hstgr.net record kept for the OLD PHP
+      // staging site (docs/phase-9-cutover-checklist.md's DNS-review notes).
+      //
+      // "routes": [
+      //   { "pattern": "staging.handmadedesignsbysuzi.com", "custom_domain": true }
+      // ],
       "routes": [],
       "r2_buckets": [
         { "binding": "R2_PUBLIC", "bucket_name": "hdbs-public-staging" },
