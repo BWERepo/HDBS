@@ -5,6 +5,44 @@
 
 ---
 
+## Current state — 2026-08-02 (Post-cutover: real admin account recovery + a genuine pre-existing bug found and fixed)
+
+**Admin lockout, resolved via direct SQL, not guessing.** User couldn't answer their own security
+question ("Dingo" rejected). Checked the stored `admin_sec_answer` in production Supabase directly
+(read-only) — it was already a real `pbkdf2$100000$...` hash, not plaintext, so genuinely
+unrecoverable (not a casing bug — confirmed the comparison logic already normalizes case/whitespace
+correctly, matching the original PHP's own `strtolower(trim())` exactly). Generated a real PBKDF2
+hash locally (same algorithm/params as `src/lib/password.ts`: 100k iterations, SHA-256, 16-byte
+salt, 32-byte key) for a new admin password the user chose, gave them only the `UPDATE settings`
+SQL to run — the plaintext value was never echoed anywhere in this session's own output. Verified
+with a real login call afterward: success, real session token issued.
+
+**Found and fixed a real, pre-existing bug in `js/admin-misc.js`'s "Change Admin Password" form —
+predates this entire migration, not something the port introduced.** User reported the form gave
+no confirmation and didn't actually change anything. Diagnosed rather than guessed: called
+`change_password` directly against the backend with the exact same field the front-end form was
+sending — it worked (`success:true`) — proving the bug was in the front-end JS, not the API.
+Two real bugs in `chPw()`:
+1. `if(c!==PW)` compared the typed current-password against a global variable `PW` that is **never
+   assigned anywhere in the entire codebase** — grepped to confirm. This made the check always
+   fail (`undefined` never equals anything typed), so the form has probably never worked, on the
+   original PHP site either, since this exact JS file was never touched by the migration.
+2. The `apiFetch` call sent the new password as `new:n`, but the backend (`src/routes/admin.ts`)
+   reads `body.next` — a field-name mismatch that would have silently discarded the new password
+   even if bug #1 didn't already block the request.
+Fixed both: removed the dead `PW` check entirely (the server already validates the current
+password correctly via `verifyPassword`, same error message either way), fixed `new`→`next`.
+Deployed via `wrangler deploy` (not `deploy.ps1` — Hostinger doesn't serve this hostname anymore).
+Verified the fix is live by fetching the deployed `js/admin-misc.js` directly and confirming the
+corrected code, then a real end-to-end `change_password` call using the exact field names the
+fixed front-end now sends: `success:true`.
+
+**One-hour post-cutover monitoring is running in the background** (health check + homepage + real
+product catalog, every 5 minutes) — will report a summary or flag immediately if any check hits an
+agreed rollback trigger.
+
+---
+
 ## 🎉 Current state — 2026-08-02 (CUTOVER COMPLETE — handmadedesignsbysuzi.com is live on Cloudflare Workers)
 
 **The migration's actual cutover happened.** `handmadedesignsbysuzi.com` now serves real customer

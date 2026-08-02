@@ -859,10 +859,9 @@ function aNavEl(el,sec){aNav(el,sec);}
 function chPw(){
   var c=document.getElementById('pw-c').value,n=document.getElementById('pw-n').value,cf=document.getElementById('pw-cf').value;
   var ok=document.getElementById('pw-ok'),err=document.getElementById('pw-err');ok.style.display='none';err.style.display='none';
-  if(c!==PW){err.textContent='Current password incorrect.';err.style.display='block';return;}
   if(!n){err.textContent='Cannot be empty.';err.style.display='block';return;}
   if(n!==cf){err.textContent='Passwords do not match.';err.style.display='block';return;}
-  apiFetch('admin.php','POST',{action:'change_password',current:c,new:n,confirm:cf}).then(function(d){
+  apiFetch('admin.php','POST',{action:'change_password',current:c,next:n,confirm:cf}).then(function(d){
     if(!d.success){err.textContent=d.error||'Failed.';err.style.display='block';return;}
     document.getElementById('pw-c').value='';document.getElementById('pw-n').value='';document.getElementById('pw-cf').value='';
     ok.style.display='block';
