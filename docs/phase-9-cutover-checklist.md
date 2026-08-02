@@ -385,22 +385,39 @@ Only after every item above is confirmed:
   - **Explicitly stopped before Cloudflare's own "replace your nameservers" wizard step** — that
     step *is* the phase B cutover trigger, not part of phase A, and the 48h TTL wait hasn't
     elapsed. Cloudflare's own UI even offers to skip it for exactly this reason.
-- 👤 **Phase B** (after the 48h wait, during a deliberately low-traffic window, per the decision
-  above):
-  - 🤖 Uncomment the two `routes` lines in `wrangler.jsonc`, redeploy production. **This is the
-    cutover** — the moment `handmadedesignsbysuzi.com` can be reachable through Cloudflare.
-  - 👤 In Hostinger's **Domains → Nameservers** (not the DNS zone editor), replace
-    `atlas.dns-parking.com`/`hyperion.dns-parking.com` with **`arturo.ns.cloudflare.com`** and
-    **`rayne.ns.cloudflare.com`** (assigned when the zone was added, 2026-08-01).
-  - 👤 Update the existing Square webhook subscription's `notification_url` (Square Developer
-    Dashboard, or `PUT /v2/webhooks/subscriptions/{id}`) from the `workers.dev` URL to
-    `https://handmadedesignsbysuzi.com/api/square-webhook.php` — the subscription and
-    `SQUARE_WEBHOOK_SIG_KEY` already exist and are verified (step 5, done 2026-08-01); only the URL
-    needs to change.
-  - 👤 Monitor both systems during propagation (target a few minutes to an hour at a 300s TTL, per
-    the decision above) — watch for any of the rollback triggers listed above. `wrangler tail`
-    against production plus a normal browser check of the real domain from a few different
-    networks/devices is enough; no special tooling needed.
+- 🟡 **Phase B — IN PROGRESS, started 2026-08-02.** User explicitly chose to proceed ~14h into the
+  48h TTL wait rather than the full window (decision recorded, not silently done).
+  - ✅ Uncommented the two `routes` lines in `wrangler.jsonc`, redeployed production.
+    **Hit a real, diagnosed error on the first attempt**: Cloudflare rejected the Custom Domain
+    creation with code `100117` ("Hostname already has externally managed DNS records") —
+    the root `A`/`AAAA`/`www` records deliberately kept pointing at Hostinger during Phase A
+    conflicted with Custom Domain's own auto-managed record. Fixed by deleting those three
+    records in Cloudflare's zone (zero live effect at the time, since nameservers hadn't switched
+    yet) and redeploying — both `handmadedesignsbysuzi.com (custom domain)` and
+    `www.handmadedesignsbysuzi.com (custom domain)` provisioned successfully on retry.
+  - ✅ Nameservers switched at Hostinger's **Domains → Nameservers** (not the DNS zone editor) to
+    `arturo.ns.cloudflare.com`/`rayne.ns.cloudflare.com`. Verified via direct DNS query (`nslookup
+    ... 1.1.1.1`) — propagated fast, root domain correctly resolving to Cloudflare's real edge IPs
+    within minutes.
+  - 🟡 **HTTPS not yet live — a real, diagnosed, self-resolving gap, not a rollback trigger.**
+    `https://handmadedesignsbysuzi.com` fails at the TLS handshake (curl error 35, fatal alert,
+    fails even with cert validation disabled — meaning no certificate exists yet for this SNI, not
+    a trust issue). Diagnosed methodically before concluding it's benign: confirmed DNS is clean
+    (no leftover Hostinger record — an initial `1.1.1.1` query briefly showed one, gone on
+    recheck, just edge propagation lag), confirmed **plain HTTP already works and serves real
+    data** (`GET /api/health` → 200, `GET /api/products.php` → real 47-product catalog), and
+    confirmed via the Cloudflare dashboard's SSL/TLS → Edge Certificates tab that all three
+    certificates (Universal + 2 Advanced) show **"Pending Validation (TXT)"** — Cloudflare
+    self-validates domain ownership via DNS TXT record now that it controls DNS, typically
+    completing within 15–60 minutes. **Does not meet any of the agreed rollback triggers**
+    (checkout/payment/order failures) — the underlying app is proven healthy, this is normal
+    post-cutover certificate provisioning lag. Monitoring until HTTPS is live.
+  - 👤 Still outstanding: update the existing Square webhook subscription's `notification_url`
+    (Square Developer Dashboard, or `PUT /v2/webhooks/subscriptions/{id}`) from the `workers.dev`
+    URL to `https://handmadedesignsbysuzi.com/api/square-webhook.php` — do this once HTTPS is
+    confirmed live, not before (Square will itself validate the endpoint).
+  - 👤 Continue monitoring both systems for the agreed rollback triggers once HTTPS is live and a
+    full real browser check is possible.
 
 ---
 

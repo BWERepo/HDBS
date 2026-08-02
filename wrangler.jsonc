@@ -53,15 +53,13 @@
     "EMAIL_MODE": "live"
   },
 
-  // Routes are intentionally COMMENTED OUT until Phase 9 (DNS cutover). Until then the
-  // production Worker must stay unreachable from the real domain — Phase 8 exercises it via
-  // its workers.dev hostname only. Uncommenting these before the DNS move would take the
-  // live storefront away from Hostinger with no rollback rehearsed.
-  //
-  // "routes": [
-  //   { "pattern": "handmadedesignsbysuzi.com", "custom_domain": true },
-  //   { "pattern": "www.handmadedesignsbysuzi.com", "custom_domain": true }
-  // ],
+  // Phase 9 cutover: uncommented 2026-08-02 (see docs/phase-9-cutover-checklist.md's Phase B —
+  // user explicitly chose to proceed ~14h into the 48h TTL wait rather than the full window,
+  // accepting the shorter propagation margin as a known, deliberate risk).
+  "routes": [
+    { "pattern": "handmadedesignsbysuzi.com", "custom_domain": true },
+    { "pattern": "www.handmadedesignsbysuzi.com", "custom_domain": true }
+  ],
 
   // "0 */6 * * *" keeps the Supabase free tier from auto-pausing after 7 idle days.
   // "0 4 * * *" prunes expired admin_sessions and rate_limits rows — the PHP never did.
