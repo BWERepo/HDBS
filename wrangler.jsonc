@@ -82,19 +82,14 @@
         "ENVIRONMENT": "staging",
         "EMAIL_MODE": "sink"
       },
-      // Commented out for the same reason as the top-level `routes` block: the Cloudflare zone
-      // for handmadedesignsbysuzi.com isn't active yet (nameservers still point at Hostinger's
-      // dns-parking.com, not Cloudflare's) — Custom Domain routes only take effect once a zone is
-      // genuinely on Cloudflare. Uncomment this alongside the production routes block during
-      // Phase B of docs/phase-9-cutover-checklist.md, not before. Once active, Cloudflare manages
-      // the staging.handmadedesignsbysuzi.com DNS record automatically — no manual CNAME needed,
-      // unlike the staging.handmadedesignsbysuzi.com.cdn.hstgr.net record kept for the OLD PHP
-      // staging site (docs/phase-9-cutover-checklist.md's DNS-review notes).
-      //
-      // "routes": [
-      //   { "pattern": "staging.handmadedesignsbysuzi.com", "custom_domain": true }
-      // ],
-      "routes": [],
+      // Enabled 2026-08-02, after the production cutover — user decided to reclaim
+      // staging.handmadedesignsbysuzi.com for the new Worker rather than keep it pointed at the
+      // old PHP staging site (docs/phase-9-cutover-checklist.md's DNS-review notes and
+      // PROJECT_STATUS.md's hostname-conflict entry). The old PHP staging site becomes unreachable
+      // at this hostname as a result — it still exists, just no longer has a DNS record here.
+      "routes": [
+        { "pattern": "staging.handmadedesignsbysuzi.com", "custom_domain": true }
+      ],
       "r2_buckets": [
         { "binding": "R2_PUBLIC", "bucket_name": "hdbs-public-staging" },
         { "binding": "R2_PRIVATE", "bucket_name": "hdbs-private-staging" }
