@@ -5,6 +5,42 @@
 
 ---
 
+## Current state — 2026-08-02 (Second pre-existing bug found in the same class: the "Forgot Password?" flow)
+
+**Same architectural bug as the Change-Password fix above, in the admin "Forgot Password?" flow —
+also predates this migration entirely.** User reported the security-question answer was never
+accepted. Three real bugs found in `js/admin-misc.js`, not one:
+
+1. `checkSecAnswer()` compared the typed answer against a client-side `SEC.a` value — but
+   `showForgot()`'s own `get_sec_question` call only ever sets `SEC={q:d.question}` (correctly
+   never sending the real answer to the browser — the server must never expose that). `SEC.a` is
+   only ever populated if you'd *just* saved a new security question in that same browser session,
+   which isn't the real "forgot password" scenario at all. This flow had never worked as a genuine
+   self-service reset.
+2. `doResetPw()` sent the new password as `new_password`... actually sent as `new:n`, while the
+   backend (`src/routes/admin.ts`) reads `body.new_password` — a second, independent field-name
+   mismatch that would have discarded the new password even if bug #1 were fixed alone.
+3. (Not a bug, confirmed while investigating) The comparison logic itself already normalizes
+   case/whitespace correctly and matches the original PHP's `strtolower(trim())` exactly — ruled
+   out before looking elsewhere.
+
+**Fixed properly, not patched around**: `checkSecAnswer()` now calls the real `verify_sec_answer`
+server action (never trusts a client-side value for a real security check), `doResetPw()` now
+sends `new_password` matching the backend. `SEC` is left in place but now fully vestigial (nothing
+reads it after this fix) — not removed, since that's out of scope for this bug fix.
+
+**Verified with a genuine end-to-end pass, not by inspection alone**: since the *existing* security
+answer was an unrecoverable hash (same reason the earlier admin-password reset was needed), set a
+known, real security question via a real admin session (`save_sec_question`), then called
+`verify_sec_answer` with the correct answer (success), the wrong answer (correctly rejected with a
+real lockout counter: "4 attempts remaining"), and `reset_password` (succeeded) — all directly
+against the real deployed production API. Confirmed a final login still works afterward.
+
+Deployed via `wrangler deploy`. `js/admin-misc.js` fetched directly from the live domain afterward
+to confirm the corrected code is what's actually being served, not just what's in the repo.
+
+---
+
 ## Current state — 2026-08-02 (Post-cutover: real admin account recovery + a genuine pre-existing bug found and fixed)
 
 **Admin lockout, resolved via direct SQL, not guessing.** User couldn't answer their own security

@@ -1324,15 +1324,16 @@ function hideForgot(){
   document.getElementById('fp-new2').value='';
 }
 function checkSecAnswer(){
-  var ans=document.getElementById('fp-answer').value.trim().toLowerCase();
+  var ans=document.getElementById('fp-answer').value.trim();
   var err=document.getElementById('fp-err1');
-  if(!ans){err.textContent='Please enter your answer.';err.style.display='block';return;}
-  if(ans!==SEC.a){err.style.display='block';return;}
-  // Correct — move to step 2
   err.style.display='none';
-  document.getElementById('fp-step1').style.display='none';
-  document.getElementById('fp-step2').style.display='block';
-  document.getElementById('fp-new').focus();
+  if(!ans){err.textContent='Please enter your answer.';err.style.display='block';return;}
+  apiFetch('admin.php','POST',{action:'verify_sec_answer',answer:ans}).then(function(d){
+    if(!d.success){err.textContent=d.error||'Incorrect answer.';err.style.display='block';return;}
+    document.getElementById('fp-step1').style.display='none';
+    document.getElementById('fp-step2').style.display='block';
+    document.getElementById('fp-new').focus();
+  }).catch(function(){err.textContent='Network error.';err.style.display='block';});
 }
 function doResetPw(){
   var n=document.getElementById('fp-new').value;
@@ -1342,7 +1343,7 @@ function doResetPw(){
   if(!n||n.length<4){err.textContent='Password must be at least 4 characters.';err.style.display='block';return;}
   if(n!==n2){err.textContent='Passwords do not match.';err.style.display='block';return;}
   var ans=document.getElementById('fp-answer').value.trim();
-  apiFetch('admin.php','POST',{action:'reset_password',answer:ans,new:n}).then(function(d){
+  apiFetch('admin.php','POST',{action:'reset_password',answer:ans,new_password:n}).then(function(d){
     if(!d.success){document.getElementById('fp-err2').textContent=d.error||'Failed.';document.getElementById('fp-err2').style.display='block';return;}
     hideForgot();
     document.getElementById('lerr').style.display='none';
