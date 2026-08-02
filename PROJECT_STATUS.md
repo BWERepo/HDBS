@@ -5,6 +5,45 @@
 
 ---
 
+## Current state — 2026-08-02 (Session end: staging repoint LIVE; first BWEHDBSAll run)
+
+**Staging Custom Domain route is live.** `wrangler.jsonc`'s `env.staging.routes` now points
+`staging.handmadedesignsbysuzi.com` at the new `hdbs-staging` Worker (user's decision to reclaim
+that hostname from the old PHP staging site — see the entry below this one). First deploy attempt
+hit the same class of issue as the production cutover — Cloudflare error `100117`, "Hostname
+already has externally managed DNS records" — because the old `staging` CNAME (pointing at
+`staging.handmadedesignsbysuzi.com.cdn.hstgr.net`) was still there. User deleted it; redeploy
+succeeded cleanly (`staging.handmadedesignsbysuzi.com (custom domain)`, Version ID
+`fa0fdb86-0e19-4591-8532-9a82e6d4912e`). **Verified live**: `GET /api/health` returns
+`environment:"staging"`, `GET /api/products.php` returns the real 47-product catalog. The old PHP
+staging site is no longer reachable at that hostname (per the user's explicit choice) — it still
+exists, just has no DNS record pointing to it anymore. The Settings "Hosting" card's staging link
+is now genuinely live, not just display text.
+
+**Created three new skills this session**, modeled on the sibling `BWE*` skills but adapted to this
+project's real Cloudflare-era workflow (no `dev`/`main` promotion, no FTP):
+- `BWEHDBSCheckpoint` — replaced a stale pre-migration version that described the old `dev`→`main`
+  + `deploy.ps1` model. Now: test + typecheck, commit + push to whatever branch is actually current
+  (this migration has lived on `cloudflare-migration`, never `main` — the skill explicitly warns
+  against assuming otherwise).
+- `BWEHDBSPromote` — new. Checks the cutover is actually live first (via `Claude.md`'s banner),
+  bumps `version.json`'s minor version, deploys, verifies with a real content-level health check
+  (not just an HTTP 200 — this project's own history has a documented case of a 200 hiding broken
+  content), and automatically rolls back via `wrangler rollback` if that check fails. Bakes in the
+  two real deploy gotchas from this session: the non-fatal cron-trigger-limit error (safe to
+  ignore, no `scheduled()` handler exists to lose anything from) and the real DNS-conflict `100117`
+  error (a genuine stop, unlike the cron one).
+- `BWEHDBSAll` — pure sequencing wrapper, Checkpoint → Promote → End, mirroring the sibling
+  `BWEAll` skill's structure exactly.
+
+**First real run of `BWEHDBSAll` this session**: Checkpoint found tests/typecheck clean and pushed
+one already-committed-but-unpushed commit (`2cecab21`, the staging route enable above). Promote
+bumped `version.json` to `4.28.0`, deployed to production, verified via real `/api/health` +
+`/api/products.php` checks (both correct, no rollback needed), Version ID
+`dbce3196-5770-487e-add8-b6c0559c87ed`, committed as `a378d195`.
+
+---
+
 ## Current state — 2026-08-02 (New Settings cards; a real Cloudflare edge-caching gotcha found and worked around)
 
 **Two Settings cards added/fixed in `js/admin-misc.js`**: a new "🌩️ Hosting" card (Cloudflare
