@@ -105,7 +105,7 @@ app.all("*", async (c) => {
   const load = () => new SupabaseSettingsStore(createDb(c.env), c.env.R2_PUBLIC).getSetting("biz_profile");
 
   if (wantsShell(new URL(c.req.url).pathname)) {
-    const shell = await renderStorefront(c.env, c.req.raw, load, version.version);
+    const shell = await renderStorefront(c.env, c.req.raw, load, version.version, version.deployedAt);
     if (shell) return shell;
   }
 
@@ -116,7 +116,7 @@ app.all("*", async (c) => {
   const res = await c.env.ASSETS.fetch(new Request(c.req.url, { method: "GET" }));
   if (res.status !== 404) return res;
 
-  const shell = await renderStorefront(c.env, c.req.raw, load, version.version);
+  const shell = await renderStorefront(c.env, c.req.raw, load, version.version, version.deployedAt);
   return shell ?? c.text("Not found", 404);
 });
 

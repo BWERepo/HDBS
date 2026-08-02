@@ -78,7 +78,7 @@
   ]
 }
 </script>
-<script>window.BIZ_NAME={{BIZ_NAME_JSON}};window.BIZ_SHORT_NAME={{BIZ_SHORT_NAME_JSON}};window.BIZ_EMAIL={{BIZ_EMAIL_JSON}};window.BIZ_VERSION={{BIZ_VERSION_JSON}};</script>
+<script>window.BIZ_NAME={{BIZ_NAME_JSON}};window.BIZ_SHORT_NAME={{BIZ_SHORT_NAME_JSON}};window.BIZ_EMAIL={{BIZ_EMAIL_JSON}};window.BIZ_VERSION={{BIZ_VERSION_JSON}};window.BIZ_DEPLOYED_AT={{BIZ_DEPLOYED_AT_JSON}};</script>
 </head>
 <body>
 
@@ -1049,6 +1049,17 @@
   // version.json was to make version a git question, not a database question. That left a 501
   // firing on every page load until this was rewritten to just read the value already on window.
   var txt='Version: '+(window.BIZ_VERSION||'0.0.0');
+  // BIZ_DEPLOYED_AT is an ISO timestamp stamped by scripts/stamp-deploy-time.mjs immediately
+  // before every real `wrangler deploy` (see wrangler.jsonc's build.command) — empty on a local
+  // `wrangler dev` build that never ran that script, in which case this is skipped rather than
+  // showing a misleading blank/invalid date.
+  if(window.BIZ_DEPLOYED_AT){
+    var d=new Date(window.BIZ_DEPLOYED_AT);
+    if(!isNaN(d.getTime())){
+      var fmt=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}).format(d);
+      txt+=' · Deployed '+fmt+' EST';
+    }
+  }
   document.querySelectorAll('.site-version-line').forEach(function(el){el.textContent=txt;});
 })();
 </script>

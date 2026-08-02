@@ -24,7 +24,11 @@
   // structurally impossible: the assets directory is ALWAYS regenerated immediately before
   // Wrangler reads it, no matter which command or script triggered the deploy.
   "build": {
-    "command": "node scripts/sync-assets.mjs"
+    // stamp-deploy-time.mjs writes version.json's deployedAt immediately before wrangler bundles
+    // src/index.ts (which imports version.json directly) — same "run before every deploy,
+    // regardless of invocation" guarantee as sync-assets.mjs, and for the same reason: this must
+    // never depend on remembering to run a separate npm script.
+    "command": "node scripts/sync-assets.mjs && node scripts/stamp-deploy-time.mjs"
   },
 
   "assets": {

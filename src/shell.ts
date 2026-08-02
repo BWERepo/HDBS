@@ -60,6 +60,11 @@ export interface ShellOptions {
   origin: string;
   /** From version.json, rendered into window.BIZ_VERSION for the footer version lines. */
   version: string;
+  /** From version.json's `deployedAt` (stamped by scripts/stamp-deploy-time.mjs immediately before
+   *  every real deploy), rendered into window.BIZ_DEPLOYED_AT. ISO string; absent on a `wrangler
+   *  dev` build that never ran the stamp script, in which case the footer omits the deploy time
+   *  rather than showing something misleading. */
+  deployedAt?: string;
   /**
    * Intrinsic logo dimensions for og:image:width/height.
    *
@@ -113,6 +118,10 @@ export function buildTokens(biz: BizProfile, opts: ShellOptions): Record<string,
     // Completing the intended design: version.json is a build-time constant, not something that
     // needs a live round trip, so index.html now reads window.BIZ_VERSION directly instead.
     BIZ_VERSION_JSON: jsonEmbed(opts.version),
+    // Deploy timestamp shown after the version in the footer (public/index.html formats it
+    // client-side as EST). Empty string, not omitted, when absent — window.BIZ_DEPLOYED_AT must
+    // always exist so the footer script's `||` fallback doesn't need a `typeof` check.
+    BIZ_DEPLOYED_AT_JSON: jsonEmbed(opts.deployedAt ?? ""),
 
     // Numeric / literal.
     BIZ_LOGO_WIDTH: String(opts.logoWidth ?? 748),
@@ -179,7 +188,8 @@ export async function renderStorefront(
   env: Env,
   request: Request,
   load: () => Promise<string | null>,
-  version: string
+  version: string,
+  deployedAt?: string
 ): Promise<Response | null> {
   const url = new URL(request.url);
   url.pathname = "/index.html";
@@ -190,7 +200,7 @@ export async function renderStorefront(
 
   const [html, biz] = await Promise.all([assetRes.text(), getBizProfile(load)]);
   const origin = new URL(request.url).origin;
-  const rendered = renderShell(html, buildTokens(biz, { origin, version }));
+  const rendered = renderShell(html, buildTokens(biz, { origin, version, deployedAt }));
 
   return new Response(rendered, {
     status: 200,

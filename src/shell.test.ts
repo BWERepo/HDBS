@@ -42,6 +42,18 @@ describe("buildTokens", () => {
     expect(t.BIZ_VERSION_JSON).toBe(JSON.stringify("3.14.0"));
   });
 
+  it("embeds deployedAt as window.BIZ_DEPLOYED_AT when present", () => {
+    const biz = resolveBizProfile(null);
+    const t = buildTokens(biz, { ...opts, deployedAt: "2026-08-02T15:00:00.000Z" });
+    expect(t.BIZ_DEPLOYED_AT_JSON).toBe(JSON.stringify("2026-08-02T15:00:00.000Z"));
+  });
+
+  it("embeds an empty string for BIZ_DEPLOYED_AT when deployedAt is absent", () => {
+    const biz = resolveBizProfile(null);
+    const t = buildTokens(biz, opts);
+    expect(t.BIZ_DEPLOYED_AT_JSON).toBe(JSON.stringify(""));
+  });
+
   it("neutralises a closing </script> inside a JSON-embedded value", () => {
     const biz = resolveBizProfile(JSON.stringify({ name: `</script><script>alert(1)</script>` }));
     const t = buildTokens(biz, opts);
