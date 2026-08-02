@@ -5,6 +5,54 @@
 
 ---
 
+## Current state — 2026-08-02 (New Settings cards; a real Cloudflare edge-caching gotcha found and worked around)
+
+**Two Settings cards added/fixed in `js/admin-misc.js`**: a new "🌩️ Hosting" card (Cloudflare
+Workers, Supabase, R2, production/staging URLs) and the old "Production/Staging Database" +
+"Production/Staging FTP" cards replaced — they still showed Hostinger MySQL
+(`127.0.0.1`/`u541882440_hdbs_data`) and FTP details, actively misleading post-cutover. FTP cards
+removed outright (deploys are `wrangler` now, not FTP); DB cards now show the real Supabase project
+refs (no credentials, matching the existing no-credentials-in-this-card convention). Staging URL in
+the new card was updated mid-task to `staging.handmadedesignsbysuzi.com` per the user's decision to
+resolve the earlier hostname-conflict question — **the actual DNS/routing repoint for that decision
+is still not done**, only this display text; see the still-commented `env.staging` routes block in
+`wrangler.jsonc` from the prior session entry.
+
+**A real, non-obvious Cloudflare caching problem found and resolved, not worked around blindly.**
+After deploying the Settings changes, the live JS kept serving stale content
+(`CF-Cache-Status: HIT` on `/js/admin-misc.js` despite the Worker's own `Cache-Control: no-store`).
+Diagnosed methodically rather than guessed at:
+- First suspected (and ruled out) a stale Cache Rule — the user had to redo the rule edit twice
+  because the dashboard silently didn't save the field/operator change both times; confirmed via
+  the rules list page each time rather than trusting the edit screen.
+- Discovered **Cache Rules on Cloudflare's Free plan don't support the `matches regex` operator at
+  all** (not documented anywhere obvious — found by the user reporting "there is no matches regex"
+  when trying to select it). Rebuilt the rule using `starts_with(path,"/js/") or
+  starts_with(path,"/css/")` instead, confirmed via the rule list's own expression preview.
+- Even with a correctly-configured, Active "Bypass cache" rule, `/js/*` still showed
+  `CF-Cache-Status: HIT`. Diagnosed rather than declared broken: checked whether stale content was
+  actually being served (it wasn't — the cached copy already matched the latest deploy), checked
+  the zone's base Caching Level (`Standard`, ruling out a query-string-ignoring cache key), and
+  concluded this is Cloudflare Workers Static Assets' own edge-caching behavior for asset
+  responses — a layer distinct from zone-level Cache Rules, which explains why a Cache Rule
+  couldn't fully override it.
+- **Resolution: this project's own pre-existing `?v=N` cache-busting convention on script tags in
+  `public/index.html`** (already an established practice for this exact reason, predating the
+  Cloudflare migration) is what actually guarantees freshness — bumped `admin-misc.js?v=34` to
+  `?v=35`, redeployed, and confirmed the new URL serves the correct content and `index.html`
+  correctly references it. The remaining `CF-Cache-Status: HIT` on the *new* versioned URL is not a
+  problem: it's caching the *correct* content at a new, previously-unseen URL, exactly as intended.
+- **The Cache Rule stays in place as a secondary safety net** (harmless, possibly helps other
+  request patterns) but the real, load-bearing mechanism going forward is unchanged from before the
+  migration: **bump the `?v=` query param on any changed `js`/`css` file in `public/index.html`
+  before/with every deploy that touches it.** Worth remembering for every future front-end change
+  on the live Cloudflare site, not just this one.
+
+**One-hour post-cutover monitor (started after the DNS/routes cutover) completed clean: 12 checks
+over ~1 hour, 0 anomalies** — health check, homepage, and real product catalog all green throughout.
+
+---
+
 ## Current state — 2026-08-02 (Second pre-existing bug found in the same class: the "Forgot Password?" flow)
 
 **Same architectural bug as the Change-Password fix above, in the admin "Forgot Password?" flow —

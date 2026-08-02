@@ -1413,12 +1413,14 @@ window.addEventListener('load', function(){
       if(st)  st.textContent = (d && d.value) ? 'Token saved.' : 'No token set — using unauthenticated access.';
     }).catch(function(){});
 
-    // ── Production/Staging Database + FTP reference cards (read-only) ──
-    // Intentionally NO password fields — DB passwords live only in secrets.php/secrets.staging.php
-    // (outside webroot) and the FTP password lives only in the local .ftp-credentials file, which
-    // never touches the server. These are read-only because they're just documentation of values
-    // set elsewhere (api/config.php, .ftp-credentials) — editing them here couldn't actually change
-    // the live DB connection or deploy.ps1, so an editable field would be misleading.
+    // ── Hosting + Database reference cards (read-only, static) ──
+    // Post-Cloudflare-migration (2026-08-02 cutover): the site runs on Cloudflare Workers +
+    // Supabase + R2, not Hostinger MySQL/FTP. These cards replace the old Hostinger-era
+    // Database/FTP cards, which showed 127.0.0.1/u541882440_hdbs_data and an FTP host that no
+    // longer has anything to do with how this site is deployed or where its data lives — leaving
+    // them as-is post-cutover would have actively misled anyone reading Settings. Intentionally NO
+    // credentials of any kind — real values live only in Cloudflare's secret store
+    // (`wrangler secret put`), never in this front-end.
     function mkInfoCard(id,icon,title,rows){
       var existing=document.getElementById(id);
       if(existing)existing.remove();
@@ -1459,22 +1461,20 @@ window.addEventListener('load', function(){
       var inp=document.getElementById('env-repo-input');
       if(inp&&saved.github_repo)inp.value=saved.github_repo;
     }).catch(function(){});
-    var cardProdDb=mkInfoCard('proddb-card','&#x1F5C4;&#xFE0F;','Production Database',[
-      ['Host','127.0.0.1'],['Database Name','u541882440_hdbs_data'],['Username','u541882440_hdbs_admin'],['Charset','utf8mb4']
+    var cardHosting=mkInfoCard('hosting-card','&#x1F329;&#xFE0F;','Hosting',[
+      ['Frontend / Backend','Cloudflare Workers'],['Database','Supabase (Postgres)'],['Media Storage','Cloudflare R2'],
+      ['Production','<a href="https://handmadedesignsbysuzi.com" target="_blank" rel="noopener" style="color:#a07810">handmadedesignsbysuzi.com</a>'],
+      ['Staging','<a href="https://staging.handmadedesignsbysuzi.com" target="_blank" rel="noopener" style="color:#a07810">staging.handmadedesignsbysuzi.com</a>']
     ]);
-    cardEnv.insertAdjacentElement('afterend',cardProdDb);
+    cardEnv.insertAdjacentElement('afterend',cardHosting);
+    var cardProdDb=mkInfoCard('proddb-card','&#x1F5C4;&#xFE0F;','Production Database',[
+      ['Provider','Supabase (Postgres)'],['Project Ref','ckiyvsejstptrnwkinir'],['Region','us-east-1'],['R2 Buckets','hdbs-public, hdbs-private']
+    ]);
+    cardHosting.insertAdjacentElement('afterend',cardProdDb);
     var cardStageDb=mkInfoCard('stagedb-card','&#x1F5C4;&#xFE0F;','Staging Database',[
-      ['Host','127.0.0.1'],['Database Name','u541882440_hdbs_staging'],['Username','u541882440_hdbs_staging'],['Charset','utf8mb4']
+      ['Provider','Supabase (Postgres)'],['Project Ref','ukzhnizosofbkwcpuvye'],['R2 Buckets','hdbs-public-staging, hdbs-private-staging']
     ]);
     cardProdDb.insertAdjacentElement('afterend',cardStageDb);
-    var cardProdFtp=mkInfoCard('prodftp-card','&#x1F4E1;','Production FTP',[
-      ['Host','ftp.handmadedesignsbysuzi.com'],['Username','u541882440.handmadedesignsbysuzi'],['Port','21'],['Remote Path','/ (public_html root)']
-    ]);
-    cardStageDb.insertAdjacentElement('afterend',cardProdFtp);
-    var cardStageFtp=mkInfoCard('stageftp-card','&#x1F4E1;','Staging FTP',[
-      ['Host','ftp.handmadedesignsbysuzi.com'],['Username','u541882440.handmadedesignsbysuzi'],['Port','21'],['Remote Path','/staging/']
-    ]);
-    cardProdFtp.insertAdjacentElement('afterend',cardStageFtp);
 
     // ── Version card ──
     var existingV=document.getElementById('version-card');
