@@ -5,6 +5,44 @@
 
 ---
 
+## Current state — 2026-08-01 (Phase A of the cutover fully complete — Cloudflare zone added, 2 real DNS bugs caught)
+
+**Added `handmadedesignsbysuzi.com` to Cloudflare via "Connect"** (registration stays at Hostinger;
+only DNS management moves). Reviewed the auto-imported DNS zone against hPanel's real records
+before activating rather than trusting the import — found two real bugs, not cosmetic ones:
+
+- **`ftp` A record imported as Proxied.** Cloudflare's proxy only speaks HTTP/HTTPS; `deploy.ps1`
+  uses this exact hostname for every FTP deploy this project does. Left proxied, this would have
+  silently broken every future deploy the moment nameservers switched. Fixed: DNS only.
+- **`staging` imported as two static A records pointing at different literal IPs.** The real
+  Hostinger record was an `ALIAS` (their CNAME-like feature) targeting
+  `staging.handmadedesignsbysuzi.com.cdn.hstgr.net` — Cloudflare's importer can't replicate a
+  proprietary record type, so it just snapshotted whatever IPs that CDN hostname happened to
+  resolve to at import time. Since Hostinger's CDN almost certainly rotates those IPs, this would
+  have silently broken staging at some unpredictable future point with no obvious cause. Fixed:
+  deleted both, replaced with a real CNAME matching the original target exactly.
+
+Also cleaned up (matching original unproxied Hostinger behavior, zero new risk):
+`autoconfig`/`autodiscover` (mail-client autoconfig CNAMEs) and `test` (confirmed via a full
+codebase grep and a live request returning a bare 403 that nothing references or serves anything
+behind it) — all switched to DNS only. MX/SPF/DMARC/Brevo/Hostinger-mail records were already
+correctly untouched by the import.
+
+**Zone activated. Nameservers assigned: `arturo.ns.cloudflare.com`, `rayne.ns.cloudflare.com`** —
+recorded in `docs/phase-9-cutover-checklist.md` for phase B, not applied anywhere yet. Confirmed
+the domain is registered at Hostinger (not elsewhere), and the actual nameserver swap happens
+under Hostinger's **Domains → Nameservers** section specifically — different from the DNS zone
+editor used for everything above.
+
+**Deliberately stopped before Cloudflare's own "replace your nameservers" step** — caught that this
+was actually phase B's cutover trigger, not part of phase A, and the 48h TTL wait (started earlier
+this session) hasn't elapsed. Cloudflare's own UI offers to skip that step for exactly this reason.
+
+**Phase A of `docs/phase-9-cutover-checklist.md` is now fully complete.** Only the 48h wait
+remains before phase B — the actual nameserver switch, route uncomment, and webhook URL update.
+
+---
+
 ## Current state — 2026-08-01 (Cutover conversation: no maintenance mode, low-traffic window, rollback plan agreed)
 
 **Talked through step 8 (the actual DNS/routes cutover) before scheduling it — not executed this

@@ -353,13 +353,45 @@ Only after every item above is confirmed:
     lookup confirmed the real resolver is already serving `ttl: 300`.
   - **The 48h clock starts now (2026-08-01).** Per `docs/production-isolation.md`'s one-way-doors
     section, phase B should wait until this has propagated fully before proceeding.
-  - Add the zone to Cloudflare (safe only while the registrar still points at Hostinger — adding a
-    zone doesn't move traffic, changing nameservers does).
+  - **Added the zone to Cloudflare via "Connect"** (not "Transfer" — registration stays at
+    Hostinger, only DNS management moves). Reviewed Cloudflare's auto-imported records against
+    hPanel's real zone before activating, and found two real issues, not just cosmetic ones:
+    - `ftp` A record imported as **Proxied**. Cloudflare's proxy only handles HTTP/HTTPS —
+      `deploy.ps1` uses `ftp.handmadedesignsbysuzi.com` for every deploy this project does, and
+      FTP (port 21) would have broken silently the moment nameservers switched. **Fixed: set to
+      DNS only.**
+    - `staging` imported as **two static A records** (`77.37.76.77`, `148.135.128.189`) instead of
+      its real original shape — Hostinger's actual record was an `ALIAS` (Hostinger's CNAME-like
+      feature) pointing at `staging.handmadedesignsbysuzi.com.cdn.hstgr.net`. Cloudflare's importer
+      can't replicate a proprietary ALIAS record type, so it just snapshotted whatever IPs that
+      hostname happened to resolve to at import time — a real landmine, since Hostinger's CDN
+      almost certainly rotates those IPs, which would silently break staging later with no obvious
+      cause. **Fixed: deleted both A records, replaced with a CNAME** (`staging` →
+      `staging.handmadedesignsbysuzi.com.cdn.hstgr.net`, DNS only) matching the original exactly.
+    - `autoconfig`/`autodiscover` (mail-client autoconfiguration CNAMEs, targets were already
+      correct) and `test` (an unreferenced leftover — confirmed via a full codebase grep for any
+      `test.handmadedesignsbysuzi` reference, and a live request returning a bare 403 with no real
+      site behind it) switched to **DNS only** — no functional need to proxy either, and it exactly
+      matches their unproxied behavior at Hostinger before, zero new risk.
+    - Root `A`/`AAAA` and `www` CNAME correctly stayed **Proxied** — required later for the
+      Worker's `custom_domain` route to intercept traffic; has zero effect now since Cloudflare
+      isn't authoritative yet. MX/SPF/DMARC/Brevo/Hostinger-mail records correctly untouched.
+  - **Zone activated. Nameservers assigned: `arturo.ns.cloudflare.com`, `rayne.ns.cloudflare.com`**
+    — noted here for phase B, not yet applied anywhere. Confirmed the domain is registered at
+    Hostinger too (not a separate registrar), and its current nameservers
+    (`atlas.dns-parking.com`/`hyperion.dns-parking.com`, a third-party parking service) live under
+    Hostinger's **Domains → Nameservers** section, not the DNS zone editor used for everything
+    above — that's where the actual swap happens in phase B.
+  - **Explicitly stopped before Cloudflare's own "replace your nameservers" wizard step** — that
+    step *is* the phase B cutover trigger, not part of phase A, and the 48h TTL wait hasn't
+    elapsed. Cloudflare's own UI even offers to skip it for exactly this reason.
 - 👤 **Phase B** (after the 48h wait, during a deliberately low-traffic window, per the decision
   above):
   - 🤖 Uncomment the two `routes` lines in `wrangler.jsonc`, redeploy production. **This is the
     cutover** — the moment `handmadedesignsbysuzi.com` can be reachable through Cloudflare.
-  - 👤 Change the registrar's nameservers to Cloudflare's.
+  - 👤 In Hostinger's **Domains → Nameservers** (not the DNS zone editor), replace
+    `atlas.dns-parking.com`/`hyperion.dns-parking.com` with **`arturo.ns.cloudflare.com`** and
+    **`rayne.ns.cloudflare.com`** (assigned when the zone was added, 2026-08-01).
   - 👤 Update the existing Square webhook subscription's `notification_url` (Square Developer
     Dashboard, or `PUT /v2/webhooks/subscriptions/{id}`) from the `workers.dev` URL to
     `https://handmadedesignsbysuzi.com/api/square-webhook.php` — the subscription and
@@ -398,7 +430,10 @@ Only after every item above is confirmed:
       triggers agreed in advance
 - [x] Media re-synced (done 2026-08-01, 160/160, confirmed no new uploads); TTL lowered to 300s
       and independently verified live (done 2026-08-01 — 48h clock now running)
-- [ ] Cloudflare zone added (phase A, still outstanding)
+- [x] Cloudflare zone added and activated (done 2026-08-01) — 2 real DNS import bugs caught and
+      fixed (`ftp` proxy status, `staging`'s snapshotted-IP ALIAS conversion) before activating;
+      nameservers noted (`arturo.ns.cloudflare.com`, `rayne.ns.cloudflare.com`) for phase B — phase
+      A is now fully complete, only the 48h wait remains before phase B
 - [ ] `routes` uncommented, nameservers repointed, Square webhook URL updated, propagation
       monitored for the agreed rollback triggers (phase B)
 
