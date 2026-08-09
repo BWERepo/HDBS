@@ -263,6 +263,7 @@ tr:last-child td{border-bottom:none}
 .aerr{background:#fde8e8;color:#c0392b;padding:.52rem .82rem;border-radius:7px;font-size:.8rem;margin-bottom:.72rem;display:none}
 .warn{background:#fff8e1;border:1px solid #ffe082;border-radius:7px;padding:.58rem .82rem;font-size:.77rem;color:#e65100;margin-bottom:.8rem}
 label.fl{display:block;font-size:.77rem;font-weight:600;margin-bottom:.26rem;color:#2d2220}
+.req-star{color:#c0392b;margin-left:.15rem}
 
 /* CONTACT PAGE */
 #contactpage{height:100vh;background:#fffdf0;display:flex;flex-direction:column;overflow-y:auto}

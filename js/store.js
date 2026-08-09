@@ -384,9 +384,35 @@ function combineShipping(fixed,hasWeight,weightLbs,stateStr){
 function calcShipping(subtotal,stateStr){
   return combineShipping(cartFixedShip(),hasWeightItems(),cartWeightItems(),stateStr);
 }
+function updateRequiredStars(){
+  var shipReqEl=document.getElementById('co-ship-req');
+  var noShip=PAY_CONFIG==='InPerson'&&shipReqEl&&!shipReqEl.checked;
+  var method=document.getElementById('co-paymethod')?document.getElementById('co-paymethod').value:'Credit Card';
+  var isCard=(PAY_CONFIG!=='InPerson')||method==='Credit Card';
+  // Mirrors the required-field logic in placeOrder().
+  var req={fn:false,ln:false,em:false,ad:false,ci:false,st:false,zip:false};
+  if(isCard){
+    req.fn=req.ln=req.zip=true;
+    if(!noShip)req.ad=req.ci=req.st=true;
+  } else if(!noShip){
+    req.fn=req.ln=req.em=true;
+    req.ad=req.ci=req.st=req.zip=true;
+  }
+  var stars=document.querySelectorAll('#co-form .co-field-star');
+  var anyRequired=false;
+  for(var i=0;i<stars.length;i++){
+    var f=stars[i].getAttribute('data-field');
+    var show=!!req[f];
+    stars[i].style.display=show?'':'none';
+    if(show)anyRequired=true;
+  }
+  var legend=document.getElementById('co-req-legend');
+  if(legend)legend.style.display=anyRequired?'':'none';
+}
 function updateShippingDisplay(){
+  updateRequiredStars();
   var sub=cartTotal();
-  var st=document.getElementById('co-sz')?document.getElementById('co-sz').value:'';
+  var st=document.getElementById('co-st')?document.getElementById('co-st').value:'';
   var fixed=cartFixedShip();
   var hasWt=hasWeightItems();
   var zone=getZone(st);
@@ -428,7 +454,7 @@ function updateShippingDisplay(){
 }
 function orderTotal(){
   var sub=cartTotal();
-  var st=document.getElementById('co-sz')?document.getElementById('co-sz').value:'';
+  var st=document.getElementById('co-st')?document.getElementById('co-st').value:'';
   var tax=Math.round(sub*0.0975*100)/100;
   return sub+calcShipping(sub,st)+tax;
 }
@@ -466,7 +492,8 @@ function openCheckout(){
   // Destroy any leftover Square card widget
   if(window._sqCard){try{window._sqCard.destroy();}catch(e){}window._sqCard=null;}
   // Clear address fields so shipping starts clean
-  document.getElementById('co-sz').value='';
+  document.getElementById('co-st').value='';
+  document.getElementById('co-zip').value='';
   document.getElementById('co-ad').value='';
   document.getElementById('co-ci').value='';
   var sub=cartTotal();
@@ -503,8 +530,11 @@ function _showCheckoutModal(){
 }
 function placeOrder(){
   var fn=document.getElementById('co-fn').value.trim(),em=document.getElementById('co-em').value.trim();
+  var ln=document.getElementById('co-ln').value.trim();
   var ad=document.getElementById('co-ad').value.trim();
-  if(!fn||!em){alert('Please enter your name and email.');return;}
+  var ci=document.getElementById('co-ci').value.trim();
+  var st=document.getElementById('co-st').value.trim();
+  var zip=document.getElementById('co-zip').value.trim();
   // Payment Configuration: Online | InPerson | Test
   var mode=PAY_CONFIG;
   var method='Credit Card',checkNum='';
@@ -512,14 +542,25 @@ function placeOrder(){
     method=document.getElementById('co-paymethod')?document.getElementById('co-paymethod').value:'Credit Card';
     if(method==='Check')checkNum=document.getElementById('co-checknum')?document.getElementById('co-checknum').value.trim():'';
   }
+  if(method==='Check'&&!checkNum){alert('Please enter the check number.');return;}
   var shipReqEl=document.getElementById('co-ship-req');
   var noShip=mode==='InPerson'&&shipReqEl&&!shipReqEl.checked;
-  if(!ad&&!noShip){alert('Please enter your shipping address.');return;}
   var isCard=(mode!=='InPerson')||method==='Credit Card';
+  if(isCard){
+    // Card: name + ZIP always required; street/city/state only when shipping is charged.
+    if(!fn||!ln||!zip){alert('Please enter your first name, last name, and ZIP code.');return;}
+    if(!noShip){
+      if(!ad||!ci||!st){alert('Please enter your street, city, and state.');return;}
+    }
+  } else if(!noShip){
+    // Cash/Check with shipping charged: full contact + address. No shipping charge = nothing required.
+    if(!fn||!ln||!em){alert('Please enter your first name, last name, and email.');return;}
+    if(!ad||!ci||!st||!zip){alert('Please enter your street, city, state, and ZIP code.');return;}
+  }
   var oid='ORD-'+Date.now().toString(36).toUpperCase();
   var items=[];for(var i=0;i<CART.length;i++){var p=findProd(CART[i].id);if(p)items.push({id:CART[i].id,name:p.name,price:p.price,q:CART[i].q});}
   var subtotal=cartTotal();
-  var shipState=document.getElementById('co-sz').value||'';
+  var shipState=document.getElementById('co-st').value||'';
   var shipping=noShip?0:calcShipping(subtotal,shipState);
   var tax=Math.round(subtotal*0.0975*100)/100;
   var total=Math.round((subtotal+shipping+tax)*100)/100;
@@ -528,7 +569,7 @@ function placeOrder(){
   var dispDate=(now.getMonth()+1)+'/'+now.getDate()+'/'+now.getFullYear();
   var hrs=now.getHours();var mins=String(now.getMinutes()).padStart(2,'0');
   var dispTime=(hrs%12||12)+':'+mins+' '+(hrs<12?'AM':'PM');
-  var addr=ad?(ad+', '+document.getElementById('co-ci').value+' '+document.getElementById('co-sz').value):'';
+  var addr=ad?(ad+', '+document.getElementById('co-ci').value+' '+document.getElementById('co-st').value+' '+document.getElementById('co-zip').value):'';
   var o={id:oid,date:isoDate,dispDate:dispDate,time:dispTime,cust:fn+' '+document.getElementById('co-ln').value.trim(),email:em,
     phone:document.getElementById('co-ph').value,
     addr:addr,

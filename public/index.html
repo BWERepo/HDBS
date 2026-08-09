@@ -46,7 +46,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/shop.css?v=16">
+<link rel="stylesheet" href="css/shop.css?v=17">
 <link rel="stylesheet" href="css/table.css">
 <link rel="stylesheet" href="css/toolbar.css">
 
@@ -355,20 +355,7 @@
     <button class="modal-close" style="background:rgba(0,0,0,.12);color:#2d2220" onclick="closeModal('co-modal')">×</button>
     <div id="co-form">
       <h2 style="font-size:1.2rem;font-weight:700;margin-bottom:.2rem;color:#2d2220">Checkout</h2>
-      <div style="font-size:.82rem;color:#6b6040;margin-bottom:1.2rem">Complete your purchase below.</div>
-      <div class="fsec">Contact</div>
-      <div class="fr"><div><label class="fl">First Name</label><input class="fi" id="co-fn" placeholder="Jane"></div><div><label class="fl">Last Name</label><input class="fi" id="co-ln" placeholder="Smith"></div></div>
-      <label class="fl">Email</label><input class="fi" id="co-em" type="email" placeholder="you@email.com">
-      <label class="fl">Phone</label><input class="fi" id="co-ph" placeholder="(555) 000-0000" oninput="fmtPhone(this)">
-      <div class="fsec">Shipping</div>
-      <label class="fl">Street</label><input class="fi" id="co-ad" placeholder="123 Main St">
-      <div class="fr"><div><label class="fl">City</label><input class="fi" id="co-ci" placeholder="Nashville"></div><div><label class="fl">State / ZIP</label><input class="fi" id="co-sz" placeholder="TN 37201" oninput="updateShippingDisplay()"></div></div>
-      <div class="order-summary">
-        <div class="os-row"><span>Subtotal</span><span id="oc-sub">$0.00</span></div>
-        <div class="os-row"><span>Shipping <span id="oc-zone" style="font-size:.74rem;color:#a07810"></span></span><span id="oc-ship">$0.00</span></div>
-        <div class="os-row" style="font-style:italic;color:#6b6040"><span id="oc-tax-label">Sales Tax</span><span id="oc-tax" style="font-size:.78rem">Calc. by Square</span></div>
-        <div class="os-total"><span>Est. Total</span><span id="oc-tot">$0.00</span></div>
-      </div>
+      <div style="font-size:.82rem;color:#6b6040;margin-bottom:1.2rem">Complete your purchase below. <span id="co-req-legend"><span class="req-star">★</span> = required</span></div>
       <!-- InPerson payment options (shown only when store is in InPerson mode) -->
       <div id="co-inperson" style="display:none">
         <div class="fsec">Payment</div>
@@ -379,13 +366,27 @@
           <option>Credit Card</option>
         </select>
         <div id="co-checknum-wrap" style="display:none">
-          <label class="fl">Check Number</label>
+          <label class="fl">Check Number<span class="req-star">★</span></label>
           <input class="fi" id="co-checknum" placeholder="Check number">
         </div>
         <label style="display:flex;align-items:center;gap:.5rem;margin:.5rem 0 .9rem;font-size:.85rem;color:#2d2220;cursor:pointer">
           <input type="checkbox" id="co-ship-req" checked onchange="updateShippingDisplay()">
           <span>Add shipping charge</span>
         </label>
+      </div>
+      <div class="fsec">Contact</div>
+      <div class="fr"><div><label class="fl">First Name<span class="req-star co-field-star" data-field="fn">★</span></label><input class="fi" id="co-fn" placeholder="Jane"></div><div><label class="fl">Last Name<span class="req-star co-field-star" data-field="ln">★</span></label><input class="fi" id="co-ln" placeholder="Smith"></div></div>
+      <label class="fl">Email<span class="req-star co-field-star" data-field="em">★</span></label><input class="fi" id="co-em" type="email" placeholder="you@email.com">
+      <label class="fl">Phone</label><input class="fi" id="co-ph" placeholder="(555) 000-0000" oninput="fmtPhone(this)">
+      <div class="fsec">Shipping</div>
+      <label class="fl">Street<span class="req-star co-field-star" data-field="ad">★</span></label><input class="fi" id="co-ad" placeholder="123 Main St">
+      <div class="fr"><div><label class="fl">City<span class="req-star co-field-star" data-field="ci">★</span></label><input class="fi" id="co-ci" placeholder="Nashville"></div><div><label class="fl">State<span class="req-star co-field-star" data-field="st">★</span></label><input class="fi" id="co-st" placeholder="TN" maxlength="2" style="text-transform:uppercase" oninput="updateShippingDisplay()"></div></div>
+      <label class="fl">ZIP<span class="req-star co-field-star" data-field="zip">★</span></label><input class="fi" id="co-zip" placeholder="37201" inputmode="numeric" maxlength="10">
+      <div class="order-summary">
+        <div class="os-row"><span>Subtotal</span><span id="oc-sub">$0.00</span></div>
+        <div class="os-row"><span>Shipping <span id="oc-zone" style="font-size:.74rem;color:#a07810"></span></span><span id="oc-ship">$0.00</span></div>
+        <div class="os-row" style="font-style:italic;color:#6b6040"><span id="oc-tax-label">Sales Tax</span><span id="oc-tax" style="font-size:.78rem">Calc. by Square</span></div>
+        <div class="os-total"><span>Est. Total</span><span id="oc-tot">$0.00</span></div>
       </div>
       <div id="co-secure-note" style="background:#fffdf0;border:1px solid #e8e0b8;border-radius:8px;padding:.8rem 1rem;font-size:.8rem;color:#6b6040;margin-bottom:.9rem;line-height:1.6">
         💳 Visa · Mastercard · American Express · Discover · 🍎 Apple Pay · 🅖 Google Pay · 🅿️ PayPal · Venmo<br>
@@ -1033,7 +1034,7 @@
 <script src="js/api.js?v=9"></script>
 <script src="js/config.js?v=19"></script>
 <script src="js/data.js?v=5"></script>
-<script src="js/store.js?v=24"></script>
+<script src="js/store.js?v=30"></script>
 <script src="js/studio.js?v=2"></script>
 <script src="js/auth.js?v=6"></script>
 <script src="js/ui.js?v=11"></script>
