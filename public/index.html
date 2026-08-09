@@ -151,6 +151,7 @@
     </div>
     <div class="nav-r">
       <span id="greeting" style="color:rgba(255,255,255,.78);font-size:.81rem"></span>
+      <button class="nb" onclick="goStoreSearch()" aria-label="Search products">🔍</button>
       <button class="nb" onclick="openMyOrders()">📦 My Orders</button>
       <button class="nb" id="auth-btn" onclick="goAuth('si')">Sign In</button>
       <button class="nb" id="acct-btn" style="display:none" onclick="goAuth('account')">My Account</button>
@@ -192,6 +193,12 @@
   </div>
 
   <div class="sh" id="ps"><h2>Our Collection</h2><div class="shd"></div><p style="color:#6b6040;font-size:.88rem;margin-top:.4rem">Each bag handcrafted with premium materials</p></div>
+  <div style="padding:.5rem 1.5rem 0;max-width:420px;margin:0 auto;position:relative">
+    <input type="text" id="store-search" placeholder="🔍 Search by SKU or name…" oninput="onStoreSearch()"
+      style="width:100%;box-sizing:border-box;padding:.55rem 2.2rem .55rem .9rem;border:1.5px solid #e7e1d6;border-radius:20px;font-size:.85rem;font-family:sans-serif;color:#2d2220">
+    <button id="store-search-clear" onclick="clearStoreSearch()" aria-label="Clear search"
+      style="display:none;position:absolute;right:1.9rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#a07810;font-size:1rem;line-height:1;padding:.2rem">✕</button>
+  </div>
   <div id="cat-filter" style="padding:.7rem 1.5rem .2rem;display:flex;gap:.5rem;flex-wrap:wrap;max-width:1000px;margin:0 auto"></div>
   <div class="grid" id="pgrid"></div>
 
@@ -1024,9 +1031,9 @@
 <video id="cam-video" style="display:none" autoplay playsinline></video>
 
 <script src="js/api.js?v=9"></script>
-<script src="js/config.js?v=18"></script>
+<script src="js/config.js?v=19"></script>
 <script src="js/data.js?v=5"></script>
-<script src="js/store.js?v=23"></script>
+<script src="js/store.js?v=24"></script>
 <script src="js/studio.js?v=2"></script>
 <script src="js/auth.js?v=6"></script>
 <script src="js/ui.js?v=11"></script>

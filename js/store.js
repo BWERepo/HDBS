@@ -20,11 +20,38 @@ function setActiveCat(cat){
   renderCatFilter();
   renderStore();
 }
+function goStoreSearch(){
+  if(typeof showPage==='function')showPage('store');
+  var el=document.getElementById('ps');
+  if(el)el.scrollIntoView({behavior:'smooth'});
+  var inp=document.getElementById('store-search');
+  if(inp)setTimeout(function(){inp.focus();},300);
+}
+function onStoreSearch(){
+  var el=document.getElementById('store-search');
+  STORE_SEARCH=(el&&el.value||'').trim();
+  renderStore();
+}
+function clearStoreSearch(){
+  var el=document.getElementById('store-search');
+  if(el)el.value='';
+  STORE_SEARCH='';
+  renderStore();
+}
 function renderStore(){
   var g=document.getElementById('pgrid'),h='';
   // Only show products listed for sale (sell !== 0) and not flagged Coming Soon
   var forSale=PRODS.filter(function(p){return p.sell!==0&&!p.coming_soon;});
   var filtered=ACTIVE_CAT==='All'?forSale:forSale.filter(function(p){return parseCats(p.cat).indexOf(ACTIVE_CAT)>=0;});
+  var searchTerm=STORE_SEARCH.toLowerCase();
+  if(searchTerm){
+    filtered=filtered.filter(function(p){
+      return(p.sku&&p.sku.toLowerCase().indexOf(searchTerm)>=0)||
+        (p.name&&p.name.toLowerCase().indexOf(searchTerm)>=0);
+    });
+  }
+  var clearBtn=document.getElementById('store-search-clear');
+  if(clearBtn)clearBtn.style.display=STORE_SEARCH?'block':'none';
   renderCatFilter();
   for(var i=0;i<filtered.length;i++){
     var p=filtered[i];
@@ -66,7 +93,8 @@ function renderStore(){
       '</div>'+
     '</div>';
   }
-  g.innerHTML=h||'<p style="grid-column:1/-1;text-align:center;padding:3rem;color:#6b6040">'+(ACTIVE_CAT==='All'?'No products yet.':'No products in this category.')+'</p>';
+  var emptyMsg=searchTerm?'No products match "'+STORE_SEARCH+'".':(ACTIVE_CAT==='All'?'No products yet.':'No products in this category.');
+  g.innerHTML=h||'<p style="grid-column:1/-1;text-align:center;padding:3rem;color:#6b6040">'+emptyMsg+'</p>';
   renderComingSoon();
   renderFeatured();
   renderGallery();
