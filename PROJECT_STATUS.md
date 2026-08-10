@@ -5,6 +5,81 @@
 
 ---
 
+## Current state — 2026-08-10 (Per-device In-Person checkout override shipped to production; a real BOM gotcha found in `BWEHDBSPromote`'s own version-bump snippet)
+
+**Feature: per-device In-Person checkout override, now live in production.** Session started with
+the user asking how to log into "in-person pricing" — there is no separate login; it's the existing
+`payment_configuration` setting (Online | InPerson | Test) in admin Settings, which affects every
+visitor site-wide. The user then asked for a way to tell when *this device* is running its own
+local override without affecting the global setting. That per-device override turned out to
+**already exist**, sitting as uncommitted local changes from a prior session (all 7 files were
+already modified on disk when this session began: `css/shop.css`, `js/admin-orders.js`,
+`js/config.js`, `js/ui.js`, `public/index.html`, `src/settings.ts`, `version.json`) and had already
+been ad-hoc deployed to staging (confirmed by curling `staging.handmadedesignsbysuzi.com/js/ui.js`
+and finding `getDeviceOverride`/`updatePayOverrideBanner` already present there). Production had not
+been touched. Nothing new was written this session for the feature itself — the work was
+discovering/confirming the existing state, then shipping it:
+
+- **Storefront**: a dismissible gold banner (`#device-override-banner`, top of the store page)
+  reads "📍 In-Person Mode active on this device until X:XX AM/PM — tap to turn off" whenever
+  `localStorage`'s `hdbs_device_payconf` override is active; hidden otherwise. Tapping it calls
+  `clearDeviceOverride()`.
+- **Admin → Settings → Payment Configuration → "This Device Only"**: `renderDeviceOverrideStatus()`
+  shows the same status + a Turn Off button when active, or an "Enable In-Person Mode on this
+  device" button when not.
+- The override is `localStorage`-only (key `hdbs_device_payconf`, `{mode, expires}`), auto-expires
+  at local midnight, and never touches the shared `settings` table — `PAY_CONFIG` (what checkout
+  code reads) now resolves from the device override if present, else `GLOBAL_PAY_CONFIG` (the
+  persisted DB setting, renamed from the old single `PAY_CONFIG` variable to make the two-tier
+  precedence explicit in `js/config.js`).
+- `?inperson=1` in the URL (`checkInPersonParam()`) sets the same device override without going
+  through admin login at all — meant for a bookmark/QR code on a market/craft-fair tablet.
+- `src/settings.ts` now includes `payment_configuration` in `PUBLIC_SETTING_KEYS` so the Worker
+  actually serves it (was missing before this session, would have 403'd/omitted the setting for
+  non-admin reads).
+
+**Ran the full `/BWEHDBSAll` chain** (Checkpoint → Promote → End) to ship the above:
+
+- **Checkpoint**: `npm test` — 499/499 passed across 31 files; `npm run typecheck` — clean. Staged
+  the 7 files by name, committed as `19be632b` ("Add per-device In-Person checkout override with
+  visible status indicators"), pushed to `cloudflare-migration`.
+- **Promote**: re-ran tests/typecheck clean, bumped `version.json` `4.31.0` → `4.32.0`, captured the
+  pre-deploy live Version ID (`2b0f7407-5d8b-45a7-ab26-926283567a98`) for rollback safety.
+  - **New gotcha found and fixed**: `BWEHDBSPromote`'s own documented PowerShell snippet
+    (`... | Set-Content version.json -Encoding utf8`) writes a **UTF-8 BOM** on this system's
+    Windows PowerShell 5.1. `scripts/stamp-deploy-time.mjs` does a plain `JSON.parse` with no BOM
+    stripping, so the very first `npx wrangler deploy` failed outright at the custom-build step
+    (`SyntaxError: Unexpected token '﻿'`) before anything was uploaded — a real, reproducible bug in
+    the skill's own steps, not a one-off. Fixed by rewriting `version.json` via a plain UTF-8
+    (no-BOM) write instead of PowerShell's `Set-Content -Encoding utf8`; confirmed with `xxd` (no
+    `efbbbf` prefix) and `JSON.parse` before retrying. **The `BWEHDBSPromote` skill's PowerShell
+    snippet should be fixed** (e.g. `[System.IO.File]::WriteAllText(...)` with a UTF8Encoding
+    constructed with `$false` for the BOM flag, or pipe through a tool that doesn't add one) so
+    future promotions don't hit this same failure on the first attempt.
+  - Retried `npx wrangler deploy --env ""` after the fix: succeeded. Both custom domains deployed
+    (`handmadedesignsbysuzi.com`, `www.handmadedesignsbysuzi.com`). Saw the already-documented
+    non-fatal cron-trigger-cap error (`10072`, `hdbs` has no `scheduled()` handler) — ignored per
+    the skill's own guidance, no functional impact.
+  - Real health check passed: `GET /api/health` → `{"ok":true,"environment":"production","phase":0}`;
+    `GET /api/products.php` → real, non-empty product catalog. No rollback needed.
+  - New live Version ID: `a825e317-7639-433d-bc0a-1e0168e3424b`. Committed the version bump as
+    `b59ca066` ("Bump version to 4.32.0 for production release"), pushed to `cloudflare-migration`.
+- **Both commits hit a benign `git` warning** on this machine: `fatal: renaming pack to
+  '.git/objects/pack/pack-....pack' failed: File exists` / `error: failed to perform geometric
+  repack`. This is git's own background maintenance (an auto-gc/repack task) racing the commit, not
+  a commit failure — both commits landed cleanly (`git status` clean afterward, `git log` shows
+  them, both pushed successfully). Noting it here only because it looks alarming in the raw output;
+  no action was needed.
+
+**Production is now live on `4.32.0`** with the In-Person per-device override feature shipped.
+Nothing left uncommitted or undeployed from this session as of this writeup.
+
+**Immediate next step**: none required — the feature is live and working. If it's worth doing later:
+fix `BWEHDBSPromote`'s `SKILL.md` PowerShell snippet to avoid the BOM (see above), so the next
+promotion doesn't have to rediscover and work around it live.
+
+---
+
 ## Current state — 2026-08-02 (Session end: staging repoint LIVE; first BWEHDBSAll run)
 
 **Staging Custom Domain route is live.** `wrangler.jsonc`'s `env.staging.routes` now points
