@@ -5,6 +5,34 @@
 
 ---
 
+## Current state — 2026-08-10 (BOM fix confirmed on a real promotion: `4.33.0` shipped cleanly)
+
+**Follow-up to the entry directly below.** That session fixed `BWEHDBSPromote`'s BOM bug and
+verified the fix against a throwaway scratch copy of `version.json`, not a real deploy. This
+session ran `/BWEHDBSPromote` for real (user-invoked, no code changes since the last promotion —
+this was purely to exercise the fixed skill end-to-end) to confirm it actually works in production
+use, not just in isolation:
+
+- `npm test` (499/499) and `npm run typecheck` — clean.
+- `version.json` bumped `4.32.0` → `4.33.0` via the fixed snippet, this time on the real file.
+  Confirmed no BOM (`xxd`, no `efbbbf` prefix) and valid JSON before deploying.
+- `npx wrangler deploy` **succeeded on the first attempt** — no `SyntaxError`, no BOM-related
+  failure. This is the real confirmation the earlier fix works, not just the scratch test.
+  Both custom domains deployed (`handmadedesignsbysuzi.com`, `www.handmadedesignsbysuzi.com`). Saw
+  the already-documented non-fatal cron-trigger-cap error again (expected, harmless, ignored).
+- Real health check passed: `GET /api/health` → `{"ok":true,"environment":"production","phase":0}`;
+  `GET /api/products.php` → real, non-empty product catalog. No rollback needed.
+- New live Version ID: `443c04b2-0c37-47d4-bd12-fdb898c9b14d`. Committed as `c7f06b54` ("Bump
+  version to 4.33.0 for production release"), pushed to `cloudflare-migration`.
+
+**Production is live on `4.33.0`.** Nothing left uncommitted or undeployed. The `BWEHDBSPromote`
+BOM fix from the prior session entry is now considered fully verified — no more open follow-up on
+it.
+
+**Immediate next step**: none.
+
+---
+
 ## Current state — 2026-08-10 (Per-device In-Person checkout override shipped to production; a real BOM gotcha found in `BWEHDBSPromote`'s own version-bump snippet)
 
 **Feature: per-device In-Person checkout override, now live in production.** Session started with
