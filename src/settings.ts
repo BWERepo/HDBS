@@ -29,6 +29,7 @@ export const PUBLIC_SETTING_KEYS = [
   "square_app_id",
   "square_location_id",
   "confirm_token",
+  "payment_configuration",
   "major_version",
   "minor_version",
   "debug_mode",

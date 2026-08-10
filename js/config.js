@@ -9,7 +9,8 @@ var PAYPAL_ENV=(typeof location!=='undefined'&&location.hostname.indexOf('stagin
 var PAYPAL_CLIENT_ID=PAYPAL_ENV==='sandbox'
   ?'AeLp6VykU5cLKw3C46hNoMSrvNuWd2orb7GUAPNcO2iC2DNoVUZdDsHvV_87SFIQPi2B9u4ftpc8A956'
   :'AWkhrKpgPtTwVMV-Pr3bA-YJR7slMqHz1Verxn7vp-pQQKnbQN5FUeZlVFb9W_bDt5DNjYw_37HVz5B1';
-var PAY_CONFIG='Online'; // global store payment mode: Online | InPerson | Test
+var PAY_CONFIG='Online'; // effective store payment mode checkout code reads: Online | InPerson | Test
+var GLOBAL_PAY_CONFIG='Online'; // persisted global setting, shown/edited by the admin dropdown
 var SQ_FEE_PCT=2.6;
 var SQ_FEE_CENTS=0.10;
 var PP_FEE_PCT=3.49;

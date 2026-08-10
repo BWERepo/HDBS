@@ -1855,9 +1855,24 @@ function emailLog(){
 
 
 function setPayConfig(mode){
-  PAY_CONFIG=mode;
+  GLOBAL_PAY_CONFIG=mode;
   apiFetch('admin.php','POST',{action:'save_setting',key:'payment_configuration',value:mode}).catch(function(){});
+  if(typeof applyDeviceOverride==='function')applyDeviceOverride();
   var ok=document.getElementById('payconf-ok');if(ok){ok.style.display='block';setTimeout(function(){ok.style.display='none';},1500);}
+}
+function renderDeviceOverrideStatus(){
+  var box=document.getElementById('device-override-status');
+  if(!box)return;
+  var ov=(typeof getDeviceOverride==='function')?getDeviceOverride():null;
+  if(!ov){
+    box.innerHTML='<button class="bp" onclick="setDeviceOverride(\'InPerson\')">Enable In-Person Mode on this device</button>';
+    return;
+  }
+  var d=new Date(ov.expires);
+  var hrs=d.getHours();var mins=String(d.getMinutes()).padStart(2,'0');
+  var timeStr=(hrs%12||12)+':'+mins+' '+(hrs<12?'AM':'PM');
+  box.innerHTML='<div class="aok" style="display:block;margin-bottom:.6rem">📍 In-Person Mode active on this device until '+timeStr+'.</div>'+
+    '<button class="bp" onclick="clearDeviceOverride()">Turn Off</button>';
 }
 function setSquareMode(mode){
   SQUARE_MODE=mode;
@@ -1893,9 +1908,14 @@ function rSettingsInner(el){
     '<div style="font-weight:700;margin-bottom:.4rem">💳 Payment Configuration</div>'+
     '<div style="font-size:.8rem;color:#6b6040;margin-bottom:.9rem;line-height:1.6">Controls the storefront checkout. <strong>Online</strong>: customers pay by credit card via Square. <strong>InPerson</strong>: customers choose cash, check, or credit card (shipping optional). <strong>Test</strong>: checkout is simulated &mdash; no payment is taken.</div>'+
     '<select class="afi" id="payconf-sel" onchange="setPayConfig(this.value)">'+
-      ['Online','InPerson','Test'].map(function(m){return'<option'+(PAY_CONFIG===m?' selected':'')+'>'+m+'</option>';}).join('')+
+      ['Online','InPerson','Test'].map(function(m){return'<option'+(GLOBAL_PAY_CONFIG===m?' selected':'')+'>'+m+'</option>';}).join('')+
     '</select>'+
     '<div class="aok" id="payconf-ok" style="display:none">Saved!</div>'+
+    '<div style="border-top:1px solid #e8e0b8;margin:1rem 0 .8rem;padding-top:.9rem">'+
+      '<div style="font-weight:700;margin-bottom:.4rem">📍 This Device Only</div>'+
+      '<div style="font-size:.8rem;color:#6b6040;margin-bottom:.8rem;line-height:1.6">Forces In-Person checkout (cash, check, or credit card; shipping optional) on this browser only &mdash; the rest of the live site keeps serving the setting above. Expires automatically at midnight tonight. Handy for selling in person at a market or car show while the online store stays open.</div>'+
+      '<div id="device-override-status"></div>'+
+    '</div>'+
   '</div>'+
   '<div style="background:#fff;border-radius:10px;border:1px solid #e8e0b8;padding:1.2rem;margin-bottom:1.2rem">'+
     '<div style="font-weight:700;margin-bottom:.4rem">🧪 Square Payment Mode</div>'+
@@ -1991,8 +2011,9 @@ function rSettingsInner(el){
   }).catch(function(){});
   // Load saved Payment Configuration from DB so the dropdown reflects the persisted value (not the page-load default)
   apiFetch('admin.php','POST',{action:'get_setting',key:'payment_configuration'}).then(function(d){
-    if(d&&d.success&&d.value){PAY_CONFIG=d.value;var sel=document.getElementById('payconf-sel');if(sel)sel.value=d.value;}
+    if(d&&d.success&&d.value){GLOBAL_PAY_CONFIG=d.value;var sel=document.getElementById('payconf-sel');if(sel)sel.value=d.value;}
   }).catch(function(){});
+  renderDeviceOverrideStatus();
   // Load saved Square Payment Mode from DB so the dropdown reflects the persisted value (not the page-load default)
   apiFetch('admin.php','POST',{action:'get_setting',key:'square_mode'}).then(function(d){
     if(d&&d.success&&d.value){

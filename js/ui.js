@@ -66,7 +66,57 @@ window.addEventListener('scroll',function(){
   }
 },{passive:true});
 
+// ── PER-DEVICE IN-PERSON OVERRIDE ──
+// Lets one browser/device run InPerson-style checkout (cash/check/optional shipping) while
+// the rest of the live site keeps serving the global payment_configuration setting. Stored
+// client-side only (never touches the shared settings table), auto-expires at local midnight.
+function getDeviceOverride(){
+  try{
+    var raw=localStorage.getItem('hdbs_device_payconf');
+    if(!raw)return null;
+    var o=JSON.parse(raw);
+    if(!o||!o.mode||!o.expires)return null;
+    if(Date.now()>=o.expires){localStorage.removeItem('hdbs_device_payconf');return null;}
+    return o;
+  }catch(e){return null;}
+}
+function setDeviceOverride(mode){
+  var midnight=new Date();
+  midnight.setHours(24,0,0,0);
+  try{localStorage.setItem('hdbs_device_payconf',JSON.stringify({mode:mode,expires:midnight.getTime()}));}catch(e){}
+  applyDeviceOverride();
+}
+function clearDeviceOverride(){
+  try{localStorage.removeItem('hdbs_device_payconf');}catch(e){}
+  applyDeviceOverride();
+}
+function applyDeviceOverride(){
+  var ov=getDeviceOverride();
+  PAY_CONFIG=ov?ov.mode:GLOBAL_PAY_CONFIG;
+  if(typeof updateInPersonUI==='function')updateInPersonUI();
+  updatePayOverrideBanner();
+  if(document.getElementById('device-override-status')&&typeof renderDeviceOverrideStatus==='function')renderDeviceOverrideStatus();
+}
+function updatePayOverrideBanner(){
+  var banner=document.getElementById('device-override-banner');
+  if(!banner)return;
+  var ov=getDeviceOverride();
+  if(!ov){banner.style.display='none';return;}
+  var d=new Date(ov.expires);
+  var hrs=d.getHours();var mins=String(d.getMinutes()).padStart(2,'0');
+  var timeStr=(hrs%12||12)+':'+mins+' '+(hrs<12?'AM':'PM');
+  banner.textContent='📍 In-Person Mode active on this device until '+timeStr+' — tap to turn off';
+  banner.style.display='block';
+}
+function checkInPersonParam(){
+  var params=new URLSearchParams(window.location.search);
+  if(params.get('inperson')==='1'){
+    history.replaceState({},'',window.location.pathname);
+    setDeviceOverride('InPerson');
+  }
+}
 function tryLoad(){
+  applyDeviceOverride();
   // Load Square fee config
   apiFetch('admin.php','POST',{action:'get_setting',key:'square_fees'}).then(function(d){
     if(d.success&&d.value){try{var f=JSON.parse(d.value);SQ_FEE_PCT=f.pct||2.6;SQ_FEE_CENTS=f.cents||0.10;}catch(e){}}
@@ -96,7 +146,7 @@ function tryLoad(){
       try{localStorage.setItem('suzi_products_cache',JSON.stringify(stripImgs(PRODS)));}catch(e){}
       renderStore();injectProductSchemas();
     }
-    checkThankYou();checkProductParam();checkOrdersLink();
+    checkThankYou();checkProductParam();checkInPersonParam();checkOrdersLink();
   }).catch(function(){renderStore();checkThankYou();checkOrdersLink();});
   // Load reviews
   loadReviews();
@@ -121,9 +171,11 @@ function tryLoad(){
   apiFetch('admin.php','POST',{action:'get_setting',key:'shipping_config'}).then(function(d){
     if(d.success&&d.value){try{applyShippingConfig(JSON.parse(d.value));}catch(e){}}
   }).catch(function(){});
-  // Load Payment Configuration from DB - applies to all browsers (Online | InPerson | Test)
+  // Load Payment Configuration from DB - the global default for all browsers (Online | InPerson | Test).
+  // A device-local override (see applyDeviceOverride) takes precedence over this on the current device only.
   apiFetch('admin.php','POST',{action:'get_setting',key:'payment_configuration'}).then(function(md){
-    if(md.success&&md.value)PAY_CONFIG=md.value;
+    if(md.success&&md.value)GLOBAL_PAY_CONFIG=md.value;
+    applyDeviceOverride();
   }).catch(function(){});
   // Load Square Payment Mode from DB - overrides the hostname-based default (live | test)
   apiFetch('admin.php','POST',{action:'get_setting',key:'square_mode'}).then(function(md){

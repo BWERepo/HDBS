@@ -237,6 +237,8 @@ footer{background:var(--charcoal);color:rgba(255,255,255,.65);text-align:center;
 .atop{background:#fff;border-bottom:1px solid #e8e0b8;padding:.8rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 #apanel.test-mode .atop{border-top:none;position:relative;padding-top:2.6rem}
 #apanel.test-mode .atop::before{content:'TEST MODE — No real payments';position:absolute;top:0;left:0;right:0;background:#e65100;color:#fff;font-size:.8rem;font-weight:700;letter-spacing:.08em;text-align:center;padding:.5rem 1rem;line-height:1.4;display:block;box-sizing:border-box}
+#device-override-banner{background:#a07810;color:#fff;font-size:.8rem;font-weight:700;letter-spacing:.03em;text-align:center;padding:.55rem 1rem;line-height:1.4;cursor:pointer}
+#device-override-banner:hover{background:#8a680d}
 .atop span{font-size:1.1rem;font-weight:600;color:#2d2220}
 .acnt{padding:1.5rem;flex:1}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:.8rem;margin-bottom:1.4rem}
