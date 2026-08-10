@@ -74,9 +74,20 @@ discovering/confirming the existing state, then shipping it:
 **Production is now live on `4.32.0`** with the In-Person per-device override feature shipped.
 Nothing left uncommitted or undeployed from this session as of this writeup.
 
-**Immediate next step**: none required — the feature is live and working. If it's worth doing later:
-fix `BWEHDBSPromote`'s `SKILL.md` PowerShell snippet to avoid the BOM (see above), so the next
-promotion doesn't have to rediscover and work around it live.
+**`BWEHDBSPromote`'s BOM bug fixed the same session, before wrap-up.** Replaced the
+`ConvertTo-Json | Set-Content -Encoding utf8` snippet (step 2 of that skill) with a targeted
+string-replace on the raw file text + `[System.IO.File]::WriteAllText(..., UTF8Encoding($false))`,
+which writes no BOM and — as a bonus — preserves `version.json`'s existing 2-space/single-space
+formatting instead of reformatting the whole file the way `ConvertTo-Json`'s round-trip did.
+Verified against a scratch copy: bumped `4.32.0` → `4.33.0` correctly, `deployedAt` left untouched,
+`xxd` confirmed no `efbbbf` BOM prefix, `ConvertFrom-Json` parsed cleanly. This lives in
+`C:\Users\Admin\.claude\skills\BWEHDBSPromote\SKILL.md`, outside this repo (that directory isn't
+meaningfully version-controlled — checked, it resolves to an incidental git repo rooted at the
+user's home directory with everything else untracked — so there's no commit/push step for this
+fix; it's already in effect for the next promotion).
+
+**Immediate next step**: none. The feature is live, and the promote-skill bug that shipped it is
+already fixed for next time.
 
 ---
 
