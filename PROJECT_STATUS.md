@@ -5,6 +5,115 @@
 
 ---
 
+## Current state — 2026-08-12 (Nightly backup rewritten as a real `pg_dump`; a password exposed mid-session was rotated same-day)
+
+**No app code changed, nothing deployed, no version bump.** This session touched only
+`backup_hdbs.ps1` (Windows Task Scheduler script, outside the Worker/repo build) and Windows
+Credential Manager. Surfaced while working on the **separate** BWE repo's DR database-consolidation
+plan, which flagged `backup_hdbs.ps1` as backing up an abandoned database — investigating that
+turned into three separate fixes.
+
+### 1. Two bugs found in the existing script, both hiding the other
+
+`backup_hdbs.ps1` hits `api/db_backup.php?download=1`. Before the 2026-08-02 Cloudflare/Supabase
+cutover that returned a MySQL dump starting with `-- Handmade Designs By Suzi`; after the cutover
+the same route, now served by the Worker, began returning a **JSON data export** of the Supabase
+tables instead, starting with `{`. Two bugs then combined to hide the real state completely:
+
+- **Stale validation.** The script still checked for the old MySQL header, so it logged `FAILED`
+  every single night from 2026-08-03 onward — ten straight nights of false alarms — while the
+  download was actually succeeding.
+- **Swallowed exit code.** The `catch` block logged the error and returned normally, so the script
+  always exited `0`. Task Scheduler showed "The operation completed successfully" regardless of
+  what the log said. **Both signals were wrong, in opposite directions**: the log cried wolf, the
+  scheduler said everything was fine.
+
+Fixed first, independent of the rewrite below: validation now checks the JSON shape actually
+received (non-empty `tables` array, present `data` object — catches an auth failure or error page,
+which are *also* valid JSON), and the `catch` now rethrows so a real failure exits non-zero and
+Task Scheduler reports honestly.
+
+### 2. The JSON export itself was inadequate — rewritten as `pg_dump`
+
+Even fixed, the artifact was a **data export, not a backup**: rows only, no DDL, no RLS policies,
+no functions, no indexes, no sequences — restorable as data, not rebuildable as a database. It also
+only covered **20 of the 21 live tables**; `app_log` was missing from the Worker's own
+`BACKUP_TABLES` list (`src/db-backup.ts`, still unfixed — see Known follow-ups). Staging was never
+backed up at all.
+
+`backup_hdbs.ps1` now runs a real `pg_dump` against **both** Supabase projects (prod
+`ckiyvsejstptrnwkinir`, staging `ukzhnizosofbkwcpuvye`), each attempted independently so one
+paused/unreachable environment can't block the other's backup, each verified against pg_dump's own
+`PostgreSQL database dump complete` trailer so a truncated dump can't pass as a success. Output
+files: `<timestamp>HDBS-prod.sql`, `<timestamp>HDBS-staging.sql` (new `-prod`/`-staging` suffix, so
+they don't collide with the old `<timestamp>HDBS.sql` naming — those older files are MySQL dumps up
+to 2026-08-02 and JSON exports from 2026-08-03, both still readable as history). The
+`/api/db_backup.php` route and its `HDBS-Backup-Token` credential are untouched; this script simply
+no longer depends on them.
+
+**Verified against the live databases before writing the script**: both projects connect and both
+report **21 tables** (confirming the JSON export's 20-table gap), and a completed prod dump was
+inspected directly — 55 `CREATE TABLE`, 48 functions, 91 indexes, `app_log` present, 0
+`CREATE POLICY` (correct — HDBS runs RLS enabled with zero policies by design, service-role only,
+not a gap in the dump).
+
+**⚠ Restore note**: pg_dump 17 emits `\restrict`/`\unrestrict` meta-commands in its output. These
+are `psql`-only and are a syntax error if pasted into a web SQL editor — restore these with `psql`,
+not a browser-based editor.
+
+### 3. Security incident during credential setup — caught and closed same session
+
+Storing the two new DB passwords in Credential Manager needs `New-StoredCredential`, a PowerShell
+cmdlet. It was first run in **`cmd`, not PowerShell** — `cmd` didn't recognize it and fell through
+to `npx`, which tried to resolve `New-StoredCredential` as an npm package. The attempted password
+(containing `&`/`#`, both cmd-special) was visible in terminal scrollback and was **written in
+plaintext into two npm debug logs** (`%LOCALAPPDATA%\npm-cache\_logs\...debug-0.log`).
+
+Caught immediately. **The exposed password was rotated in the Supabase dashboard before it was ever
+stored or used** — it was never live in Credential Manager. The two debug logs containing the old
+password were deleted. Correct pattern established and used for both projects going forward:
+
+```powershell
+Import-Module CredentialManager
+$p = Read-Host "HDBS prod DB password" -AsSecureString
+New-StoredCredential -Target "HDBS-Supabase-DB-Prod" -UserName "postgres" -SecurePassword $p -Persist LocalMachine
+Remove-Variable p
+```
+
+`Read-Host -AsSecureString` keeps the value out of scrollback, `Get-History`, and process arguments
+— the same reasoning `backup_hdbs.ps1` already used for passing the password to `pg_dump` via the
+`PGPASSWORD` environment variable rather than a connection-string argument.
+
+Both credentials (`HDBS-Supabase-DB-Prod`, `HDBS-Supabase-DB-Staging`, user `postgres`) are now
+correctly stored, and a live end-to-end run of the rewritten script succeeded against both.
+
+### 4. One more disk-contention incident, cleaned up
+
+Later the same run, `backup_hdbs.ps1`'s repo-zip step (large — includes `node_modules`) was
+competing with a concurrent BWE staging build for I/O on the same `Z:` volume; the zip step was
+killed at explicit request to unblock the other job. The two `pg_dump` outputs from that run had
+already completed and logged successfully before the kill and were unaffected. The resulting
+partial 4.2GB zip (no completion log line, genuinely invalid) was deleted rather than left behind
+to be mistaken for a real backup. A clean re-run of the full script (both dumps + zip) is still
+worth doing once nothing else is writing to `Z:`.
+
+### Known follow-ups
+
+- **`app_log` is still missing from `src/db-backup.ts`'s `BACKUP_TABLES` list** — irrelevant to the
+  new `pg_dump`-based backup (which takes every table regardless of that list), but the list itself
+  is still wrong and may matter if anything else in the app relies on it.
+- **HDBS's declared Supabase keepalive cron does not exist in code.** `wrangler.jsonc` declares
+  `"0 */6 * * *"` but `src/index.ts` exports a bare Hono app with no `scheduled()` handler — the
+  cron never fires (emits a harmless `10072` on every deploy, already known/ignored), so free-tier
+  auto-pause is unmitigated on both HDBS projects.
+- **The exFAT volume (`Z:`) both databases' backups now land on** demonstrated it can silently
+  corrupt a directory entry earlier the same day (see the BWE repo's `PROJECT_STATUS.md`,
+  2026-08-12 Part 3). Not HDBS-specific, but this backup now depends on that same volume.
+- A full clean run of `backup_hdbs.ps1` (both dumps + zip, nothing else competing for `Z:`) hasn't
+  happened since the disk-contention kill above — worth doing once convenient.
+
+---
+
 ## Current state — 2026-08-10 (BOM fix confirmed on a real promotion: `4.33.0` shipped cleanly)
 
 **Follow-up to the entry directly below.** That session fixed `BWEHDBSPromote`'s BOM bug and
