@@ -14,6 +14,7 @@ import { Hono } from "hono";
 import type { Env } from "./types";
 import { securityHeaders, redirectWwwToApex } from "./lib/security-headers";
 import { cors } from "./lib/cors";
+import { timingSafeEqual } from "./lib/http";
 import { adminRoute } from "./routes/admin";
 import { productsRoute } from "./routes/products";
 import { ordersRoute } from "./routes/orders";
@@ -69,15 +70,73 @@ app.route("/", dbBackupRoute);
 // Legacy bookmarks and cached links — carried over from .htaccess lines 8-10.
 app.get("/index.html", (c) => c.redirect("/", 301));
 
-app.get("/api/health", (c) =>
-  c.json({
-    ok: true,
+// The Supabase reachability check the Phase 0 stub always promised. Built during the DR
+// consolidation (DR_CONSOLIDATION_PLAN.md in the BusinessWebExpress repo) after a staging cutover
+// burned several deploy cycles on a wrong SUPABASE_URL/KEY pair that could only be diagnosed by
+// tailing the Worker: `wrangler secret put` is write-only, so nothing could report which project
+// the Worker was actually talking to. This answers that in one request.
+//
+// The public response stays deliberately thin — `ok` and `environment` only. Everything that
+// identifies infrastructure (Supabase host, schema, the driving error text) requires SMOKE_TOKEN
+// via X-Smoke-Token. That secret has been declared in Env since Phase 0 for exactly this purpose
+// and currently has no consumer; this is it. An anonymous caller learns whether the site is
+// healthy, which is all a health check owes the public.
+app.get("/api/health", async (c) => {
+  const supplied = c.req.header("X-Smoke-Token") ?? "";
+  const detailed = supplied !== "" && timingSafeEqual(supplied, c.env.SMOKE_TOKEN ?? "");
+
+  let dbOk = false;
+  let dbError: string | null = null;
+  try {
+    // Cheapest round trip that still proves all three things at once: the key authenticates, the
+    // schema resolves, and the grants allow a read.
+    //
+    // NOT `{ head: true }`, which is otherwise the natural choice here. A HEAD request has no
+    // response body, so supabase-js has no JSON to parse and hands back an error whose `message`
+    // is empty — the check still fails correctly but reports nothing about why. That cost a deploy
+    // cycle during the DR cutover: "db unreachable … error=" is a worse diagnostic than no
+    // diagnostic, because it looks like the check itself is broken. One row is cheap; keep it.
+    const { error } = await createDb(c.env).from("settings").select("key_name").limit(1);
+    if (error) dbError = `${error.code ?? "?"}: ${error.message || "(no message)"}${error.hint ? ` hint=${error.hint}` : ""}`;
+    else dbOk = true;
+  } catch (e) {
+    dbError = e instanceof Error ? e.message : String(e);
+  }
+
+  // On failure, put the same three facts into the Worker log, where `wrangler tail` can reach them
+  // without SMOKE_TOKEN. Deliberately host-only and error-only: enough to tell "wrong project"
+  // from "wrong schema" from "wrong key" at a glance, with no secret material. This is exactly the
+  // information whose absence made the DR staging cutover a guessing game.
+  if (!dbOk) {
+    console.error(
+      `health: db unreachable host=${safeHost(c.env.SUPABASE_URL)} schema=${c.env.SUPABASE_DB_SCHEMA ?? "public"} error=${dbError}`
+    );
+  }
+
+  return c.json({
+    ok: dbOk,
     environment: c.env.ENVIRONMENT,
-    // Phase 0 marker. Once src/db.ts exists this grows a Supabase reachability check, which is
-    // what the deploy skills actually gate on.
-    phase: 0,
-  })
-);
+    ...(detailed
+      ? {
+          schema: c.env.SUPABASE_DB_SCHEMA ?? "public",
+          // Host only, never the key. The project ref is the one fact that disambiguates "which
+          // project is this Worker pointed at" — the question that was unanswerable above.
+          supabaseHost: safeHost(c.env.SUPABASE_URL),
+          dbError,
+        }
+      : {}),
+  });
+});
+
+/** Host of a URL, or a marker — never throws, so even a malformed secret yields a usable answer. */
+function safeHost(raw: string | undefined): string {
+  if (!raw) return "(unset)";
+  try {
+    return new URL(raw).host;
+  } catch {
+    return "(unparseable)";
+  }
+}
 
 // ── SPA catch-all ──
 // The admin back office routes client-side on the #/admin hash, so a deep link or a refresh can
