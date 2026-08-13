@@ -21,6 +21,14 @@ export interface Env {
   EMAIL_MODE: "live" | "sink";
   /** Optional: on staging, allow real sends but only ever to this one address. */
   EMAIL_SINK_OVERRIDE?: string;
+  /**
+   * Postgres schema this Worker's tables live in. Part of the DR consolidation that collapses
+   * the three Supabase projects into one (see the BusinessWebExpress repo's
+   * DR_CONSOLIDATION_PLAN.md): each site-per-environment gets its own schema in a single project.
+   * Optional, and db.ts falls back to "public" — so a Worker deployed without the var keeps
+   * reading the schema it always did rather than silently pointing at a different site's data.
+   */
+  SUPABASE_DB_SCHEMA?: string;
 
   // ── Secrets (wrangler secret put) ──
   SUPABASE_URL: string;

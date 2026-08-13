@@ -32,9 +32,21 @@ import type { RefundsStore, RefundRow } from "./refunds";
 import type { DbBackupStore } from "./db-backup";
 import type { AppLogStore, AppLogFile, AppLogEntry } from "./app-log";
 
+// The single runtime Supabase client. `db.schema` is what routes every `.from("…")` below at the
+// DR project's per-site schemas (hdbs_staging / hdbs_prod) without touching any of the ~250 table
+// name literals — which matters because HDBS has no generated types, so `tsc` would not have
+// caught a rename. The "public" fallback is deliberate: an unset var means "behave exactly as
+// before", not "guess", so a Worker that misses the var reads its own old schema rather than
+// another site's rows.
 export function createDb(env: Env): SupabaseClient {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
+    // The `as "public"` is a type-level lie and nothing more, the same one BusinessWebExpress's
+    // src/integrations/supabase/db-schema.ts carries for the same reason: supabase-js types
+    // `db.schema` as a literal drawn from the client's schema generic, so a plain `string` leaves
+    // that generic unresolved and the annotated return type stops matching. Safe because the
+    // schemas are structural clones of each other — nothing reads this value as a type at runtime.
+    db: { schema: (env.SUPABASE_DB_SCHEMA || "public") as "public" },
   });
 }
 

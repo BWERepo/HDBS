@@ -54,7 +54,13 @@
     // Resend's one-verified-domain-per-account free-tier limit turned out to already be used by a
     // sibling project. mail.handmadedesignsbysuzi.com is authenticated and verified on Brevo,
     // confirmed with a real test send (Brevo's own delivery event log, not just an API 200).
-    "EMAIL_MODE": "live"
+    "EMAIL_MODE": "live",
+    // DR consolidation (BusinessWebExpress repo's DR_CONSOLIDATION_PLAN.md). Production still
+    // points at its own Supabase project, where the tables are in `public` — this stays "public"
+    // until Step 3 moves them into the shared DR project, then becomes "hdbs_prod". Declared
+    // explicitly rather than left to db.ts's fallback so the value is greppable in both blocks;
+    // see the [env] no-merge warning at the top of this file.
+    "SUPABASE_DB_SCHEMA": "public"
   },
 
   // Phase 9 cutover: uncommented 2026-08-02 (see docs/phase-9-cutover-checklist.md's Phase B —
@@ -80,7 +86,12 @@
       "name": "hdbs-staging",
       "vars": {
         "ENVIRONMENT": "staging",
-        "EMAIL_MODE": "sink"
+        "EMAIL_MODE": "sink",
+        // DR Step 2: staging reads its own schema in the shared DR project
+        // (qrsydsglkgampabirejz). Requires this Worker's SUPABASE_URL /
+        // SUPABASE_SERVICE_ROLE_KEY secrets to point at that project, not the old staging one —
+        // the schema name alone is meaningless against the wrong project.
+        "SUPABASE_DB_SCHEMA": "hdbs_staging"
       },
       // Enabled 2026-08-02, after the production cutover — user decided to reclaim
       // staging.handmadedesignsbysuzi.com for the new Worker rather than keep it pointed at the
