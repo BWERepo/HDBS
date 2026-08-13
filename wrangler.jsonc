@@ -55,12 +55,13 @@
     // sibling project. mail.handmadedesignsbysuzi.com is authenticated and verified on Brevo,
     // confirmed with a real test send (Brevo's own delivery event log, not just an API 200).
     "EMAIL_MODE": "live",
-    // DR consolidation (BusinessWebExpress repo's DR_CONSOLIDATION_PLAN.md). Production still
-    // points at its own Supabase project, where the tables are in `public` — this stays "public"
-    // until Step 3 moves them into the shared DR project, then becomes "hdbs_prod". Declared
-    // explicitly rather than left to db.ts's fallback so the value is greppable in both blocks;
-    // see the [env] no-merge warning at the top of this file.
-    "SUPABASE_DB_SCHEMA": "public"
+    // DR consolidation Step 3, cut over 2026-08-13: production reads hdbs_prod in the shared DR
+    // project (qrsydsglkgampabirejz). Requires this Worker's SUPABASE_URL /
+    // SUPABASE_SERVICE_ROLE_KEY secrets to point at that project — the schema name alone is
+    // meaningless against the wrong project, and the old project has no hdbs_prod schema.
+    // Declared explicitly rather than left to db.ts's fallback so the value is greppable in both
+    // blocks; see the [env] no-merge warning at the top of this file.
+    "SUPABASE_DB_SCHEMA": "hdbs_prod"
   },
 
   // Phase 9 cutover: uncommented 2026-08-02 (see docs/phase-9-cutover-checklist.md's Phase B —
@@ -71,11 +72,20 @@
     { "pattern": "www.handmadedesignsbysuzi.com", "custom_domain": true }
   ],
 
-  // "0 */6 * * *" keeps the Supabase free tier from auto-pausing after 7 idle days.
-  // "0 4 * * *" prunes expired admin_sessions and rate_limits rows — the PHP never did.
-  "triggers": {
-    "crons": ["0 */6 * * *", "0 4 * * *"]
-  },
+  // NO "triggers"/"crons" block, deliberately — removed 2026-08-13 at DR Step 3.
+  //
+  // Two crons were declared here ("0 */6 * * *" keepalive, "0 4 * * *" prune) but src/index.ts
+  // exports a bare Hono app with no scheduled() handler, so NEITHER EVER RAN. They emitted a
+  // non-fatal 10072 on every deploy and consumed two of Cloudflare's five free-plan cron slots
+  // to do nothing.
+  //
+  // The keepalive is genuinely covered now: production shares the DR Supabase project, and BWE's
+  // real keepalive (tasks/keepalive/supabase.ts) hits it.
+  //
+  // ⚠️ The prune is NOT covered — deleting this declaration removes a promise, not a behaviour.
+  // Expired admin_sessions and rate_limits rows have never been pruned and still aren't. Both
+  // tables are tiny today (1 row each at cutover), so this is a cleanup task, not a problem: it
+  // needs a real scheduled() handler in src/index.ts before any cron declaration means anything.
 
   "observability": {
     "enabled": true
@@ -105,9 +115,8 @@
         { "binding": "R2_PUBLIC", "bucket_name": "hdbs-public-staging" },
         { "binding": "R2_PRIVATE", "bucket_name": "hdbs-private-staging" }
       ],
-      "triggers": {
-        "crons": ["0 */6 * * *"]
-      },
+      // Same removal as production, same reason — this cron never fired either (no scheduled()
+      // handler exists), and staging now shares the DR project that BWE's keepalive covers.
       "observability": {
         "enabled": true
       }
