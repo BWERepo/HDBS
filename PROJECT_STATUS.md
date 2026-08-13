@@ -5,10 +5,45 @@
 
 ---
 
-## Current state — 2026-08-13 (Staging cut over to the shared DR Supabase project; `/api/health` is a real check now; a `service_role` key exposed and replaced but NOT yet revoked)
+## Current state — 2026-08-13 (BOTH environments cut over to the shared DR Supabase project; production live on `hdbs_prod` as v4.34.0; `/api/health` is a real check now; a `service_role` key exposed, rotated and revoked)
 
-**Staging only. Production is untouched** — still its own Supabase project, still reading
-`public`, verified `200` at the end of the session. Two commits, no version bump, no promote.
+**HDBS now runs entirely on the shared DR project (`qrsydsglkgampabirejz`)** — staging on
+`hdbs_staging`, **production on `hdbs_prod`**, promoted as **v4.34.0**
+(`cbb29a06-bea9-4f0f-9d3b-340029a7c81d`), health-checked, no rollback. The old production
+project (`ckiyvsejstptrnwkinir`) is **untouched and remains a working fallback** until the DR
+plan's Step 5 soak completes.
+
+### The production cutover (DR Step 3)
+
+Done in the quiet window (~4:45am) with **under a minute of downtime**. `hdbs_prod` was loaded
+and verified first: **21 tables, 234 rows, exact row-count parity on every table**, RLS on all
+21, 3 functions pinned to `search_path=hdbs_prod`, 5 citext columns resolving to `extensions`,
+147 `service_role` grants and **zero** for `anon`/`authenticated` — re-probed over REST to
+confirm the schema is addressable but not readable.
+
+**The cutover could not follow staging's ordering rule, and the reason matters.** "Deploy, then
+rotate secrets" fails *loudly and harmlessly* on staging, but on production it means the store is
+down until the secrets land. The reverse is worse: with the var still `"public"`, the Worker
+would read **BWE production's `public` schema**, where `faqs` and `email_log` collide by name on
+write paths. So it ran as one tight window — `npx wrangler deploy` (**not**
+`/BWEHDBSPromote`, whose auto-rollback would have fought the intermediate state), rollback target
+`443c04b2-0c37-47d4-bd12-fdb898c9b14d` captured first, then `wrangler secret bulk` staged in the
+terminal beforehand so the rotation was a single keystroke. Verified back up with 47 products /
+11 FAQs / 1 review — matching the dump exactly.
+
+### Dead crons removed from both environments
+
+Neither cron ever fired: `src/index.ts` exports a bare Hono app with **no `scheduled()`
+handler**. They emitted a non-fatal `10072` on every deploy and consumed two of Cloudflare's five
+free-plan cron slots to do nothing. **The `10072` is now gone from deploy output** — which
+confirms the diagnosis after it had been written off for months as a known non-issue.
+
+⚠️ **The `0 4 * * *` prune is a real gap, not a removal.** Expired `admin_sessions` and
+`rate_limits` rows have never been pruned and still aren't; deleting the declaration removed a
+promise, not a behaviour. Both tables held 1 row at cutover, so this is a cleanup task — it needs
+a genuine `scheduled()` handler before any cron declaration here means anything.
+
+### Earlier the same session — staging (DR Step 2)
 
 ### What changed
 
