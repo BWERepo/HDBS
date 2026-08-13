@@ -47,16 +47,23 @@ session verified schema, rows and grants at the SQL level and reported all green
 query still failed `PGRST106`, because `hdbs_staging` was never added to Exposed schemas. Probe
 with `Accept-Profile:` over REST to check this, not SQL.
 
-### 🔴 Open — exposed key not yet revoked
+### ✅ Exposed key — replaced and revoked the same session
 
 The DR project's `default` secret key (`sb_secret_T_KH1…`) was echoed in plaintext by a bare
-`Read-Host` (use `-AsSecureString`). A replacement key was created and `hdbs-staging` moved onto
-it, **but `default` is still live** because its other consumers are unknown — possibly BWE's
-Workers, which would go down if it were revoked. That key reaches *every* schema in the shared
-project, including BWE production.
+`Read-Host` (use `-AsSecureString`). It reached *every* schema in the shared project, including
+BWE production — not just HDBS.
 
-Next session: identify every consumer of `default`, give each its own named key
-(`hdbs-staging-worker`, `hdbs-prod-worker`, `bwe-worker`), then revoke `default`.
+Which Worker held which key proved unanswerable by inspection: `wrangler secret list` returns
+names, never values. So instead of testing destructively, all three Workers were rotated onto
+their own named keys — `hdbs_staging_worker`, `bwe_prod_worker`, `bwe_staging_worker` — and
+`default` was revoked. All four sites verified `200` afterwards, twice.
+
+**Standing pattern: one named key per consumer.** `hdbs_prod_worker` at DR Step 3. An exposure
+then costs one revoke affecting one Worker.
+
+**To prove a service-role key before uploading it**, query a table RLS hides from `anon` —
+on the DR project, `email_templates` returns a row for a service key and `[]` for a publishable
+one. A `faqs` probe cannot tell them apart, since `anon` can read `faqs`.
 
 ### Verified
 
