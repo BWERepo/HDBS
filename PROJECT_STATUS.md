@@ -5,6 +5,68 @@
 
 ---
 
+## Current state — 2026-08-13 (Staging cut over to the shared DR Supabase project; `/api/health` is a real check now; a `service_role` key exposed and replaced but NOT yet revoked)
+
+**Staging only. Production is untouched** — still its own Supabase project, still reading
+`public`, verified `200` at the end of the session. Two commits, no version bump, no promote.
+
+### What changed
+
+**`692a4bfc2` — the Worker's Supabase client is schema-aware.** `src/db.ts`'s single
+`createClient` now takes `db: { schema: env.SUPABASE_DB_SCHEMA || "public" }`, so one var routes
+all ~250 `.from("…")` literals. None of them changed, which matters because this repo has no
+generated types and `tsc` would not have caught a rename. Staging's `wrangler.jsonc` var is
+`hdbs_staging`; production's is declared explicitly as `"public"` — `[env]` **replaces** rather
+than merges `vars`, so omitting it from one block is how a Worker silently reads a schema nobody
+chose. It becomes `hdbs_prod` at DR Step 3.
+
+The `as "public"` cast in `db.ts` is a type-level lie only, the same one BWE's `db-schema.ts`
+carries: supabase-js types `db.schema` as a literal from the client's schema generic, so a plain
+`string` leaves the generic unresolved.
+
+**`38fbe0758` — `/api/health` actually checks Supabase.** It returned a hardcoded `ok:true`,
+which means `/BWEHDBSPromote`'s "verify a real health check, automatically roll back on failure"
+could only ever fail on its `/api/products.php` probe. **The health half of that gate has been
+theater since Phase 0** — worth knowing when reading past promote logs. It now does a one-row
+read and reports `supabaseHost`, `schema` and the DB error, gated behind `SMOKE_TOKEN` via
+`X-Smoke-Token` (that secret had no consumer until now); the same facts go to `console.error` on
+failure, readable with `wrangler tail` without the token.
+
+Note this makes production promotes gate on database reachability for the first time. That is the
+intent — but it means a Supabase outage will now correctly block a promote and trigger rollback.
+
+### Two traps, both worth carrying into Step 3
+
+**Deploy the code BEFORE rotating the secrets.** Secrets apply immediately without a redeploy, so
+rotating first leaves the running build — no `SUPABASE_DB_SCHEMA` — pointed at the shared project
+and defaulting to `public`, which there is **BWE production**. `faqs` and `email_log` exist in
+both and are not read-only paths. Deploying first fails loudly and harmlessly instead.
+
+**PostgREST exposure is a dashboard setting, and SQL verification cannot see it.** The previous
+session verified schema, rows and grants at the SQL level and reported all green while every
+query still failed `PGRST106`, because `hdbs_staging` was never added to Exposed schemas. Probe
+with `Accept-Profile:` over REST to check this, not SQL.
+
+### 🔴 Open — exposed key not yet revoked
+
+The DR project's `default` secret key (`sb_secret_T_KH1…`) was echoed in plaintext by a bare
+`Read-Host` (use `-AsSecureString`). A replacement key was created and `hdbs-staging` moved onto
+it, **but `default` is still live** because its other consumers are unknown — possibly BWE's
+Workers, which would go down if it were revoked. That key reaches *every* schema in the shared
+project, including BWE production.
+
+Next session: identify every consumer of `default`, give each its own named key
+(`hdbs-staging-worker`, `hdbs-prod-worker`, `bwe-worker`), then revoke `default`.
+
+### Verified
+
+Health `ok:true`; `products.php` (47), `faqs.php` (11), `reviews.php` all serving real rows from
+`hdbs_staging`; staging home `200`. Anon probe with the publishable key returns `42501 permission
+denied` on `orders`, `customers` and `settings` — exposed but not readable, which is the design.
+Production `200`. 499/499 tests pass, typecheck clean.
+
+---
+
 ## Current state — 2026-08-12 (Nightly backup rewritten as a real `pg_dump`; a password exposed mid-session was rotated same-day)
 
 **No app code changed, nothing deployed, no version bump.** This session touched only
