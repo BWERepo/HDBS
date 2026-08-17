@@ -151,6 +151,13 @@ was nothing left for that file's credentials to protect.
 - Only run on an explicit "test" command (not after every change, not on checkpoint). On a test command: update the tests first, then run. See Workflow Triggers.
 
 ## Deploy
+> ⚠️ This whole section describes the retired `deploy.ps1`/PHP/Hostinger workflow (see the
+> banner at the top of this file) — kept only for the 60-day rollback scenario. New work uses
+> `wrangler deploy` per the top banner, not any of this. **The `dev` branch this section
+> assumes no longer exists** — `cloudflare-migration` was fast-forward-merged into `main` and
+> deleted 2026-08-17, and the also-stale `dev` was deleted the same day. There is now only one
+> branch, `main`, which is also GitHub's default. If this legacy workflow is ever actually
+> needed for a real rollback, re-create a `dev` branch first or adapt the branch check below.
 - **Branch determines target**: on `dev` branch, deploy with `-staging` (→ https://staging.handmadedesignsbysuzi.com); on `main` branch, deploy without it (→ https://handmadedesignsbysuzi.com). Check `git branch --show-current` before every deploy.
 - Single file to staging: `.\deploy.ps1 -staging path/to/file.php`
 - Single file to prod: `.\deploy.ps1 path/to/file.php`
