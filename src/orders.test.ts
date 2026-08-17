@@ -165,6 +165,8 @@ describe("createOrder", () => {
       "k",
       SECRET,
       undefined,
+      undefined,
+      undefined,
       async (id) => {
         confirmedId = id;
       }
@@ -176,7 +178,7 @@ describe("createOrder", () => {
 
   it("does not fire the confirmation hook for a normal guest order", async () => {
     let fired = false;
-    await createOrder(store, { id: "ORD-1", total: 50 }, false, "k", SECRET, undefined, async () => {
+    await createOrder(store, { id: "ORD-1", total: 50 }, false, "k", SECRET, undefined, undefined, undefined, async () => {
       fired = true;
     });
     expect(fired).toBe(false);
@@ -239,14 +241,14 @@ describe("createOrder", () => {
   it("rate limits guests at 15 orders/hour per key, but not admins", async () => {
     const now = new Date("2026-08-01T12:00:00Z");
     for (let i = 0; i < 15; i++) {
-      const result = await createOrder(store, { id: `ORD-${i}`, total: 10 }, false, "same-key", SECRET, now);
+      const result = await createOrder(store, { id: `ORD-${i}`, total: 10 }, false, "same-key", SECRET, undefined, undefined, now);
       expect(result.ok).toBe(true);
     }
-    const blocked = await createOrder(store, { id: "ORD-blocked", total: 10 }, false, "same-key", SECRET, now);
+    const blocked = await createOrder(store, { id: "ORD-blocked", total: 10 }, false, "same-key", SECRET, undefined, undefined, now);
     expect(blocked.ok).toBe(false);
     expect(blocked.error).toMatch(/Too many orders/);
 
-    const adminResult = await createOrder(store, { id: "ORD-admin", total: 10 }, true, "same-key", SECRET, now);
+    const adminResult = await createOrder(store, { id: "ORD-admin", total: 10 }, true, "same-key", SECRET, undefined, undefined, now);
     expect(adminResult.ok).toBe(true);
   });
 
@@ -257,7 +259,7 @@ describe("createOrder", () => {
     store.items = [{ order_id: "OLD-1", product_id: "p1", product_name: "Tote", price: 50, quantity: 2 }];
     store.products.set("p1", { name: "Tote", price: 50, stock: 0 });
 
-    await createOrder(store, { id: "ORD-new", total: 10 }, false, "k", SECRET, now);
+    await createOrder(store, { id: "ORD-new", total: 10 }, false, "k", SECRET, undefined, undefined, now);
 
     expect(store.orders.find((o) => o.id === "OLD-1")?.status).toBe("Cancelled");
     expect(store.products.get("p1")!.stock).toBe(2);

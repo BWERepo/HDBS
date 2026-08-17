@@ -44,6 +44,8 @@ function renderAcct(){
     '<div class="acct-row"><span class="acct-label">Phone</span><span class="acct-val">'+(CUR_USER.ph||'—')+'</span></div>'+
     '<div class="acct-row"><span class="acct-label">Member since</span><span class="acct-val">'+(CUR_USER.joined||'—')+'</span></div></div>'+
     '<div class="acct-card"><div class="acct-title">📦 My Orders</div><div id="acct-orders"><p style="font-size:.83rem;color:#6b6040;padding:.6rem 0">Loading your orders…</p></div></div>'+
+    '<div class="acct-card"><div class="acct-title">🎟️ Coupons Used</div><div id="acct-coupons"><p style="font-size:.83rem;color:#6b6040;padding:.6rem 0">Loading…</p></div></div>'+
+    '<div class="acct-card"><div class="acct-title">💰 Store Credit</div><div id="acct-credit"><p style="font-size:.83rem;color:#6b6040;padding:.6rem 0">Loading…</p></div></div>'+
     '<div class="acct-card"><div class="acct-title">🔒 Change Password</div>'+
     '<div class="mok" id="cpw-ok">✓ Password updated!</div><div class="merr" id="cpw-err"></div>'+
     '<label class="fl">Current Password</label><input class="fi" id="cpw-c" type="password" placeholder="Current password">'+
@@ -51,6 +53,46 @@ function renderAcct(){
     '<label class="fl">Confirm</label><input class="fi" id="cpw-cf" type="password" placeholder="Confirm new password">'+
     '<button class="bp" onclick="changeCustPw()">Update Password</button></div>';
   loadMyOrders(CUR_USER.orders_token,'acct-orders');
+  loadMyCoupons(CUR_USER.orders_token,'acct-coupons');
+  loadMyStoreCredit(CUR_USER.orders_token,'acct-credit');
+}
+
+function loadMyStoreCredit(token,containerId){
+  var el=document.getElementById(containerId);if(!el)return;
+  if(!token){el.innerHTML='<p style="font-size:.83rem;color:#6b6040;padding:.6rem 0">Please sign in again to view your store credit.</p>';return;}
+  apiFetch('coupons.php','POST',{action:'my_credit_history',token:token}).then(function(d){
+    if(!d||!d.success){el.innerHTML='<p style="font-size:.83rem;color:#c0392b;padding:.6rem 0">'+((d&&d.error)||'Could not load your store credit.')+'</p>';return;}
+    var balance=Number(d.balance||0);
+    var rows=d.transactions||[];
+    var balHtml='<div style="font-size:1.1rem;font-weight:700;color:#a07810;padding:.3rem 0 .6rem">$'+balance.toFixed(2)+' available</div>';
+    if(!rows.length){el.innerHTML=balHtml+'<p style="font-size:.83rem;color:#6b6040;padding:.2rem 0">No store credit activity yet.</p>';return;}
+    var list=rows.map(function(t){
+      var dt=t.created_at?new Date(t.created_at):null;
+      var dtStr=dt&&!isNaN(dt.getTime())?(dt.getMonth()+1)+'/'+dt.getDate()+'/'+dt.getFullYear():'';
+      var pos=Number(t.amount)>=0;
+      return '<div style="display:flex;justify-content:space-between;font-size:.83rem;padding:.3rem 0;border-bottom:1px solid #f0e8d0">'+
+        '<span>'+_moEsc(t.reason)+' &middot; '+_moEsc(dtStr)+'</span>'+
+        '<span style="color:'+(pos?'#2e7d32':'#c0392b')+';font-weight:600">'+(pos?'+':'')+'$'+Number(t.amount).toFixed(2)+'</span></div>';
+    }).join('');
+    el.innerHTML=balHtml+list;
+  }).catch(function(){el.innerHTML='<p style="font-size:.83rem;color:#c0392b;padding:.6rem 0">Network error loading store credit.</p>';});
+}
+
+function loadMyCoupons(token,containerId){
+  var el=document.getElementById(containerId);if(!el)return;
+  if(!token){el.innerHTML='<p style="font-size:.83rem;color:#6b6040;padding:.6rem 0">Please sign in again to view your coupons.</p>';return;}
+  apiFetch('coupons.php','POST',{action:'my_redemptions',token:token}).then(function(d){
+    if(!d||!d.success){el.innerHTML='<p style="font-size:.83rem;color:#c0392b;padding:.6rem 0">'+((d&&d.error)||'Could not load your coupons.')+'</p>';return;}
+    var rows=d.redemptions||[];
+    if(!rows.length){el.innerHTML='<p style="font-size:.83rem;color:#6b6040;padding:.6rem 0">No coupons used yet.</p>';return;}
+    el.innerHTML=rows.map(function(r){
+      var dt=r.date?new Date(r.date):null;
+      var dtStr=dt&&!isNaN(dt.getTime())?(dt.getMonth()+1)+'/'+dt.getDate()+'/'+dt.getFullYear():'';
+      return '<div style="display:flex;justify-content:space-between;font-size:.83rem;padding:.35rem 0;border-bottom:1px solid #f0e8d0">'+
+        '<span><code style="color:#a07810">'+_moEsc(r.code)+'</code> &middot; '+_moEsc(dtStr)+'</span>'+
+        '<span style="color:#2e7d32;font-weight:600">-$'+Number(r.discount).toFixed(2)+'</span></div>';
+    }).join('');
+  }).catch(function(){el.innerHTML='<p style="font-size:.83rem;color:#c0392b;padding:.6rem 0">Network error loading coupons.</p>';});
 }
 
 // ── CUSTOMER ORDER LOOKUP (account view + guest magic link) ──

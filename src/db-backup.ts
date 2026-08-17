@@ -29,6 +29,9 @@ export const BACKUP_TABLES = [
   "studio_inquiries",
   "studio_project_notes",
   "capital_equipment",
+  "coupons",
+  "coupon_redemptions",
+  "store_credit_transactions",
 ] as const;
 
 export interface DbBackupStore {

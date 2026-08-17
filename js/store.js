@@ -1,3 +1,48 @@
+// ── COUPON ──
+// Holds {code, discount} from the last successful preview (coupons.php action=validate). The
+// server always recomputes/reclamps the real discount from the order's own subtotal at order-
+// creation time — this is only a client-side preview so checkout can show a live total.
+var APPLIED_COUPON=null;
+function couponDiscount(sub){return APPLIED_COUPON?Math.min(APPLIED_COUPON.discount,sub):0;}
+function applyCoupon(){
+  var codeEl=document.getElementById('co-coupon');
+  var code=(codeEl.value||'').trim().toUpperCase();
+  var msg=document.getElementById('co-coupon-msg');
+  msg.style.display='none';
+  if(!code)return;
+  var em=(document.getElementById('co-em')&&document.getElementById('co-em').value.trim())||(CUR_USER&&CUR_USER.em)||'';
+  apiFetch('coupons.php','POST',{action:'validate',code:code,subtotal:cartTotal(),email:em||undefined}).then(function(d){
+    msg.style.display='block';
+    if(!d||!d.success){APPLIED_COUPON=null;msg.style.background='';msg.style.color='#c0392b';msg.textContent=(d&&d.error)||'Coupon could not be applied.';updateShippingDisplay();return;}
+    APPLIED_COUPON={code:d.code,discount:d.discount};
+    msg.style.color='#2e7d32';msg.textContent='Coupon "'+d.code+'" applied: -$'+d.discount.toFixed(2);
+    updateShippingDisplay();
+  }).catch(function(){msg.style.display='block';msg.style.color='#c0392b';msg.textContent='Network error applying coupon.';});
+}
+function clearAppliedCoupon(){APPLIED_COUPON=null;var m=document.getElementById('co-coupon-msg');if(m)m.style.display='none';var f=document.getElementById('co-coupon');if(f)f.value='';}
+
+// ── STORE CREDIT ──
+// Balance fetched (token-authed) when checkout opens for a logged-in customer. Like the coupon
+// discount, the "use credit" checkbox only sends a boolean flag — the server looks up the real
+// balance and applies it itself, never trusting a client-sent amount.
+var STORE_CREDIT_BALANCE=0;
+function loadStoreCreditForCheckout(){
+  var wrap=document.getElementById('co-credit-wrap');
+  if(!CUR_USER||!CUR_USER.orders_token){STORE_CREDIT_BALANCE=0;if(wrap)wrap.style.display='none';return;}
+  apiFetch('coupons.php','POST',{action:'credit_balance',token:CUR_USER.orders_token}).then(function(d){
+    STORE_CREDIT_BALANCE=(d&&d.success&&d.balance)||0;
+    if(wrap){
+      if(STORE_CREDIT_BALANCE>0){
+        wrap.style.display='flex';
+        var lbl=document.getElementById('co-credit-label');if(lbl)lbl.textContent='Use available store credit ($'+STORE_CREDIT_BALANCE.toFixed(2)+')';
+      } else wrap.style.display='none';
+    }
+    updateShippingDisplay();
+  }).catch(function(){STORE_CREDIT_BALANCE=0;if(wrap)wrap.style.display='none';});
+}
+function useCreditRequested(){var el=document.getElementById('co-use-credit');return !!(el&&el.checked&&STORE_CREDIT_BALANCE>0);}
+function creditDiscount(subAfterCoupon){return useCreditRequested()?Math.min(STORE_CREDIT_BALANCE,subAfterCoupon):0;}
+
 // ── STORE RENDER ──
 function firstImg(p){return(p.imgs&&p.imgs[0])||p.img||'';}
 function renderCatFilter(){
@@ -389,13 +434,12 @@ function updateRequiredStars(){
   var noShip=PAY_CONFIG==='InPerson'&&shipReqEl&&!shipReqEl.checked;
   var method=document.getElementById('co-paymethod')?document.getElementById('co-paymethod').value:'Credit Card';
   var isCard=(PAY_CONFIG!=='InPerson')||method==='Credit Card';
-  // Mirrors the required-field logic in placeOrder().
-  var req={fn:false,ln:false,em:false,ad:false,ci:false,st:false,zip:false};
+  // Mirrors the required-field logic in placeOrder(). Name is always required.
+  var req={fn:true,ln:true,em:false,ad:false,ci:false,st:false,zip:false};
   if(isCard){
-    req.fn=req.ln=req.zip=true;
+    req.em=req.zip=true;
     if(!noShip)req.ad=req.ci=req.st=true;
   } else if(!noShip){
-    req.fn=req.ln=req.em=true;
     req.ad=req.ci=req.st=req.zip=true;
   }
   var stars=document.querySelectorAll('#co-form .co-field-star');
@@ -423,18 +467,33 @@ function updateShippingDisplay(){
   var shipReqEl=document.getElementById('co-ship-req');
   var noShip=PAY_CONFIG==='InPerson'&&shipReqEl&&!shipReqEl.checked;
   if(noShip)ship=0;
-  var tax=Math.round(sub*0.0975*100)/100;
+  var disc=couponDiscount(sub);
+  var credit=creditDiscount(sub-disc);
+  var tax=Math.round((sub-disc-credit)*0.0975*100)/100;
   var shipEl=document.getElementById('oc-ship');
   var totEl=document.getElementById('oc-tot');
   var taxEl=document.getElementById('oc-tax');
   var zoneNames=['','Tennessee','South','East Coast','Midwest','West'];
   var zoneEl=document.getElementById('oc-zone');
   if(taxEl)taxEl.textContent='$'+tax.toFixed(2);
+  var couponRow=document.getElementById('oc-coupon-row'),couponAmt=document.getElementById('oc-coupon-amt'),couponLabel=document.getElementById('oc-coupon-label');
+  if(couponRow){
+    if(disc>0){
+      couponRow.style.display='flex';
+      if(couponLabel)couponLabel.textContent='Coupon ('+APPLIED_COUPON.code+')';
+      if(couponAmt)couponAmt.textContent='-$'+disc.toFixed(2);
+    } else couponRow.style.display='none';
+  }
+  var creditRow=document.getElementById('oc-credit-row'),creditAmt=document.getElementById('oc-credit-amt');
+  if(creditRow){
+    if(credit>0){creditRow.style.display='flex';if(creditAmt)creditAmt.textContent='-$'+credit.toFixed(2);}
+    else creditRow.style.display='none';
+  }
   // No shipping (InPerson pickup): total computes without an address
   if(noShip){
     if(zoneEl)zoneEl.textContent='';
     if(shipEl)shipEl.textContent='None';
-    if(totEl)totEl.textContent='$'+(sub+tax).toFixed(2);
+    if(totEl)totEl.textContent='$'+(sub-disc-credit+tax).toFixed(2);
     return;
   }
   // The zone rate needs the address only when there are by-weight items
@@ -444,7 +503,7 @@ function updateShippingDisplay(){
     if(totEl)totEl.textContent='—';
     return;
   }
-  var tot=sub+ship+tax;
+  var tot=sub-disc-credit+ship+tax;
   var parts=[];
   if(hasWt)parts.push((zoneNames[zone]||'Zone '+zone)+(wsur>0?' + weight $'+wsur.toFixed(2):''));
   if(fixed>0)parts.push('fixed $'+fixed.toFixed(2));
@@ -455,8 +514,10 @@ function updateShippingDisplay(){
 function orderTotal(){
   var sub=cartTotal();
   var st=document.getElementById('co-st')?document.getElementById('co-st').value:'';
-  var tax=Math.round(sub*0.0975*100)/100;
-  return sub+calcShipping(sub,st)+tax;
+  var disc=couponDiscount(sub);
+  var credit=creditDiscount(sub-disc);
+  var tax=Math.round((sub-disc-credit)*0.0975*100)/100;
+  return sub-disc-credit+calcShipping(sub,st)+tax;
 }
 function updCartCount(){var t=0;for(var i=0;i<CART.length;i++)t+=CART[i].q;document.getElementById('cart-count').textContent=t;}
 function renderCart(){
@@ -496,6 +557,7 @@ function openCheckout(){
   document.getElementById('co-zip').value='';
   document.getElementById('co-ad').value='';
   document.getElementById('co-ci').value='';
+  clearAppliedCoupon();
   var sub=cartTotal();
   var tax=Math.round(sub*0.0975*100)/100;
   document.getElementById('oc-sub').textContent='$'+sub.toFixed(2);
@@ -503,6 +565,8 @@ function openCheckout(){
   document.getElementById('oc-ship').textContent=sub>=FREE_THRESHOLD?'Free 🎉':'Enter address';
   document.getElementById('oc-tot').textContent=sub>=FREE_THRESHOLD?'$'+(sub+tax).toFixed(2):'—';
   if(CUR_USER){document.getElementById('co-fn').value=CUR_USER.fn||'';document.getElementById('co-ln').value=CUR_USER.ln||'';document.getElementById('co-em').value=CUR_USER.em||'';document.getElementById('co-ph').value=CUR_USER.ph||'';}
+  var creditCb=document.getElementById('co-use-credit');if(creditCb)creditCb.checked=false;
+  loadStoreCreditForCheckout();
   updateInPersonUI();
   openModal('co-modal');
 }
@@ -546,15 +610,16 @@ function placeOrder(){
   var shipReqEl=document.getElementById('co-ship-req');
   var noShip=mode==='InPerson'&&shipReqEl&&!shipReqEl.checked;
   var isCard=(mode!=='InPerson')||method==='Credit Card';
+  if(!fn||!ln){alert('Please enter your first name and last name.');return;}
   if(isCard){
-    // Card: name + ZIP always required; street/city/state only when shipping is charged.
-    if(!fn||!ln||!zip){alert('Please enter your first name, last name, and ZIP code.');return;}
+    // Card: email + ZIP always required (email so a card customer can look their order up later
+    // via My Orders / order-lookup — cash/check customers are handled in person, no lookup need).
+    if(!em||!zip){alert('Please enter your email and ZIP code.');return;}
     if(!noShip){
       if(!ad||!ci||!st){alert('Please enter your street, city, and state.');return;}
     }
   } else if(!noShip){
-    // Cash/Check with shipping charged: full contact + address. No shipping charge = nothing required.
-    if(!fn||!ln||!em){alert('Please enter your first name, last name, and email.');return;}
+    // Cash/Check with shipping charged: full address, no email required.
     if(!ad||!ci||!st||!zip){alert('Please enter your street, city, state, and ZIP code.');return;}
   }
   var oid='ORD-'+Date.now().toString(36).toUpperCase();
@@ -562,8 +627,10 @@ function placeOrder(){
   var subtotal=cartTotal();
   var shipState=document.getElementById('co-st').value||'';
   var shipping=noShip?0:calcShipping(subtotal,shipState);
-  var tax=Math.round(subtotal*0.0975*100)/100;
-  var total=Math.round((subtotal+shipping+tax)*100)/100;
+  var couponDisc=couponDiscount(subtotal);
+  var creditDisc=creditDiscount(subtotal-couponDisc);
+  var tax=Math.round((subtotal-couponDisc-creditDisc)*0.0975*100)/100;
+  var total=Math.round((subtotal-couponDisc-creditDisc+shipping+tax)*100)/100;
   var now=new Date();
   var isoDate=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
   var dispDate=(now.getMonth()+1)+'/'+now.getDate()+'/'+now.getFullYear();
@@ -576,7 +643,12 @@ function placeOrder(){
     items:items,total:total,subtotal:subtotal,shipping:shipping,tax:tax,
     pay:method,order_type:(mode==='InPerson'?'In Person':'Online'),payment_config:mode,check_number:checkNum,
     source:'storefront',
+    // Only the code/flag is sent — the server always recomputes/reclamps the real amounts itself
+    // from the order's own subtotal, per coupons.ts's "never trust the client" rule.
+    coupon_code:APPLIED_COUPON?APPLIED_COUPON.code:undefined,
+    use_credit:useCreditRequested(),
     status:(mode==='InPerson'&&!isCard)?'Paid':'Awaiting Payment'};
+  clearAppliedCoupon();
   // Decrement local stock
   for(var j=0;j<CART.length;j++){var p2=findProd(CART[j].id);if(p2)p2.stock=Math.max(0,p2.stock-CART[j].q);}
   // Update local customer list
@@ -624,7 +696,7 @@ function placeOrder(){
       window._pendingCancelToken=d.cancel_token||null;
       apiFetch('customers.php','POST',{action:'inc_orders',em:em,order_id:oid}).catch(function(){});
       CART=[];updCartCount();renderStore();
-      showPaymentStep(subtotal,shipping,tax,total);
+      showPaymentStep(subtotal,shipping,tax,total,couponDisc,o.coupon_code,creditDisc);
     })
     .catch(function(){
       _hide('co-processing');_show('co-form');
@@ -634,13 +706,17 @@ function placeOrder(){
     });
 }
 
-function showPaymentStep(subtotal,shipping,tax,total){
+function showPaymentStep(subtotal,shipping,tax,total,couponDisc,couponCode,creditDisc){
   // Populate summary
   var shipLine=shipping>0?'<div style="display:flex;justify-content:space-between;margin-bottom:.3rem"><span>Shipping</span><span>$'+shipping.toFixed(2)+'</span></div>':
     '<div style="display:flex;justify-content:space-between;margin-bottom:.3rem"><span>Shipping</span><span style="color:#2e7d32">Free &#127881;</span></div>';
+  var couponLine=(couponDisc>0)?'<div style="display:flex;justify-content:space-between;margin-bottom:.3rem;color:#2e7d32"><span>Coupon'+(couponCode?' ('+couponCode+')':'')+'</span><span>-$'+couponDisc.toFixed(2)+'</span></div>':'';
+  var creditLine=(creditDisc>0)?'<div style="display:flex;justify-content:space-between;margin-bottom:.3rem;color:#2e7d32"><span>Store Credit</span><span>-$'+creditDisc.toFixed(2)+'</span></div>':'';
   var s=document.getElementById('co-pay-summary');
   if(s)s.innerHTML=
     '<div style="display:flex;justify-content:space-between;margin-bottom:.3rem"><span>Subtotal</span><span>$'+subtotal.toFixed(2)+'</span></div>'+
+    couponLine+
+    creditLine+
     shipLine+
     '<div style="display:flex;justify-content:space-between;margin-bottom:.3rem"><span>Tax (9.75%)</span><span>$'+tax.toFixed(2)+'</span></div>'+
     '<div style="display:flex;justify-content:space-between;font-weight:700;color:#2d2220;border-top:1px solid #e8e0b8;padding-top:.4rem;margin-top:.3rem"><span>Total</span><span style="color:#a07810">$'+total.toFixed(2)+'</span></div>';

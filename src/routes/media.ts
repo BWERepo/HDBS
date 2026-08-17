@@ -20,7 +20,7 @@ import type { Env } from "../types";
 
 export const mediaRoute = new Hono<{ Bindings: Env }>();
 
-const PUBLIC_MEDIA_PREFIXES = ["/product_images", "/business_logo", "/business_hero", "/business_about", "/studio_images"];
+const PUBLIC_MEDIA_PREFIXES = ["/product_images", "/business_logo", "/business_hero", "/business_about", "/studio_images", "/coupon_templates"];
 
 for (const prefix of PUBLIC_MEDIA_PREFIXES) {
   mediaRoute.get(`${prefix}/*`, async (c) => {

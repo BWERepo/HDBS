@@ -36,6 +36,8 @@ import { shippingTrackingRoute } from "./routes/shipping-tracking";
 import { githubLogRoute } from "./routes/github-log";
 import { repoStatsRoute } from "./routes/repo-stats";
 import { dbBackupRoute } from "./routes/db-backup";
+import { couponsRoute } from "./routes/coupons";
+import { orderLookupRoute } from "./routes/order-lookup";
 import { renderStorefront } from "./shell";
 import { createDb, SupabaseSettingsStore } from "./db";
 import version from "../version.json";
@@ -66,6 +68,8 @@ app.route("/", shippingTrackingRoute);
 app.route("/", githubLogRoute);
 app.route("/", repoStatsRoute);
 app.route("/", dbBackupRoute);
+app.route("/", couponsRoute);
+app.route("/", orderLookupRoute);
 
 // Legacy bookmarks and cached links — carried over from .htaccess lines 8-10.
 app.get("/index.html", (c) => c.redirect("/", 301));

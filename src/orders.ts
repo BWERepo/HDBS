@@ -97,6 +97,25 @@ export interface OrderDto {
   items: OrderItemDto[];
   shipping: number;
   subtotal: number;
+  coupon_code: string | null;
+  coupon_discount: number;
+  credit_applied: number;
+}
+
+export interface CouponsStoreForOrders {
+  validateCoupon(code: string, subtotal: number, email?: string): Promise<{ ok: boolean; error?: string; data?: { discount: number } }>;
+  /** Redeems the coupon AND (internally) credits any leftover between the coupon's face value and
+   *  the amount actually applied to the customer's store-credit account, if one exists — see
+   *  routes/orders.ts's adapter. Kept as one call so orders.ts doesn't need to know about store
+   *  credit at all for this half of the feature. */
+  redeemCoupon(code: string, requestedDiscount: number, orderId: string, email: string | null): Promise<{ ok: boolean; error?: string; data?: { applied: number } }>;
+}
+
+export interface CreditStoreForOrders {
+  /** Debits up to requestedAmount from the customer's store-credit balance; returns the amount
+   *  actually applied (0 if no account or no balance — not treated as an order-creation failure,
+   *  since this is a courtesy auto-discount, not user-entered input that can be "wrong"). */
+  spendCredit(email: string, requestedAmount: number, orderId: string): Promise<{ ok: boolean; error?: string; data?: { applied: number } }>;
 }
 
 export interface OrdersStore {
@@ -189,6 +208,12 @@ export interface CreateOrderInput {
   /** The storefront sends this literal marker for its own checkout flow; distinguishes a
    *  storefront in-person sale from an admin placing the same kind of order by hand. */
   source?: string;
+  /** Only the code is trusted from the client — the discount itself is always recomputed
+   *  server-side from the order's real subtotal. See coupons.ts's header. */
+  coupon_code?: string;
+  /** Whether to apply any available store credit — the amount itself is always looked up
+   *  server-side, never sent by the client. See store-credit.ts. */
+  use_credit?: boolean;
 }
 
 export type OrderInsert = Pick<
@@ -241,6 +266,8 @@ export interface OrdersResult<T = Record<string, never>> {
 }
 
 const SHIP_PRODUCT_ID = "_ship";
+const COUPON_PRODUCT_ID = "_coupon";
+const CREDIT_PRODUCT_ID = "_credit";
 const ORDER_RATE_LIMIT_MAX_ATTEMPTS = 15;
 const ORDER_RATE_LIMIT_WINDOW_SECONDS = 3600;
 const STALE_ORDER_CUTOFF_SECONDS = 7200;
@@ -274,8 +301,10 @@ function formatOrderTime(createdAt: string | null): string {
 export function mapOrderForResponse(order: OrderRow, items: OrderItemRow[]): OrderDto {
   const orderItems = items.filter((i) => i.order_id === order.id);
   const shippingItem = orderItems.find((i) => i.product_id === SHIP_PRODUCT_ID);
+  const couponItem = orderItems.find((i) => i.product_id === COUPON_PRODUCT_ID);
+  const creditItem = orderItems.find((i) => i.product_id === CREDIT_PRODUCT_ID);
   const displayItems = orderItems
-    .filter((i) => i.product_id !== SHIP_PRODUCT_ID)
+    .filter((i) => i.product_id !== SHIP_PRODUCT_ID && i.product_id !== COUPON_PRODUCT_ID && i.product_id !== CREDIT_PRODUCT_ID)
     .map((i) => ({ id: i.product_id, name: i.product_name, price: Number(i.price ?? 0), q: Number(i.quantity ?? 0) }));
   const subtotal = displayItems.reduce((sum, i) => sum + i.price * i.q, 0);
 
@@ -307,6 +336,9 @@ export function mapOrderForResponse(order: OrderRow, items: OrderItemRow[]): Ord
     items: displayItems,
     shipping: Number(shippingItem?.price ?? 0),
     subtotal,
+    coupon_code: couponItem?.product_name?.replace(/^Coupon: /, "") ?? null,
+    coupon_discount: couponItem ? Math.abs(Number(couponItem.price ?? 0)) : 0,
+    credit_applied: creditItem ? Math.abs(Number(creditItem.price ?? 0)) : 0,
   };
 }
 
@@ -374,6 +406,8 @@ export async function createOrder(
   isAdmin: boolean,
   rateLimitKey: string,
   orderTokenSecret: string,
+  couponsStore: CouponsStoreForOrders | undefined = undefined,
+  creditStore: CreditStoreForOrders | undefined = undefined,
   now: Date = new Date(),
   onInPersonPaid: (orderId: string) => Promise<void> = async () => {}
 ): Promise<OrdersResult<{ cancel_token: string }>> {
@@ -421,8 +455,9 @@ export async function createOrder(
     await store.insertOrderItem({ order_id: input.id, product_id: SHIP_PRODUCT_ID, product_name: "Shipping", price: shipping, quantity: 1 });
   }
 
+  let subtotal = 0;
   for (const item of input.items ?? []) {
-    if (!item.id || item.id === SHIP_PRODUCT_ID) continue;
+    if (!item.id || item.id === SHIP_PRODUCT_ID || item.id === COUPON_PRODUCT_ID) continue;
     const qty = Number(item.q ?? 1);
     const product = await store.getProduct(item.id);
     if (!product) {
@@ -431,6 +466,7 @@ export async function createOrder(
     }
     const price = isAdmin && item.price !== undefined ? Number(item.price) : product.price;
     await store.insertOrderItem({ order_id: input.id, product_id: item.id, product_name: product.name, price, quantity: qty });
+    subtotal += price * qty;
 
     const decrementedOk = await store.decrementStock(item.id, qty);
     if (!decrementedOk) {
@@ -438,6 +474,44 @@ export async function createOrder(
       return { ok: false, error: `Failed to save order: Item is out of stock: ${product.name}`, status: 500 };
     }
     decremented.push({ id: item.id, qty });
+  }
+
+  // Coupon discount, applied as a synthetic negative-price line item so payments.ts's
+  // computeOrderAmounts (which sums every non-"_ship" item into subtotal before tax/total)
+  // reduces the pre-tax/shipping/fee subtotal with zero changes needed there — see coupons.ts's
+  // header. The discount is always recomputed here from the order's own real subtotal, never
+  // trusted from the client, then redeemed atomically (mirrors the stock decrement above).
+  let runningSubtotal = subtotal;
+  if (input.coupon_code && couponsStore) {
+    const preview = await couponsStore.validateCoupon(input.coupon_code, runningSubtotal, input.email);
+    if (!preview.ok || !preview.data) {
+      await rollback();
+      return { ok: false, error: preview.error ?? "Coupon could not be applied", status: 400 };
+    }
+    const redemption = await couponsStore.redeemCoupon(input.coupon_code, preview.data.discount, input.id, input.email ?? null);
+    if (!redemption.ok || !redemption.data) {
+      await rollback();
+      return { ok: false, error: redemption.error ?? "Coupon could not be applied", status: 400 };
+    }
+    await store.insertOrderItem({
+      order_id: input.id,
+      product_id: COUPON_PRODUCT_ID,
+      product_name: `Coupon: ${input.coupon_code.toUpperCase().trim()}`,
+      price: -redemption.data.applied,
+      quantity: 1,
+    });
+    runningSubtotal -= redemption.data.applied;
+  }
+
+  // Store credit, applied the same way as a coupon (a synthetic negative line item) so it stacks
+  // on top of any coupon discount before tax/shipping/fee. A courtesy auto-discount, not
+  // user-entered input — a failure here (no account, no balance) just means nothing gets applied,
+  // never an order-creation failure.
+  if (input.use_credit && creditStore && input.email && runningSubtotal > 0) {
+    const spend = await creditStore.spendCredit(input.email, runningSubtotal, input.id);
+    if (spend.ok && spend.data && spend.data.applied > 0) {
+      await store.insertOrderItem({ order_id: input.id, product_id: CREDIT_PRODUCT_ID, product_name: "Store Credit", price: -spend.data.applied, quantity: 1 });
+    }
   }
 
   if (isInPersonPaid) await onInPersonPaid(input.id);

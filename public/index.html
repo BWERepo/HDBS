@@ -383,8 +383,20 @@
       <label class="fl">Street<span class="req-star co-field-star" data-field="ad">★</span></label><input class="fi" id="co-ad" placeholder="123 Main St">
       <div class="fr"><div><label class="fl">City<span class="req-star co-field-star" data-field="ci">★</span></label><input class="fi" id="co-ci" placeholder="Nashville"></div><div><label class="fl">State<span class="req-star co-field-star" data-field="st">★</span></label><input class="fi" id="co-st" placeholder="TN" maxlength="2" style="text-transform:uppercase" oninput="updateShippingDisplay()"></div></div>
       <label class="fl">ZIP<span class="req-star co-field-star" data-field="zip">★</span></label><input class="fi" id="co-zip" placeholder="37201" inputmode="numeric" maxlength="10">
+      <div class="fsec">Coupon</div>
+      <div style="display:flex;gap:.5rem;margin-bottom:.6rem">
+        <input class="fi" id="co-coupon" placeholder="Coupon code" style="flex:1;text-transform:uppercase">
+        <button class="be" type="button" onclick="applyCoupon()" style="white-space:nowrap">Apply</button>
+      </div>
+      <div id="co-coupon-msg" style="display:none;font-size:.8rem;margin-bottom:.6rem"></div>
+      <label id="co-credit-wrap" style="display:none;align-items:center;gap:.5rem;margin:.3rem 0 .9rem;font-size:.85rem;color:#2d2220;cursor:pointer">
+        <input type="checkbox" id="co-use-credit" onchange="updateShippingDisplay()">
+        <span id="co-credit-label">Use available store credit</span>
+      </label>
       <div class="order-summary">
         <div class="os-row"><span>Subtotal</span><span id="oc-sub">$0.00</span></div>
+        <div class="os-row" id="oc-coupon-row" style="display:none;color:#2e7d32"><span id="oc-coupon-label">Coupon</span><span id="oc-coupon-amt"></span></div>
+        <div class="os-row" id="oc-credit-row" style="display:none;color:#2e7d32"><span>Store Credit</span><span id="oc-credit-amt"></span></div>
         <div class="os-row"><span>Shipping <span id="oc-zone" style="font-size:.74rem;color:#a07810"></span></span><span id="oc-ship">$0.00</span></div>
         <div class="os-row" style="font-style:italic;color:#6b6040"><span id="oc-tax-label">Sales Tax</span><span id="oc-tax" style="font-size:.78rem">Calc. by Square</span></div>
         <div class="os-total"><span>Est. Total</span><span id="oc-tot">$0.00</span></div>
@@ -1035,7 +1047,7 @@
 <script src="js/api.js?v=9"></script>
 <script src="js/config.js?v=20"></script>
 <script src="js/data.js?v=5"></script>
-<script src="js/store.js?v=30"></script>
+<script src="js/store.js?v=32"></script>
 <script src="js/studio.js?v=2"></script>
 <script src="js/auth.js?v=6"></script>
 <script src="js/ui.js?v=12"></script>
@@ -1043,6 +1055,7 @@
 <script src="js/admin-general.js?v=5"></script>
 <script src="js/admin-products.js?v=16"></script>
 <script src="js/admin-orders.js?v=39"></script>
+<script src="js/admin-coupons.js?v=1"></script>
 <script src="js/admin-misc.js?v=35"></script>
 <script src="js/admin-business.js?v=19"></script>
 <script src="js/admin-studio.js?v=5"></script>

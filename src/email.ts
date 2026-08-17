@@ -74,9 +74,21 @@ export function buildOrderConfirmationEmailHtml(
   let itemsHtml = "";
   let itemTotal = 0;
   let shipping = 0;
+  let couponLabel: string | null = null;
+  let couponDiscount = 0;
+  let creditApplied = 0;
   for (const item of items) {
     if (item.product_id === "_ship") {
       shipping = item.price;
+      continue;
+    }
+    if (item.product_id === "_coupon") {
+      couponLabel = (item.product_name ?? "Coupon").replace(/^Coupon: /, "");
+      couponDiscount = Math.abs(item.price);
+      continue;
+    }
+    if (item.product_id === "_credit") {
+      creditApplied = Math.abs(item.price);
       continue;
     }
     const lineTotal = item.price * item.quantity;
@@ -102,6 +114,13 @@ export function buildOrderConfirmationEmailHtml(
   const feeRow =
     fee > 0
       ? `<tr><td colspan='3' style='padding:6px 12px;text-align:right;color:#6b6040'>Transaction Fee</td><td style='padding:6px 12px;text-align:right'>$${fee.toFixed(2)}</td></tr>`
+      : "";
+  const couponRow = couponLabel
+    ? `<tr><td colspan='3' style='padding:6px 12px;text-align:right;color:#2e7d32'>Coupon (${couponLabel})</td><td style='padding:6px 12px;text-align:right;color:#2e7d32'>-$${couponDiscount.toFixed(2)}</td></tr>`
+    : "";
+  const creditRow =
+    creditApplied > 0
+      ? `<tr><td colspan='3' style='padding:6px 12px;text-align:right;color:#2e7d32'>Store Credit</td><td style='padding:6px 12px;text-align:right;color:#2e7d32'>-$${creditApplied.toFixed(2)}</td></tr>`
       : "";
   const checkRow = order.check_number
     ? `<div style='display:inline-block;width:33%;vertical-align:top;font-size:13px;line-height:1.5;margin-bottom:10px'><span style='color:#a07810;font-size:.7rem;font-weight:700;text-transform:uppercase'>Check #</span><br>${order.check_number}</div>`
@@ -142,6 +161,8 @@ export function buildOrderConfirmationEmailHtml(
       <tbody>${itemsHtml}</tbody>
       <tfoot>
         <tr><td colspan='3' style='padding:6px 12px;text-align:right;color:#6b6040'>Subtotal</td><td style='padding:6px 12px;text-align:right'>$${itemTotal.toFixed(2)}</td></tr>
+${couponRow}
+${creditRow}
         <tr><td colspan='3' style='padding:6px 12px;text-align:right;color:#6b6040'>Shipping</td><td style='padding:6px 12px;text-align:right'>${shipStr}</td></tr>
         <tr><td colspan='3' style='padding:6px 12px;text-align:right;color:#6b6040'>Sales Tax</td><td style='padding:6px 12px;text-align:right'>${taxStr}</td></tr>
 ${feeRow}

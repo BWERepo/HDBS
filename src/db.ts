@@ -31,6 +31,9 @@ import type { EmailOrderStore, OrderForConfirmation, OrderItemForConfirmation } 
 import type { RefundsStore, RefundRow } from "./refunds";
 import type { DbBackupStore } from "./db-backup";
 import type { AppLogStore, AppLogFile, AppLogEntry } from "./app-log";
+import type { CouponsStore, CouponRow, CouponRedemptionRow } from "./coupons";
+import type { StoreCreditStore, StoreCreditTransactionRow } from "./store-credit";
+import type { OrderLookupStore } from "./order-lookup";
 
 // The single runtime Supabase client. `db.schema` is what routes every `.from("…")` below at the
 // DR project's per-site schemas (hdbs_staging / hdbs_prod) without touching any of the ~250 table
@@ -704,6 +707,43 @@ export class SupabaseContactStore implements ContactStore {
   }
 }
 
+/** Wires order-lookup.ts's OrderLookupStore to `order_lookup_requests` (its own dedicated rate
+ *  limit table, not the generic `rate_limits` one — matches the original PHP's design, and the
+ *  table already existed from migration 0003, just never used) plus `orders`/`order_items`
+ *  filtered by email. */
+export class SupabaseOrderLookupStore implements OrderLookupStore {
+  constructor(private db: SupabaseClient) {}
+
+  async getRateLimit(key: string): Promise<{ attempts: number; lastAt: number } | null> {
+    const { data, error } = await this.db.from("order_lookup_requests").select("attempts, last_at").eq("email_hash", key).maybeSingle();
+    checkError("getRateLimit", error);
+    return data ? { attempts: Number(data.attempts), lastAt: Number(data.last_at) } : null;
+  }
+
+  async setRateLimit(key: string, attempts: number, lastAt: number): Promise<void> {
+    const { error } = await this.db.from("order_lookup_requests").upsert({ email_hash: key, attempts, last_at: lastAt });
+    checkError("setRateLimit", error);
+  }
+
+  async listOrdersForEmail(email: string): Promise<OrderRow[]> {
+    const { data, error } = await this.db
+      .from("orders")
+      .select(
+        "id, customer_name, customer_email, customer_phone, shipping_address, shipping_carrier, tracking_number, confirm_sent_at, shipping_sent_at, total, payment_method, status, square_payment_id, order_date, created_at, tax_amount, tax_swept_date, order_type, transaction_fee, payment_configuration, check_number, refunded_amount, paypal_capture_id, paypal_surcharge"
+      )
+      .eq("customer_email", email)
+      .order("created_at", { ascending: false });
+    checkError("listOrdersForEmail", error);
+    return (data ?? []) as OrderRow[];
+  }
+
+  async listOrderItemsForOrderIds(orderIds: string[]): Promise<OrderItemRow[]> {
+    const { data, error } = await this.db.from("order_items").select("order_id, product_id, product_name, price, quantity").in("order_id", orderIds);
+    checkError("listOrderItemsForOrderIds", error);
+    return (data ?? []) as OrderItemRow[];
+  }
+}
+
 /** Wires studio.ts's StudioStore to `studio_items`, `studio_inquiries`, `studio_project_notes`,
  *  `rate_limits`, `email_log`, and R2_PUBLIC (gallery/hero image uploads — same bucket as product
  *  images and biz_profile, since studio content is customer-facing). */
@@ -1001,5 +1041,83 @@ export class SupabaseEmailOrderStore implements EmailOrderStore {
       email_body: entry.body,
     });
     checkError("logEmail", error);
+  }
+}
+
+/** Wires coupons.ts's CouponsStore to `coupons`, `coupon_redemptions`, and the
+ *  redeem_coupon_if_available RPC (see supabase/migrations/0012_coupons.sql). */
+export class SupabaseCouponsStore implements CouponsStore {
+  constructor(private db: SupabaseClient) {}
+
+  async insertCoupon(row: CouponRow): Promise<void> {
+    const { error } = await this.db.from("coupons").insert(row);
+    checkError("insertCoupon", error);
+  }
+  async listCoupons(): Promise<CouponRow[]> {
+    const { data, error } = await this.db.from("coupons").select("*").order("created_at", { ascending: false });
+    checkError("listCoupons", error);
+    return (data ?? []) as CouponRow[];
+  }
+  async setActive(code: string, active: boolean): Promise<void> {
+    const { error } = await this.db.from("coupons").update({ active }).eq("code", code);
+    checkError("setActive", error);
+  }
+  async getCoupon(code: string): Promise<CouponRow | null> {
+    const { data, error } = await this.db.from("coupons").select("*").eq("code", code).maybeSingle();
+    checkError("getCoupon", error);
+    return data as CouponRow | null;
+  }
+  async hasRedeemed(code: string, email: string): Promise<boolean> {
+    const { data, error } = await this.db.from("coupon_redemptions").select("id").eq("code", code).eq("customer_email", email).maybeSingle();
+    checkError("hasRedeemed", error);
+    return !!data;
+  }
+  async redeemIfAvailable(code: string, requestedDiscount: number): Promise<{ ok: boolean; applied: number }> {
+    const { data, error } = await this.db.rpc("redeem_coupon_if_available", { p_code: code, p_requested: requestedDiscount }).maybeSingle();
+    checkError("redeemIfAvailable", error);
+    const row = data as { ok: boolean; applied: number } | null;
+    return row ? { ok: row.ok, applied: Number(row.applied) } : { ok: false, applied: 0 };
+  }
+  async insertRedemption(row: Omit<CouponRedemptionRow, "id" | "redeemed_at">): Promise<void> {
+    const { error } = await this.db.from("coupon_redemptions").insert(row);
+    checkError("insertRedemption", error);
+  }
+  async listRedemptionsByEmail(email: string): Promise<CouponRedemptionRow[]> {
+    const { data, error } = await this.db.from("coupon_redemptions").select("*").eq("customer_email", email);
+    checkError("listRedemptionsByEmail", error);
+    return (data ?? []) as CouponRedemptionRow[];
+  }
+}
+
+/** Wires store-credit.ts's StoreCreditStore to `customers.store_credit_balance`,
+ *  `store_credit_transactions`, and the credit_store_account/debit_store_credit_if_available RPCs
+ *  (see supabase/migrations/0012_coupons.sql). */
+export class SupabaseStoreCreditStore implements StoreCreditStore {
+  constructor(private db: SupabaseClient) {}
+
+  async creditIfAccountExists(email: string, amount: number, _reason: string, _orderId: string): Promise<boolean> {
+    const { data, error } = await this.db.rpc("credit_store_account", { p_email: email, p_amount: amount });
+    checkError("creditIfAccountExists", error);
+    return data === true;
+  }
+  async debitIfAvailable(email: string, requestedAmount: number): Promise<{ ok: boolean; applied: number }> {
+    const { data, error } = await this.db.rpc("debit_store_credit_if_available", { p_email: email, p_requested: requestedAmount }).maybeSingle();
+    checkError("debitIfAvailable", error);
+    const row = data as { ok: boolean; applied: number } | null;
+    return row ? { ok: row.ok, applied: Number(row.applied) } : { ok: false, applied: 0 };
+  }
+  async insertTransaction(row: Omit<StoreCreditTransactionRow, "id" | "created_at">): Promise<void> {
+    const { error } = await this.db.from("store_credit_transactions").insert(row);
+    checkError("insertTransaction", error);
+  }
+  async getBalance(email: string): Promise<number> {
+    const { data, error } = await this.db.from("customers").select("store_credit_balance").eq("email", email).maybeSingle();
+    checkError("getBalance", error);
+    return data ? Number(data.store_credit_balance ?? 0) : 0;
+  }
+  async listTransactionsByEmail(email: string): Promise<StoreCreditTransactionRow[]> {
+    const { data, error } = await this.db.from("store_credit_transactions").select("*").eq("customer_email", email);
+    checkError("listTransactionsByEmail", error);
+    return (data ?? []) as StoreCreditTransactionRow[];
   }
 }
