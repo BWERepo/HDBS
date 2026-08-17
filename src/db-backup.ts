@@ -22,6 +22,7 @@ export const BACKUP_TABLES = [
   "reviews",
   "faqs",
   "email_log",
+  "app_log",
   "tn_city_tax",
   "tax_sweeps",
   "studio_items",
