@@ -157,9 +157,12 @@ fixed by Claude this session — flagged for the user to flip back to Test (Sand
 convenient. Not urgent (staging only, doesn't block any current work), but worth doing before the
 next round of checkout testing on staging.
 
+**Resolved same session, right after this was written**: user flipped staging's `square_mode`
+back to `Test (Sandbox)` via Admin → Settings. Confirmed live (`window.SQUARE_MODE === "test"`
+on staging) — sandbox test cards work again.
+
 ### Immediate next step
-None blocking. Two small, non-urgent follow-ups carried forward:
-- Flip staging's `square_mode` admin setting back to `Test (Sandbox)` (see #6 above).
+None blocking. One small, non-urgent follow-up carried forward:
 - Fix `supabase/migrations/0012_coupons.sql`'s `search_path` gotcha (see #5.3 above) so a future
   from-scratch schema application doesn't hit the same `citext` error.
 
