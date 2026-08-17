@@ -5,6 +5,166 @@
 
 ---
 
+## Current state — 2026-08-17 (Production live on `4.37.0`: SKU search, checkout required-field overhaul, real "My Orders" fix for a route that was never wired, new coupons/store-credit feature — two live rollbacks along the way, both caught before customers were affected)
+
+**Long session, several distinct pieces of work, ending with production healthy on `4.37.0`.** In arrival order:
+
+### 1. Homepage SKU/name search
+Added a live-filtering search box to the storefront's "Our Collection" section
+(`js/store.js`, `js/config.js`, `public/index.html`) — matches against `p.sku` or `p.name`, plus
+a 🔍 icon in the nav that jumps to it and focuses the box, and a clear (✕) button. Shipped as
+**v4.30.0**.
+
+### 2. Checkout required-field indicators — several rounds of real user-driven refinement
+What shipped as **v4.31.0** and is now live, after multiple corrections mid-session (each one a
+real requirement change, not a bug):
+- Red ★ markers next to actually-enforced required fields, with a "★ = required" legend.
+- Payment section moved above Contact/Shipping in the checkout modal.
+- **State / ZIP split into two separate fields** (was one combined "State / ZIP" input).
+- **Final required-field rules, split by payment method** (`js/store.js`'s `placeOrder()` and
+  `updateRequiredStars()`, kept in sync manually — no shared source of truth between them, worth
+  refactoring if this logic churns again):
+  - **Credit card** (Online, or InPerson+Credit Card): First Name, Last Name, **Email**, ZIP
+    always required; Street/City/State additionally required only if shipping is charged.
+  - **Cash/Check** (InPerson only): First Name, Last Name always required, **email NOT
+    required**; Street/City/State/ZIP required only if shipping is charged; **nothing at all**
+    required for an in-person pickup sale with no shipping charge.
+  - **Check specifically**: Check Number required whenever that method is selected, independent
+    of the shipping toggle.
+  - The email split (required for card, not for cash/check) was **deliberately requested twice in
+    opposite directions** mid-session — first "always required" (to support the new order-lookup
+    feature below), then corrected to "card only" — the code now reflects the second, final
+    instruction. If this gets revisited again, the reasoning was: card customers need email for
+    self-service order lookup; cash/check customers are handled in person by Suzi directly, so
+    there's less need.
+
+### 3. Skill maintenance
+- Deleted references to the retired `/BWEHDBSPromote` skill (the file itself was already gone
+  from disk, found via a full `.claude/skills` search) from `BWEHDBSAll`, `BWEHDBSCheckpoint`,
+  and `BWEHDBSEnd`'s own SKILL.md files — all three had been "absorbed everything Promote used to
+  do" language pointing at a skill that no longer exists.
+- **Rebuilt `BWEHDBSCheckpoint`** to mirror this project's BWE sibling's `BWECheckpoint` more
+  closely in structure/wording (added a "What this skill does" section to match, tightened some
+  phrasing) while deliberately keeping HDBS-specific improvements BWE's version doesn't have —
+  most notably the real content-level health check (`/api/health` + `/api/products.php` body
+  checks, not just an HTTP 200) and no `wrangler` version pinning (BWE pins due to a specific past
+  supply-chain incident that hasn't happened here).
+- `BWEHDBSEnd` was found disabled for direct model invocation via this machine's global
+  `C:\Users\Admin\.claude\settings.json` `skillOverrides` block (`"BWEHDBSEnd": "off"`, alongside
+  several unrelated other-project skills) — **now flipped to `"on"`** at the user's explicit
+  request, so `/BWEHDBSEnd` invokes normally going forward instead of needing its SKILL.md
+  followed by hand.
+
+### 4. `app_log` missing from the JSON-export backup route's table list — fixed
+`src/db-backup.ts`'s `BACKUP_TABLES` was missing `"app_log"` (20 of the real 21 tables), so
+`/api/db_backup.php`'s JSON export silently omitted it. **Only affects that one route** — the
+real nightly `pg_dump`-based backup (`backup_hdbs.ps1`, rewritten 2026-08-12) already takes every
+table regardless of this list, confirmed unaffected. One-line fix, 499/499 tests passed
+(unaffected — the test suite derives its expectations from `BACKUP_TABLES` itself), deployed to
+staging only (backend-only change, no version bump attached at the time) — **shipped to
+production as part of the `f2b99fe` commit below**, not separately.
+
+### 5. Big one: coupons + store-credit feature, and a real pre-existing bug found while shipping it
+User had substantial **uncommitted work already sitting in the working tree** at the start of
+this thread (13 modified files, 6 new files, an unapplied migration) — clarified mid-session as
+genuine intentional HDBS work done under a mislabeled session name, not a mistake, not BWE's. Full
+list: `js/admin-coupons.js`, `src/coupons.ts`/`.test.ts`, `src/routes/coupons.ts`,
+`src/store-credit.ts`/`.test.ts`, `supabase/migrations/0012_coupons.sql`, plus wiring changes
+across `js/admin-misc.js`, `js/admin-nav.js`, `js/auth.js`, `js/store.js`, `public/index.html`,
+`src/db-backup.ts`, `src/db.ts`, `src/email.ts`, `src/index.ts`, `src/orders.ts`/`.test.ts`,
+`src/routes/media.ts`, `src/routes/orders.ts`.
+
+**Coupon design** (`supabase/migrations/0012_coupons.sql`): a code has a `quantity` (max total
+redemptions across all customers) and `amount` (dollar or percent, capped at the order subtotal
+per use — no shared dollar pool). One redemption per customer email
+(`coupon_redemptions_code_email_uidx`, partial index excluding null emails for guest orders).
+**Store credit**: if a coupon's face value exceeds what an order needed, the difference is
+credited to the customer's account (`customers.store_credit_balance`) — but only for orders whose
+email matches a real customer account; guest checkouts don't collect the unused difference.
+Both use atomic conditional Postgres functions (`redeem_coupon_if_available`,
+`credit_store_account`, `debit_store_credit_if_available`) for the same reason 0010's
+`decrement_stock_if_available` exists — PostgREST can't express a conditional update + branch in
+one round trip.
+
+**Real pre-existing bug found and fixed while verifying this**: production's "My Orders" flow has
+been broken since before this migration — `api/order_lookup.php` was **never ported to a Hono
+route** during the whole Cloudflare migration, despite its backing table
+(`order_lookup_requests`) existing since migration `0003`. `docs/schema-reconciliation.md`
+finding 3 had explicitly flagged this as an open question ("confirm with the user before
+porting") that was apparently never followed up on. Confirmed via direct code search (no
+`order_lookup` route anywhere in `src/`) and live reproduction (a screenshot showing "Network
+error loading orders" on production). **Built properly, not patched**: new `src/order-lookup.ts`
+(business logic, reuses `orders.ts`'s existing `mapOrderForResponse` for item-grouping so a
+customer's view can't drift from the admin view) + `src/routes/order-lookup.ts` (the actual
+`POST /api/order_lookup.php` Hono route) + `SupabaseOrderLookupStore` in `src/db.ts` (backed by
+the real, already-existing-but-never-used `order_lookup_requests` table for rate limiting — 5
+requests/15min per email, matching the original PHP). 10 new unit tests, 526/526 total passing.
+
+**Two real production incidents during this, both caught and rolled back before being left
+broken — not silently patched over:**
+1. First production deploy attempt: `0012_coupons.sql` had only been applied to the
+   `hdbs_staging` schema, not `hdbs_prod` (both live in the same shared DR Supabase project,
+   `qrsydsglkgampabirejz`, post-2026-08-13 DR migration). `/api/coupons.php` 500'd on production
+   immediately after deploy — caught by an extra verification probe beyond the checkpoint
+   skill's own two official checks (health + products, both of which passed, meaning this
+   specific failure mode is a real gap in what the checkpoint automatically verifies). Rolled
+   back immediately via `wrangler rollback` to the pre-deploy Version ID.
+2. **User independently caught a second, more serious break** — a live screenshot of "My Orders"
+   showing "Network error loading orders" on production, sent mid-verification. Rolled back a
+   second time rather than trying to patch forward with two known breakages live at once.
+   This is what led to actually building the order-lookup fix above, instead of just re-applying
+   the coupons migration and retrying.
+3. **A real migration gotcha hit applying `0012_coupons.sql` to `hdbs_prod` by hand** (Chrome
+   extension wasn't connected this session, so the user ran the SQL manually in Supabase's
+   dashboard): `set search_path to hdbs_prod;` alone dropped the `extensions` schema from the
+   path, where `citext` actually lives in this project — `ERROR: 42704: type "citext" does not
+   exist`. Fixed by using `set search_path to hdbs_prod, extensions;` instead, with a
+   `drop table if exists coupons cascade;` guard at the top since the first `create table
+   coupons` had already silently committed before the later statement failed (Supabase's SQL
+   editor does not auto-wrap a pasted script in one transaction). **Not yet fixed in the checked-in
+   `supabase/migrations/0012_coupons.sql` file itself** — it will hit the same `citext` error on
+   any future schema-scoped run unless whoever runs it remembers to include `extensions` in the
+   search_path. Worth fixing in the migration file or documenting the required invocation
+   explicitly, so this doesn't repeat.
+4. **A transient false alarm, correctly not acted on**: right after the (eventually-successful)
+   production deploy, `/api/order_lookup.php` briefly still returned the SPA shell (route-miss
+   behavior) despite identical code already confirmed working on staging — resolved itself on
+   retry ~8 seconds later (edge propagation lag across Cloudflare's PoPs, not a real bug). Did not
+   roll back on this one; retried and confirmed before concluding anything.
+
+All of the above shipped together as commit `f2b99fe` ("Add coupons/store-credit feature; fix
+never-wired order-lookup route; make checkout email required for card payments only"), version
+bumped to **`4.36.0`**, Version ID `1816e7c2-a2b7-4873-8e01-502a4ce0e84a`. A separate,
+no-code-change `/BWEHDBSCheckpoint` run immediately after bumped to **`4.37.0`** (commit
+`c6ead9c`, Version ID `4d9da959-6db1-4ad5-b68c-21245a9755e1`) just to confirm the checkpoint
+flow itself still works end-to-end — both environments verified healthy, no rollback.
+
+### 6. Found, not yet fixed: staging's Square payment mode is stuck on `live`
+While the user was testing the new coupon feature at checkout on staging, a card payment failed
+with "Payment configuration error." Root cause, confirmed live: the admin `square_mode` DB
+setting (Admin → Settings → 🧪 Square Payment Mode) is currently **`live`** on staging, not
+`test`/Sandbox — so staging's storefront checkout tokenizes cards against Square's real live API,
+which correctly rejects the well-known sandbox test card number (`4111 1111 1111 1111`) the user
+was using. Confirmed via direct inspection (`window.SQUARE_MODE` on the live staging page) and by
+searching the whole frontend: `js/store.js`'s storefront checkout is the **only** place that
+tokenizes a card via Square.js — the admin panel's own "Square Payments" report (`rSqPay`) is a
+read-only call that goes straight to the backend, which is driven by each Worker's own secrets,
+not this DB setting, so nothing else is affected. **This only affects staging** (production and
+staging now have fully separate Supabase schemas since the DR migration, so flipping this back is
+isolated) — likely left over from an earlier session's real-money Square verification and never
+reverted. **Requires admin login to fix** (the dropdown is in Admin → Settings), so this wasn't
+fixed by Claude this session — flagged for the user to flip back to Test (Sandbox) whenever
+convenient. Not urgent (staging only, doesn't block any current work), but worth doing before the
+next round of checkout testing on staging.
+
+### Immediate next step
+None blocking. Two small, non-urgent follow-ups carried forward:
+- Flip staging's `square_mode` admin setting back to `Test (Sandbox)` (see #6 above).
+- Fix `supabase/migrations/0012_coupons.sql`'s `search_path` gotcha (see #5.3 above) so a future
+  from-scratch schema application doesn't hit the same `citext` error.
+
+---
+
 ## Current state — 2026-08-13 (BOTH environments cut over to the shared DR Supabase project; production live on `hdbs_prod` as v4.34.0; `/api/health` is a real check now; a `service_role` key exposed, rotated and revoked)
 
 **HDBS now runs entirely on the shared DR project (`qrsydsglkgampabirejz`)** — staging on
