@@ -6,7 +6,7 @@ import type { Env } from "../types";
 import { ok, fail } from "../lib/http";
 import { createDb, SupabaseAdminAuthStore, SupabaseCouponsStore, SupabaseSettingsStore, SupabaseStoreCreditStore } from "../db";
 import { isValidAdminToken } from "../auth";
-import { createCoupon, listCoupons, deactivateCoupon, validateCoupon, myCouponRedemptions, type CouponType } from "../coupons";
+import { createCoupon, listCoupons, deactivateCoupon, editCoupon, deleteCoupon, listCouponCodes, validateCoupon, myCouponRedemptions } from "../coupons";
 import { getStoreCreditBalance, myStoreCreditTransactions } from "../store-credit";
 import { verifyOrderToken } from "../lib/order-token";
 import { decodeBase64Image } from "../lib/file-upload";
@@ -28,7 +28,7 @@ couponsRoute.post("/api/coupons.php", async (c) => {
 
   if (action === "validate") {
     const result = await validateCoupon(store, String(body.code ?? ""), Number(body.subtotal ?? 0), body.email ? String(body.email) : undefined);
-    return result.ok ? ok(c, { discount: result.data!.discount, type: result.data!.type, code: result.data!.code }) : fail(c, result.error!, 400);
+    return result.ok ? ok(c, { discount: result.data!.discount, code: result.data!.code }) : fail(c, result.error!, 400);
   }
 
   if (action === "my_redemptions") {
@@ -63,13 +63,12 @@ couponsRoute.post("/api/coupons.php", async (c) => {
 
   if (action === "create") {
     const result = await createCoupon(store, {
-      code: body.code ? String(body.code) : undefined,
-      coupon_type: String(body.coupon_type ?? "") as CouponType,
+      name: String(body.name ?? ""),
       amount: Number(body.amount ?? 0),
       quantity: Number(body.quantity ?? 0),
       expires_at: body.expires_at ? String(body.expires_at) : null,
     });
-    return result.ok ? ok(c, { code: result.data!.code }) : fail(c, result.error!, result.status ?? 400);
+    return result.ok ? ok(c, { id: result.data!.id, codes: result.data!.codes }) : fail(c, result.error!, result.status ?? 400);
   }
 
   if (action === "list") {
@@ -78,8 +77,26 @@ couponsRoute.post("/api/coupons.php", async (c) => {
   }
 
   if (action === "deactivate") {
-    const result = await deactivateCoupon(store, String(body.code ?? ""));
+    const result = await deactivateCoupon(store, Number(body.id ?? 0));
     return result.ok ? ok(c, { message: "Coupon deactivated" }) : fail(c, result.error!, 400);
+  }
+
+  if (action === "update") {
+    const result = await editCoupon(store, Number(body.id ?? 0), {
+      amount: Number(body.amount ?? 0),
+      expires_at: body.expires_at ? String(body.expires_at) : null,
+    });
+    return result.ok ? ok(c, { message: "Coupon updated" }) : fail(c, result.error!, 400);
+  }
+
+  if (action === "delete") {
+    const result = await deleteCoupon(store, Number(body.id ?? 0));
+    return result.ok ? ok(c, { message: "Coupon deleted" }) : fail(c, result.error!, 400);
+  }
+
+  if (action === "codes") {
+    const result = await listCouponCodes(store, Number(body.id ?? 0));
+    return result.ok ? ok(c, { codes: result.data!.codes }) : fail(c, result.error!, 400);
   }
 
   if (action === "upload_template") {

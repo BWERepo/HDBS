@@ -31,7 +31,7 @@ import type { EmailOrderStore, OrderForConfirmation, OrderItemForConfirmation } 
 import type { RefundsStore, RefundRow } from "./refunds";
 import type { DbBackupStore } from "./db-backup";
 import type { AppLogStore, AppLogFile, AppLogEntry } from "./app-log";
-import type { CouponsStore, CouponRow, CouponRedemptionRow } from "./coupons";
+import type { CouponsStore, CouponBatchRow, CouponCodeRow, CouponCodeLookup } from "./coupons";
 import type { StoreCreditStore, StoreCreditTransactionRow } from "./store-credit";
 import type { OrderLookupStore } from "./order-lookup";
 
@@ -1046,46 +1046,71 @@ export class SupabaseEmailOrderStore implements EmailOrderStore {
 
 /** Wires coupons.ts's CouponsStore to `coupons`, `coupon_redemptions`, and the
  *  redeem_coupon_if_available RPC (see supabase/migrations/0012_coupons.sql). */
+type CouponCodeWithBatchRow = CouponCodeRow & { coupons: { active: boolean; amount: number; expires_at: string | null } | null };
+
 export class SupabaseCouponsStore implements CouponsStore {
   constructor(private db: SupabaseClient) {}
 
-  async insertCoupon(row: CouponRow): Promise<void> {
-    const { error } = await this.db.from("coupons").insert(row);
-    checkError("insertCoupon", error);
+  async insertBatch(row: Omit<CouponBatchRow, "id" | "used_count">): Promise<number> {
+    const { data, error } = await this.db.from("coupons").insert(row).select("id").single();
+    checkError("insertBatch", error);
+    return (data as { id: number }).id;
   }
-  async listCoupons(): Promise<CouponRow[]> {
-    const { data, error } = await this.db.from("coupons").select("*").order("created_at", { ascending: false });
-    checkError("listCoupons", error);
-    return (data ?? []) as CouponRow[];
+  async insertCodes(rows: { code: string; batch_id: number }[]): Promise<void> {
+    const { error } = await this.db.from("coupon_codes").insert(rows);
+    checkError("insertCodes", error);
   }
-  async setActive(code: string, active: boolean): Promise<void> {
-    const { error } = await this.db.from("coupons").update({ active }).eq("code", code);
+  async listBatches(): Promise<CouponBatchRow[]> {
+    const { data, error } = await this.db.from("coupon_batch_summary").select("*").order("created_at", { ascending: false });
+    checkError("listBatches", error);
+    return (data ?? []) as CouponBatchRow[];
+  }
+  async getBatch(id: number): Promise<CouponBatchRow | null> {
+    const { data, error } = await this.db.from("coupon_batch_summary").select("*").eq("id", id).maybeSingle();
+    checkError("getBatch", error);
+    return data as CouponBatchRow | null;
+  }
+  async setActive(id: number, active: boolean): Promise<void> {
+    const { error } = await this.db.from("coupons").update({ active }).eq("id", id);
     checkError("setActive", error);
   }
-  async getCoupon(code: string): Promise<CouponRow | null> {
-    const { data, error } = await this.db.from("coupons").select("*").eq("code", code).maybeSingle();
-    checkError("getCoupon", error);
-    return data as CouponRow | null;
+  async updateBatch(id: number, fields: { amount: number; expires_at: string | null }): Promise<void> {
+    const { error } = await this.db.from("coupons").update(fields).eq("id", id);
+    checkError("updateBatch", error);
   }
-  async hasRedeemed(code: string, email: string): Promise<boolean> {
-    const { data, error } = await this.db.from("coupon_redemptions").select("id").eq("code", code).eq("customer_email", email).maybeSingle();
-    checkError("hasRedeemed", error);
+  async deleteBatch(id: number): Promise<void> {
+    const { error } = await this.db.from("coupons").delete().eq("id", id);
+    checkError("deleteBatch", error);
+  }
+  async listCodesByBatch(id: number): Promise<CouponCodeRow[]> {
+    const { data, error } = await this.db.from("coupon_codes").select("*").eq("batch_id", id);
+    checkError("listCodesByBatch", error);
+    return (data ?? []) as CouponCodeRow[];
+  }
+  async codeExists(code: string): Promise<boolean> {
+    const { data, error } = await this.db.from("coupon_codes").select("code").eq("code", code).maybeSingle();
+    checkError("codeExists", error);
     return !!data;
   }
-  async redeemIfAvailable(code: string, requestedDiscount: number): Promise<{ ok: boolean; applied: number }> {
-    const { data, error } = await this.db.rpc("redeem_coupon_if_available", { p_code: code, p_requested: requestedDiscount }).maybeSingle();
-    checkError("redeemIfAvailable", error);
-    const row = data as { ok: boolean; applied: number } | null;
-    return row ? { ok: row.ok, applied: Number(row.applied) } : { ok: false, applied: 0 };
+  async getCodeForValidation(code: string): Promise<CouponCodeLookup | null> {
+    const { data, error } = await this.db.from("coupon_codes").select("code, redeemed_at, coupons(active, amount, expires_at)").eq("code", code).maybeSingle();
+    checkError("getCodeForValidation", error);
+    const row = data as unknown as CouponCodeWithBatchRow | null;
+    if (!row || !row.coupons) return null;
+    return { code: row.code, redeemed_at: row.redeemed_at, batch_active: row.coupons.active, batch_amount: Number(row.coupons.amount), batch_expires_at: row.coupons.expires_at };
   }
-  async insertRedemption(row: Omit<CouponRedemptionRow, "id" | "redeemed_at">): Promise<void> {
-    const { error } = await this.db.from("coupon_redemptions").insert(row);
-    checkError("insertRedemption", error);
+  async redeemCodeIfAvailable(code: string, orderId: string, email: string | null, discountAmount: number): Promise<{ ok: boolean }> {
+    const { data, error } = await this.db
+      .rpc("redeem_code_if_available", { p_code: code, p_order_id: orderId, p_email: email, p_discount_amount: discountAmount })
+      .maybeSingle();
+    checkError("redeemCodeIfAvailable", error);
+    const row = data as { ok: boolean } | null;
+    return { ok: !!row?.ok };
   }
-  async listRedemptionsByEmail(email: string): Promise<CouponRedemptionRow[]> {
-    const { data, error } = await this.db.from("coupon_redemptions").select("*").eq("customer_email", email);
-    checkError("listRedemptionsByEmail", error);
-    return (data ?? []) as CouponRedemptionRow[];
+  async listCodesByEmail(email: string): Promise<CouponCodeRow[]> {
+    const { data, error } = await this.db.from("coupon_codes").select("*").eq("customer_email", email);
+    checkError("listCodesByEmail", error);
+    return (data ?? []) as CouponCodeRow[];
   }
 }
 
