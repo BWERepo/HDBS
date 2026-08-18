@@ -940,6 +940,15 @@ function showCardError(msg){
   if(el){el.textContent=msg;el.style.display='block';}
 }
 
+// Re-fetches the live product list so a stock restore (e.g. from cancelling a pending order)
+// shows up immediately instead of waiting for a manual page reload — PRODS is otherwise only
+// ever fetched once, at initial page load (see ui.js).
+function refreshProductStock(){
+  apiFetch('products.php').then(function(d){
+    if(d.success&&d.products){PRODS=d.products;renderStore();}
+  }).catch(function(){});
+}
+
 function backToCheckoutForm(){
   // Destroy card widget
   if(window._sqCard){try{window._sqCard.destroy();}catch(e){}window._sqCard=null;}
@@ -947,7 +956,8 @@ function backToCheckoutForm(){
   // Cancel the pending order so stock is restored
   var oid=window._pendingOrderId;
   if(oid){
-    apiFetch('customers.php','POST',{action:'cancel_order',order_id:oid,cancel_token:window._pendingCancelToken}).catch(function(){});
+    apiFetch('customers.php','POST',{action:'cancel_order',order_id:oid,cancel_token:window._pendingCancelToken})
+      .then(refreshProductStock).catch(function(){});
     window._pendingOrderId=null;
     window._pendingCancelToken=null;
   }
@@ -1043,6 +1053,7 @@ function cancelPendingOrder(){
         window._pendingCartItems=null;
         updCartCount();renderStore();
       }
+      refreshProductStock();
       closeModal('co-modal');
       // Reset panels for next time
       _show('co-form');_hide('co-payment');_hide('co-processing');_hide('co-result');

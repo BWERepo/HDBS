@@ -191,8 +191,9 @@ function viewCouponCodes(id){
     var codes=(d&&d.codes)||[];
     var rows=codes.map(function(c){
       var statusBadge=c.used?'<span class="badge br">Used</span>':'<span class="badge bg">Unused</span>';
+      var orderCell=c.order_id?'<code style="color:#a07810;cursor:pointer;text-decoration:underline" onclick="viewOrder(\''+c.order_id+'\')" title="View order">'+c.order_id+'</code>':'';
       return '<tr><td><code style="color:#a07810">'+c.code+'</code></td><td>'+statusBadge+'</td>'+
-        '<td>'+(c.order_id||'')+'</td><td>'+(c.email||(c.used?'Guest':''))+'</td>'+
+        '<td>'+orderCell+'</td><td>'+(c.email||(c.used?'Guest':''))+'</td>'+
         '<td style="text-align:right">'+(c.discount!==null?'$'+Number(c.discount).toFixed(2):'')+'</td>'+
         '<td>'+(c.date?new Date(c.date).toLocaleString():'')+'</td></tr>';
     }).join('');
