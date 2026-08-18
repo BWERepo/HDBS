@@ -1090,16 +1090,12 @@ export class SupabaseCouponsStore implements CouponsStore {
 }
 
 /** Wires store-credit.ts's StoreCreditStore to `customers.store_credit_balance`,
- *  `store_credit_transactions`, and the credit_store_account/debit_store_credit_if_available RPCs
- *  (see supabase/migrations/0012_coupons.sql). */
+ *  `store_credit_transactions`, and the debit_store_credit_if_available RPC (see
+ *  supabase/migrations/0012_coupons.sql). Nothing currently deposits into this balance — coupons
+ *  are percent-off only — but any pre-existing balance remains spendable via this store. */
 export class SupabaseStoreCreditStore implements StoreCreditStore {
   constructor(private db: SupabaseClient) {}
 
-  async creditIfAccountExists(email: string, amount: number, _reason: string, _orderId: string): Promise<boolean> {
-    const { data, error } = await this.db.rpc("credit_store_account", { p_email: email, p_amount: amount });
-    checkError("creditIfAccountExists", error);
-    return data === true;
-  }
   async debitIfAvailable(email: string, requestedAmount: number): Promise<{ ok: boolean; applied: number }> {
     const { data, error } = await this.db.rpc("debit_store_credit_if_available", { p_email: email, p_requested: requestedAmount }).maybeSingle();
     checkError("debitIfAvailable", error);

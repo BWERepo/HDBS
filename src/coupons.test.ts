@@ -22,7 +22,7 @@ function couponsAdapter(store: CouponsStoreFake) {
 describe("createCoupon", () => {
   it("auto-generates a code when none is supplied", async () => {
     const store = new CouponsStoreFake();
-    const result = await createCoupon(store, { coupon_type: "dollar", amount: 10, quantity: 5 });
+    const result = await createCoupon(store, { coupon_type: "percent", amount: 10, quantity: 5 });
     expect(result.ok).toBe(true);
     expect(result.data!.code.length).toBeGreaterThan(0);
     expect(store.coupons[0]!.amount).toBe(10);
@@ -31,11 +31,11 @@ describe("createCoupon", () => {
 
   it("accepts a custom code and rejects a duplicate", async () => {
     const store = new CouponsStoreFake();
-    const first = await createCoupon(store, { code: "SAVE10", coupon_type: "dollar", amount: 10, quantity: 5 });
+    const first = await createCoupon(store, { code: "SAVE10", coupon_type: "percent", amount: 10, quantity: 5 });
     expect(first.ok).toBe(true);
     expect(first.data!.code).toBe("SAVE10");
 
-    const dup = await createCoupon(store, { code: "save10", coupon_type: "dollar", amount: 5, quantity: 1 });
+    const dup = await createCoupon(store, { code: "save10", coupon_type: "percent", amount: 5, quantity: 1 });
     expect(dup.ok).toBe(false);
   });
 
@@ -49,7 +49,7 @@ describe("createCoupon", () => {
 describe("listCoupons", () => {
   it("reports created (quantity) and used (used_count) directly", async () => {
     const store = new CouponsStoreFake();
-    const batch = await createCoupon(store, { coupon_type: "dollar", amount: 10, quantity: 3 });
+    const batch = await createCoupon(store, { coupon_type: "percent", amount: 10, quantity: 3 });
     await store.redeemIfAvailable(batch.data!.code, 4);
 
     const result = await listCoupons(store);
@@ -60,9 +60,9 @@ describe("listCoupons", () => {
 });
 
 describe("validateCoupon", () => {
-  it("previews a dollar discount capped at subtotal, without mutating anything", async () => {
+  it("previews a percent discount, capped at subtotal by construction (100% off), without mutating anything", async () => {
     const store = new CouponsStoreFake();
-    const created = await createCoupon(store, { coupon_type: "dollar", amount: 10, quantity: 1 });
+    const created = await createCoupon(store, { coupon_type: "percent", amount: 100, quantity: 1 });
     const code = created.data!.code;
 
     const preview = await validateCoupon(store, code, 6);
@@ -72,16 +72,16 @@ describe("validateCoupon", () => {
 
   it("rejects an expired coupon", async () => {
     const store = new CouponsStoreFake();
-    const created = await createCoupon(store, { coupon_type: "dollar", amount: 10, quantity: 1, expires_at: "2020-01-01" });
+    const created = await createCoupon(store, { coupon_type: "percent", amount: 10, quantity: 1, expires_at: "2020-01-01" });
     const result = await validateCoupon(store, created.data!.code, 20);
     expect(result.ok).toBe(false);
   });
 });
 
-describe("dollar coupon: fresh cap per use, no shared pool", () => {
-  it("gives each of the quantity uses its own full $10 off, by different customers", async () => {
+describe("percent coupon: fresh cap per use, no shared pool", () => {
+  it("gives each of the quantity uses its own full 50% off its own order, by different customers", async () => {
     const store = new CouponsStoreFake();
-    const created = await createCoupon(store, { code: "SHARE10", coupon_type: "dollar", amount: 10, quantity: 5 });
+    const created = await createCoupon(store, { code: "SHARE50", coupon_type: "percent", amount: 50, quantity: 5 });
     const code = created.data!.code;
 
     const ordersStore = new OrdersStoreFake();
@@ -109,7 +109,7 @@ describe("dollar coupon: fresh cap per use, no shared pool", () => {
     expect(second.ok).toBe(true);
     expect((await store.getCoupon(code))!.used_count).toBe(2);
 
-    // Both orders got the full $10 off — not split from a shared pool.
+    // Both orders got the full 50% off their own $20 subtotal — not split from a shared pool.
     const items1 = ordersStore.items.filter((i) => i.order_id === "ORD-1");
     const items2 = ordersStore.items.filter((i) => i.order_id === "ORD-2");
     expect(Math.abs(Number(items1.find((i) => i.product_id === "_coupon")!.price))).toBe(10);
@@ -121,7 +121,7 @@ describe("dollar coupon: fresh cap per use, no shared pool", () => {
 
   it("stops once quantity is exhausted", async () => {
     const store = new CouponsStoreFake();
-    const created = await createCoupon(store, { coupon_type: "dollar", amount: 100, quantity: 1 });
+    const created = await createCoupon(store, { coupon_type: "percent", amount: 100, quantity: 1 });
     const code = created.data!.code;
 
     await store.redeemIfAvailable(code, 2);
@@ -156,7 +156,7 @@ describe("percent coupon: capped only by quantity, no dollar pool", () => {
 describe("coupon discount reduces subtotal before tax/shipping/fee", () => {
   it("applies the discount as a synthetic negative line item excluded from displayItems", async () => {
     const store = new CouponsStoreFake();
-    const created = await createCoupon(store, { coupon_type: "dollar", amount: 15, quantity: 1 });
+    const created = await createCoupon(store, { coupon_type: "percent", amount: 30, quantity: 1 }); // 30% of 50 = 15
     const code = created.data!.code;
 
     const ordersStore = new OrdersStoreFake();
@@ -185,7 +185,7 @@ describe("coupon discount reduces subtotal before tax/shipping/fee", () => {
 describe("one redemption per customer per code", () => {
   it("rejects a second use by the same email, even with uses remaining", async () => {
     const store = new CouponsStoreFake();
-    const created = await createCoupon(store, { coupon_type: "dollar", amount: 10, quantity: 5 });
+    const created = await createCoupon(store, { coupon_type: "percent", amount: 100, quantity: 5 });
     const code = created.data!.code;
 
     const ordersStore = new OrdersStoreFake();

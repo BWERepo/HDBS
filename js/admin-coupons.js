@@ -26,7 +26,7 @@ function rCoupons(el){
 
 function renderCouponsScreen(el){
   var rows=COUPONS_LIST.map(function(c){
-    var typeLabel=c.type==='dollar'?'$'+Number(c.amount).toFixed(2)+' off':Number(c.amount)+'% off';
+    var typeLabel=Number(c.amount)+'% off';
     var expLabel=c.expires_at?fmtCouponDate(c.expires_at):'No expiration';
     var statusBadge=c.active?'<span class="badge bg">Active</span>':'<span class="badge br">Inactive</span>';
     return '<tr><td><code style="color:#a07810">'+c.code+'</code></td><td>'+typeLabel+'</td><td style="text-align:center">'+c.created+'</td><td style="text-align:center">'+c.used+'</td>'+
@@ -83,12 +83,7 @@ function toggleCouponForm(){
     '<div class="acct-title">New Coupon</div>'+
     '<label class="fl">Code (optional — leave blank to auto-generate)</label>'+
     '<input class="fi" id="cb-code" placeholder="e.g. SUMMER25" style="width:100%;text-transform:uppercase;margin-bottom:.6rem">'+
-    '<label class="fl">Type</label>'+
-    '<select class="fi" id="cb-type" style="width:100%;margin-bottom:.6rem">'+
-      '<option value="dollar">Dollar amount off</option>'+
-      '<option value="percent">Percent off</option>'+
-    '</select>'+
-    '<label class="fl">Amount (dollars, or 1-100 for percent)</label>'+
+    '<label class="fl">Percent off (1-100)</label>'+
     '<input class="fi" id="cb-amount" type="number" min="0.01" step="0.01" style="width:100%;margin-bottom:.6rem">'+
     '<label class="fl">Quantity (max number of times this code can be used)</label>'+
     '<input class="fi" id="cb-quantity" type="number" min="1" value="1" style="width:100%;margin-bottom:.6rem">'+
@@ -102,14 +97,13 @@ function toggleCouponForm(){
 
 function submitCoupon(){
   var code=(document.getElementById('cb-code').value||'').trim().toUpperCase();
-  var type=document.getElementById('cb-type').value;
   var amount=parseFloat(document.getElementById('cb-amount').value);
   var quantity=parseInt(document.getElementById('cb-quantity').value,10);
   var expires=document.getElementById('cb-expires').value||null;
   var err=document.getElementById('cb-err');err.style.display='none';
-  if(!(amount>0)){err.textContent='Please enter an amount greater than 0.';err.style.display='block';return;}
+  if(!(amount>0&&amount<=100)){err.textContent='Please enter a percent between 1 and 100.';err.style.display='block';return;}
   if(!(quantity>=1)){err.textContent='Please enter a quantity of at least 1.';err.style.display='block';return;}
-  apiFetch('coupons.php','POST',{action:'create',code:code||undefined,coupon_type:type,amount:amount,quantity:quantity,expires_at:expires}).then(function(d){
+  apiFetch('coupons.php','POST',{action:'create',code:code||undefined,coupon_type:'percent',amount:amount,quantity:quantity,expires_at:expires}).then(function(d){
     if(!d||!d.success){err.textContent=(d&&d.error)||'Could not create coupon.';err.style.display='block';return;}
     rCoupons(document.getElementById('acnt'));
   }).catch(function(){err.textContent='Network error.';err.style.display='block';});
@@ -137,7 +131,7 @@ function printCoupon(code){
 }
 
 function renderPrintableCoupons(img,coupon){
-  var label=coupon.type==='dollar'?('$'+Number(coupon.amount).toFixed(2)+' OFF'):(Number(coupon.amount)+'% OFF');
+  var label=Number(coupon.amount)+'% OFF';
   var canvas=document.createElement('canvas');
   canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;
   var ctx=canvas.getContext('2d');

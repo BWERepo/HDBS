@@ -10,7 +10,7 @@ import { sendOrderConfirmationEmail } from "../email";
 import { resolveBizProfile } from "../lib/biz-profile";
 import { createEmailSender } from "../lib/email-sender";
 import { validateCoupon, redeemCoupon } from "../coupons";
-import { creditLeftoverToAccount, spendStoreCredit } from "../store-credit";
+import { spendStoreCredit } from "../store-credit";
 
 export const ordersRoute = new Hono<{ Bindings: Env }>();
 
@@ -19,23 +19,11 @@ async function requireAdmin(c: { env: Env; req: { header(name: string): string |
 }
 
 /** Adapts coupons.ts's free functions (which take a CouponsStore) to the narrow interface
- *  createOrder expects, so orders.ts doesn't need to import coupons.ts (or store-credit.ts)
- *  directly. Also folds in crediting any leftover between a dollar coupon's face value and what
- *  was actually applied — see coupons.ts's header for why that lives here rather than in orders.ts. */
-function couponsStoreAdapter(couponsStore: SupabaseCouponsStore, creditStore: SupabaseStoreCreditStore): CouponsStoreForOrders {
+ *  createOrder expects, so orders.ts doesn't need to import coupons.ts directly. */
+function couponsStoreAdapter(couponsStore: SupabaseCouponsStore): CouponsStoreForOrders {
   return {
     validateCoupon: (code, subtotal, email) => validateCoupon(couponsStore, code, subtotal, email),
-    redeemCoupon: async (code, requestedDiscount, orderId, email) => {
-      const result = await redeemCoupon(couponsStore, code, requestedDiscount, orderId, email);
-      if (result.ok && result.data) {
-        const coupon = await couponsStore.getCoupon(code.toUpperCase().trim());
-        if (coupon && coupon.coupon_type === "dollar") {
-          const leftover = Number(coupon.amount) - result.data.applied;
-          if (leftover > 0.001) await creditLeftoverToAccount(creditStore, email, leftover, orderId);
-        }
-      }
-      return result;
-    },
+    redeemCoupon: (code, requestedDiscount, orderId, email) => redeemCoupon(couponsStore, code, requestedDiscount, orderId, email),
   };
 }
 
@@ -99,7 +87,7 @@ ordersRoute.post("/api/orders.php", async (c) => {
     isAdmin,
     rateLimitKey,
     c.env.ORDER_TOKEN_SECRET,
-    couponsStoreAdapter(new SupabaseCouponsStore(db), new SupabaseStoreCreditStore(db)),
+    couponsStoreAdapter(new SupabaseCouponsStore(db)),
     creditStoreAdapter(new SupabaseStoreCreditStore(db)),
     undefined,
     // Direct in-process call, not an HTTP round-trip to send_confirm.php — the PHP curled its

@@ -1,7 +1,11 @@
-// Store credit: a per-customer balance, credited when a dollar coupon's face value exceeds what
-// an order actually needed (see coupons.ts's header), spendable at a later checkout the same way a
-// coupon discount is applied (orders.ts's `_credit` line item). New feature, not a PHP port — same
-// store-interface + fake pattern as every other module in this migration.
+// Store credit: a per-customer balance, spendable at checkout the same way a coupon discount is
+// applied (orders.ts's `_credit` line item). New feature, not a PHP port — same store-interface +
+// fake pattern as every other module in this migration.
+//
+// Coupons are percent-off only, so nothing currently deposits into this balance — the crediting
+// side (`credit_store_account` in supabase/migrations/0012_coupons.sql) is unused going forward.
+// The debit/spend side stays live: any balance a customer already has (or gets by some future
+// mechanism) remains spendable here.
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -17,9 +21,6 @@ export interface StoreCreditTransactionRow {
 }
 
 export interface StoreCreditStore {
-  /** Adds `amount` to the customer's balance and returns true — or false if no customer account
-   *  matches that email (guest orders simply don't collect it). */
-  creditIfAccountExists(email: string, amount: number, reason: string, orderId: string): Promise<boolean>;
   /** Atomic: caps the debit at whatever balance actually exists; returns the amount actually
    *  applied (0 if the customer has no account or no balance). */
   debitIfAvailable(email: string, requestedAmount: number): Promise<{ ok: boolean; applied: number }>;
@@ -33,15 +34,6 @@ export interface StoreCreditResult<T = Record<string, never>> {
   error?: string;
   status?: number;
   data?: T;
-}
-
-/** Called from orders.ts's createOrder after a dollar coupon redemption leaves a difference
- *  between its face value and what the order actually used. No-op (and no ledger entry) when the
- *  order's email has no matching customer account. */
-export async function creditLeftoverToAccount(store: StoreCreditStore, email: string | null, amount: number, orderId: string): Promise<void> {
-  if (!email || !(amount > 0)) return;
-  const credited = await store.creditIfAccountExists(email, round2(amount), "Unused coupon balance", orderId);
-  if (credited) await store.insertTransaction({ customer_email: email, amount: round2(amount), reason: "Unused coupon balance", order_id: orderId });
 }
 
 /** PREVIEW ONLY. Public but token-gated at the route (see routes/coupons.ts). */
@@ -72,12 +64,6 @@ export class StoreCreditStoreFake implements StoreCreditStore {
   transactions: StoreCreditTransactionRow[] = [];
   private nextId = 1;
 
-  async creditIfAccountExists(email: string, amount: number, _reason: string, _orderId: string): Promise<boolean> {
-    const target = email.toLowerCase();
-    if (!this.accounts.has(target)) return false;
-    this.balances.set(target, round2((this.balances.get(target) ?? 0) + amount));
-    return true;
-  }
   async debitIfAvailable(email: string, requestedAmount: number): Promise<{ ok: boolean; applied: number }> {
     const target = email.toLowerCase();
     const balance = this.balances.get(target) ?? 0;

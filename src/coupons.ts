@@ -1,25 +1,18 @@
-// Coupons: dollar-amount and percent-off promotional codes. New feature, not a PHP port — written
-// against a small store interface + in-memory fake, same shape as every other module in this
-// migration (customers.ts, orders.ts, products.ts).
+// Coupons: percent-off promotional codes. New feature, not a PHP port — written against a small
+// store interface + in-memory fake, same shape as every other module in this migration
+// (customers.ts, orders.ts, products.ts).
 //
 // ── One code per coupon, not one code per physical copy ──
 // A coupon is a single code (admin-supplied or auto-generated) with a `quantity` — the max number
-// of times it may be redeemed across all customers. Each use is independently capped at `amount`
-// (or the order's subtotal if smaller) — there is no shared dollar pool split across uses.
-// "Number created"/"number used" are `quantity`/`used_count`, stored directly on the row and
-// incremented atomically on redemption (see redeem_coupon_if_available in
-// supabase/migrations/0012_coupons.sql).
+// of times it may be redeemed across all customers. Each use computes its own percentage of that
+// order's subtotal — there is no shared dollar pool split across uses. "Number created"/"number
+// used" are `quantity`/`used_count`, stored directly on the row and incremented atomically on
+// redemption (see redeem_coupon_if_available in supabase/migrations/0012_coupons.sql).
 //
 // ── One redemption per customer per code ──
 // coupon_redemptions_code_email_uidx (partial, excludes null emails) enforces this at the DB
 // level — the true race-safe backstop. validateCoupon/redeemCoupon both also check it directly so
 // the error message is immediate rather than surfacing as a generic insert failure.
-//
-// ── Leftover becomes store credit, not a coupon-side balance ──
-// When a dollar coupon's face value exceeds what an order actually needed, the difference is
-// credited to the customer's account (see store-credit.ts) — but only when the order's email
-// matches a real customer account; guests simply don't collect it. This replaced an earlier,
-// wrong design where the coupon itself carried a shared balance across uses.
 //
 // ── Never trust a client-supplied discount ──
 // validateCoupon is a PREVIEW only (used by the storefront's "Apply" button before the order
@@ -31,7 +24,7 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-export type CouponType = "dollar" | "percent";
+export type CouponType = "percent";
 
 export interface CouponRow {
   code: string;
@@ -102,9 +95,9 @@ export interface CreateCouponInput {
 
 /** Caller must have already required admin. */
 export async function createCoupon(store: CouponsStore, input: CreateCouponInput, now: Date = new Date()): Promise<CouponsResult<{ code: string }>> {
-  if (input.coupon_type !== "dollar" && input.coupon_type !== "percent") return { ok: false, error: "Invalid coupon type" };
+  if (input.coupon_type !== "percent") return { ok: false, error: "Invalid coupon type" };
   if (!(input.amount > 0)) return { ok: false, error: "Amount must be greater than 0" };
-  if (input.coupon_type === "percent" && input.amount > 100) return { ok: false, error: "Percent coupons cannot exceed 100%" };
+  if (input.amount > 100) return { ok: false, error: "Percent coupons cannot exceed 100%" };
   const quantity = Math.floor(Number(input.quantity));
   if (!(quantity >= 1 && quantity <= 100000)) return { ok: false, error: "Quantity must be at least 1" };
 
@@ -183,8 +176,8 @@ export async function validateCoupon(store: CouponsStore, code: string, subtotal
   if (!(subtotal > 0)) return { ok: false, error: "Your cart is empty" };
   if (email && (await store.hasRedeemed(normalizedCode, email))) return { ok: false, error: "You've already used this coupon" };
 
-  const discount = coupon.coupon_type === "dollar" ? Math.min(coupon.amount, subtotal) : round2(subtotal * (coupon.amount / 100));
-  return { ok: true, data: { code: coupon.code, type: coupon.coupon_type, discount: round2(discount) } };
+  const discount = round2(subtotal * (coupon.amount / 100));
+  return { ok: true, data: { code: coupon.code, type: coupon.coupon_type, discount } };
 }
 
 /**
