@@ -13,6 +13,11 @@
 -- store credit — but only if the order's email matches an existing customer account; guest
 -- checkouts simply don't collect the unused difference. Store credit is then spendable at a later
 -- checkout the same way a coupon discount is (see orders.ts's `_credit` line item).
+--
+-- `citext` is schema-qualified as `extensions.citext` throughout (rather than relying on
+-- `search_path` to include `extensions`) so this migration doesn't error with "type citext does
+-- not exist" when run against a schema-scoped connection (e.g. `set search_path to hdbs_prod;`
+-- with no `extensions` in the path).
 
 create table coupons (
   code         text primary key,
@@ -32,7 +37,7 @@ create table coupon_redemptions (
   id               bigint generated always as identity primary key,
   code             text not null references coupons (code),
   order_id         text not null references orders (id) on delete cascade,
-  customer_email   citext,
+  customer_email   extensions.citext,
   discount_amount  numeric(10,2) not null,
   redeemed_at      timestamptz not null default now()
 );
@@ -80,7 +85,7 @@ alter table customers add column store_credit_balance numeric(10,2) not null def
 
 create table store_credit_transactions (
   id             bigint generated always as identity primary key,
-  customer_email citext not null,
+  customer_email extensions.citext not null,
   -- Positive = credit added (unused coupon difference), negative = credit spent at checkout.
   amount         numeric(10,2) not null,
   reason         text not null,
@@ -95,7 +100,7 @@ alter table store_credit_transactions enable row level security;
 -- Credits a customer's account. Only called when the order's email matches a real customer row
 -- (checked by the caller via a real UPDATE ... WHERE email = ... — an UPDATE that touches zero
 -- rows for a non-account email is simply a no-op, which is the desired "guest gets nothing" case).
-create or replace function credit_store_account(p_email citext, p_amount numeric)
+create or replace function credit_store_account(p_email extensions.citext, p_amount numeric)
 returns boolean as $$
 declare
   v_updated integer;
@@ -107,7 +112,7 @@ end;
 $$ language plpgsql;
 
 -- Atomic conditional debit — mirrors redeem_coupon_if_available's reasoning.
-create or replace function debit_store_credit_if_available(p_email citext, p_requested numeric)
+create or replace function debit_store_credit_if_available(p_email extensions.citext, p_requested numeric)
 returns table(ok boolean, applied numeric) as $$
 declare
   v_balance numeric;
