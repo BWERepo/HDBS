@@ -86,9 +86,15 @@ couponsRoute.post("/api/coupons.php", async (c) => {
     const decoded = decodeBase64Image(String(body.image ?? ""));
     if (!decoded.ok) return fail(c, "Invalid image file", 400);
     const settings = new SupabaseSettingsStore(db, c.env.R2_PUBLIC);
-    const key = `${TEMPLATE_KEY}.${decoded.fileType}`;
+    // A fixed key here would be served with the media route's `Cache-Control:
+    // max-age=31536000, immutable` (see routes/media.ts) — overwriting the same URL's bytes
+    // would never actually reach a browser/edge cache that already has it. Each upload gets its
+    // own key instead, so the new image is a genuinely new, uncached URL.
+    const previous = await settings.getSetting(TEMPLATE_SETTING);
+    const key = `${TEMPLATE_KEY}-${Date.now()}.${decoded.fileType}`;
     await settings.putImage(key, decoded.bytes, decoded.fileType === "png" ? "image/png" : "image/jpeg");
     await settings.setSetting(TEMPLATE_SETTING, `/${key}`);
+    if (previous && previous !== `/${key}`) await settings.deleteImage(previous.replace(/^\//, ""));
     return ok(c, { path: `/${key}` });
   }
 
