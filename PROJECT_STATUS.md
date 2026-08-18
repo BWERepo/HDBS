@@ -5,6 +5,168 @@
 
 ---
 
+## Current state — 2026-08-18 (Production live on `4.40.0`: coupons redesigned as batches of single-use random codes; store-credit crediting removed as dead code; two real storefront bugs found and fixed — a coupon-template caching gotcha and a stale "Sold Out" display after a cancelled payment)
+
+**Long session, continuing directly from the coupons/store-credit feature that shipped last
+session (`4.37.0`).** Ends with production healthy on **`4.40.0`**. In arrival order:
+
+### 1. Fixed a documented gap in `0012_coupons.sql`'s `search_path`
+Last session's writeup flagged that the migration would hit `ERROR: 42704: type "citext" does not
+exist` on a fresh schema-scoped run, since it relied on `search_path` implicitly including
+`extensions`. Fixed properly in the migration file itself (not just documented as a workaround):
+`citext` columns and function parameters are now schema-qualified as `extensions.citext`
+throughout `supabase/migrations/0012_coupons.sql`, so the migration no longer depends on the
+caller remembering a special `search_path` invocation. Committed (`91e53f6`) and pushed — no
+deploy needed, migration-file-only change, already-applied databases unaffected.
+
+### 2. Coupons: dropped dollar-off, percent-off only (`4.38.0`)
+Product decision: coupons only ever support percent-off going forward. Real implication acted on,
+not just cosmetic: since a percent-off discount can never exceed the order subtotal, there's no
+longer any "leftover" case for a coupon redemption to overflow into store credit — so the
+**crediting** side of store credit (`creditLeftoverToAccount`, the `credit_store_account` RPC
+wiring in `src/db.ts`) was removed as genuinely dead code, not just left unused. The **spending**
+side (`spendStoreCredit`, `debitIfAvailable`, the checkout `_credit` line item, the customer
+account balance/history UI) is untouched and stays fully live — store credit is a standing,
+independent feature, not solely a byproduct of coupons; existing balances remain spendable.
+`supabase/migrations/0013_coupons_percent_only.sql` tightened the `coupon_type` CHECK constraint
+on both schemas (already applied by hand this session, no Chrome extension connection available —
+see the recurring gotcha noted below). Commit `eb6d06d`, deployed as part of the `4.38.0`
+checkpoint (commit `2ecab5f`), verified healthy, no rollback.
+
+### 3. Fixed a real caching bug: re-uploading the coupon template image did nothing visible
+Found while iterating on coupon print layout with the user. `api/coupons.php`'s `upload_template`
+action wrote to a **fixed** R2 key (`coupon_templates/template.png`) — overwriting the same URL's
+bytes. But `routes/media.ts` serves all media (including this) with
+`Cache-Control: public, max-age=31536000, immutable`, so the browser/edge just kept serving the
+year-old cached image forever; a re-upload was invisible without a hard cache-clear. **Fixed at the
+root**, matching this project's own prior "the fix is the URL, not the cache" pattern from the
+2026-08-02 admin-misc.js caching incident: each upload now gets its own timestamped key
+(`coupon_templates/template-<ms>.png`), and the previous key's R2 object is deleted once the
+setting points at the new one (`src/routes/coupons.ts`). Commit `d58ce31`.
+
+### 4. Coupons redesigned from shared-code/quantity-pool to named-batch/single-use-codes (`4.39.0`)
+User-driven, iterative redesign after seeing the shipped coupon feature in the admin panel:
+- "change code to coupon name" — a coupon's `code` field, which used to double as both an
+  admin-facing label AND the thing a customer typed at checkout, is now split: `name` is a
+  pure admin label (never shown to customers), and checkout redemption uses one of a batch's
+  generated codes instead.
+- "generate random codes and print those on coupon" — creating a coupon with `quantity: N` now
+  generates **N distinct random 8-character codes** at creation time (not N redemptions of one
+  shared code) — one meant to be printed per physical copy.
+- "when a coupon code is used mark it used" — each code is single-use, full stop. No shared
+  redemption pool, no per-customer-per-code tracking needed (a code redeemed by anyone is simply
+  gone) — this is a genuine simplification over the old model, not just a rename.
+- "view will list all codes (used and not used). for used, sale" — the admin **View** action now
+  lists every code in a batch with its status, and for used codes, which order/customer/discount
+  it went to.
+- Also added, at the user's request in the same arc: **Edit** (percent + expiration only — name
+  and quantity are locked once codes exist, since they may already be printed and in a customer's
+  hand) and **Delete** (only offered for batches where zero codes have been redeemed; the DB's own
+  FK from `coupon_codes.batch_id` would reject it anyway, but the app checks first for a friendlier
+  error).
+
+**Explicit decision, asked and answered mid-session**: what to do with the coupons that already
+existed under the old model (`100OFF`, `25PERCENT`, `250FF`, `PLETEAU`, etc., some already
+"used" in testing). User chose **wipe and start fresh** — no attempt was made to migrate old
+redemption history onto newly-generated individual codes (the old shared-code model has no way to
+know which physical copy a past redemption actually used). `supabase/migrations/0014_coupon_codes.sql`
+drops and recreates `coupons` (now a batch: `id`, `name`, `amount`, `quantity`, `active`,
+`expires_at`) and the old `coupon_redemptions` table is gone entirely — its job is now done by a
+new `coupon_codes` table (`code` PK, `batch_id` FK, `order_id`/`customer_email`/`discount_amount`/
+`redeemed_at`, all nullable until redeemed) plus a `coupon_batch_summary` view (joins the two so
+the admin list can show `used`/`created` without an N+1 query) and a `redeem_code_if_available`
+Postgres function (atomic check-and-consume, same reasoning as 0010's
+`decrement_stock_if_available`). Full rewrite of `src/coupons.ts`'s public API and
+`CouponsStoreFake`, `SupabaseCouponsStore` in `src/db.ts`, and `src/routes/coupons.ts`'s action
+set (`create`/`list`/`update`/`delete`/`codes`/`deactivate`, all now keyed by numeric batch `id`
+rather than a code string). **`orders.ts`/`routes/orders.ts` needed zero changes** — the
+`CouponsStoreForOrders` interface (`validateCoupon(code, subtotal, email)` /
+`redeemCoupon(code, requestedDiscount, orderId, email)`) was already code-string-shaped, so the
+redesign is fully contained to the coupons module itself. 9 new/rewritten tests in
+`src/coupons.test.ts` covering batch creation, single-use enforcement, edit/delete guards, and the
+View listing; 532/532 total passing, typecheck clean.
+
+**A real, self-inflicted incident during this rollout, caught and fixed within the same
+session**: the migration (schema change) was run by the user *before* the matching code was
+deployed to production — normal operating order for this project (SQL run by hand via the
+Supabase dashboard since the Chrome extension wasn't connected this session either), but this
+particular migration **drops** the tables the still-live old code depends on, unlike prior
+additive-only coupon migrations. Production's `/api/coupons.php` 500'd for a real (if
+short) window. Caught immediately by an explicit `curl` probe against the live endpoint (not
+assumed fine because `/api/health` was green — health doesn't touch coupons at all), fixed by
+deploying the matching code to production right away. **Worth remembering for any future
+non-additive migration on this project**: the established "run SQL, then rely on the next
+checkpoint to deploy" cadence assumes additive changes; a schema change that removes something
+the live code still reads needs the code deployed in the same breath as the SQL, not on the
+normal checkpoint cadence.
+
+Shipped as `4.39.0` (commit `d6c3b4b Redesign coupons as named batches of single-use random
+codes`), both environments verified healthy after the fix-forward deploy (Version ID
+`a7c80fad-72f6-4d18-bcd2-2e3049fac16d`).
+
+### 5. Admin coupon print-layout iteration (folded into `4.39.0`/`4.40.0`, several small deploys)
+Live-iterated against the user's real uploaded template image (a "Gift Certificate" design with
+blank `____ off the merchandise total` / `COUPON CODE:____` fields baked into the artwork) rather
+than guessing coordinates blind:
+- Removed the old large diagonal "X% OFF" watermark-style overlay text entirely — it doesn't fit
+  this template's design at all.
+- Positioned the percent and code text into the template's own blank fields, by **downloading the
+  actual template PNG and reading its real pixel dimensions** (`node -e` reading the PNG `IHDR`
+  chunk directly: 1536×1024) rather than estimating from a screenshot — screenshot-based
+  coordinate guesses were visibly wrong (text landed near the top of the card, not in the blank
+  box) until switched to this method. Final coordinates: percent at
+  `(canvas.width*0.195, canvas.height*0.605)`, code at `(canvas.width*0.195, canvas.height*0.755)`,
+  confirmed correct by the user.
+- Print popup now closes itself automatically after printing (`win.onafterprint`).
+- `js/admin-coupons.js`'s print flow now fetches the batch's actual generated codes
+  (`action:'codes'`) and renders one physical coupon per code, each with its own unique code
+  stamped on it — a structural requirement of the redesign in #4, not just cosmetic.
+- Added: a clickable order-ID link in the coupon **View** screen's code table (calls the existing
+  `viewOrder()` from `admin-products.js`, same function the Orders list already uses) so an admin
+  can jump straight from "this code was used" to the actual order.
+
+### 6. Fixed a real storefront bug: cancelled/declined payment left the product looking permanently sold out
+User reported (with a screenshot) a product showing "Sold Out" right after a payment was
+cancelled — but `curl`ing `products.php` directly showed the server-side stock was actually back
+to `1` (available). Root cause: `js/ui.js` fetches `products.php` into the `PRODS` array **exactly
+once**, at initial page load, and nothing in the storefront ever refetches it during a session.
+Cancelling a pending order (`cancel_order` in `customers.ts`) already correctly restores stock
+server-side — that part worked — but the already-rendered page had no way to know, so the "Sold
+Out" badge (driven purely by `p.stock<=0` in `js/store.js`) stayed frozen at whatever it was when
+the page loaded. **Fixed, not worked around**: both cancellation paths in `js/store.js`
+(`backToCheckoutForm()`, the "back" button from the payment step, and `cancelPendingOrder()`, the
+explicit cancel button) now call a new `refreshProductStock()` helper that re-fetches
+`products.php` and re-renders the store immediately after a successful cancel — so a restored
+item shows as available again without the customer needing to reload the page. Folded into the
+`4.40.0` checkpoint.
+
+### `4.40.0` checkpoint
+`npx wrangler deployments list` captured `a7c80fad-72f6-4d18-bcd2-2e3049fac16d` as the rollback
+target before deploying. Staging deployed first (Version ID `6b7bb929-0b3a-4dd6-be07-c601d25c9e42`),
+verified healthy, then production (Version ID `9953ddad-de86-4925-bd6c-d2b3ee911850`) — both
+`/api/health` and `/api/products.php` confirmed real content, no rollback needed. Commit
+`220dce2 Set version to 4.40.0 for release`, pushed to `main`. **Both staging and production are
+on `4.40.0`, matching the latest pushed commit — nothing locally ahead of what's deployed.**
+
+### Recurring gotcha, now hit twice: Chrome extension not connected
+Both this session's migration runs (`0013`, `0014`) had to be handed to the user as raw SQL to
+paste into Supabase's dashboard by hand, since `mcp__claude-in-chrome__tabs_context_mcp` reported
+"Claude in Chrome is not connected" every time it was tried. Not a blocker (the user ran both
+successfully), but worth knowing coming into a future session — the `/Supabase` skill's automated
+path has not worked in the last two sessions that needed it.
+
+### Immediate next step
+None blocking. Two small, non-urgent items carried forward:
+- The `credit_store_account` Postgres function (from `0012_coupons.sql`) is now unreferenced by
+  any application code — harmless to leave (nothing calls it), but could be dropped in a future
+  migration for cleanliness if this area gets touched again.
+- No admin UI currently exists for *crediting* a customer's store-credit balance directly (only
+  spending it at checkout is wired up) — store credit balances can currently only grow if
+  something is built to deposit into them; not needed right now, just noted since the old
+  coupon-overage path (removed this session) was the only thing that ever had.
+
+---
+
 ## Current state — 2026-08-17 (Production live on `4.37.0`: SKU search, checkout required-field overhaul, real "My Orders" fix for a route that was never wired, new coupons/store-credit feature — two live rollbacks along the way, both caught before customers were affected)
 
 **Long session, several distinct pieces of work, ending with production healthy on `4.37.0`.** In arrival order:
