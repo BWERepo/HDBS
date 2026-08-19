@@ -151,8 +151,8 @@ function updReceiptSelectAll(){
   if(all)all.checked=allChecked;
 }
 
-// ── PRINT: one fillable receipt per product, styled with a navy accent (badges, dotted price
-// leaders, a highlighted total bar), 2 per printed page. ──
+// ── PRINT: one fillable receipt per product, black/bold throughout with dotted price/blank
+// leaders, 3 per printed page. ──
 function printReceipts(rows){
   if(!rows.length){alert('No products to print receipts for.');return;}
   var bizName=window.BIZ_NAME||'Handmade Designs By Suzi';
@@ -192,7 +192,7 @@ function printReceipts(rows){
   win.document.write('<!DOCTYPE html><html><head><title>Receipts</title><style>'+
     'body{margin:0;padding:.2in;font-family:Arial,sans-serif;color:#000;font-weight:700}'+
     '.receipt-box{width:100%;border:1.5px solid #000;border-radius:8px;padding:.14in .18in;box-sizing:border-box;margin-bottom:.1in;page-break-inside:avoid;break-inside:avoid;overflow:hidden}'+
-    '.receipt-box:nth-child(2n){page-break-after:always;break-after:page;margin-bottom:0}'+
+    '.receipt-box:nth-child(3n){page-break-after:always;break-after:page;margin-bottom:0}'+
     '.rhead{display:flex;align-items:center;gap:.15in;margin-bottom:.1in}'+
     '.badge{color:#000;font-weight:700;font-size:.78rem;white-space:nowrap}'+
     '.pname{font-size:1rem;font-weight:700;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
