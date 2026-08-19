@@ -5,7 +5,7 @@
 
 ---
 
-## Current state — 2026-08-19 (Production live on `4.52.0`: five small admin-panel fixes across five checkpoints — staging-only test buttons hidden on prod, Launch Date defaults to today, TableKit filters now survive table re-renders sitewide, a real two-part admin table scrollbar bug found and fixed; plus a real, dated bug found and fixed in the nightly Supabase backup)
+## Current state — 2026-08-19 (Production live on `4.52.0`: five small admin-panel fixes across five checkpoints — staging-only test buttons hidden on prod, Launch Date defaults to today, TableKit filters now survive table re-renders sitewide, a real two-part admin table scrollbar bug found and fixed; plus HDBS's own backup mechanism removed entirely — `/BWEBackup` already covers this shared database)
 
 **Direct continuation of the same-day secret-drift session below (`4.48.0`).** Five
 separate small fixes, each its own checkpoint (`4.49.0` through `4.52.0`), plus an
@@ -116,28 +116,24 @@ between 2026-08-13 and today (2026-08-19) was silently pg_dump'ing the old, aban
 no-longer-written-to projects instead of the real live database** — six nights of
 backups that, while they didn't fail loudly, back up the wrong data entirely.
 
-**Fixed in both places**:
-- `backup_hdbs.ps1`: now dumps by schema (`-n hdbs_prod`, `-n hdbs_staging`) from the one
-  shared host (`db.qrsydsglkgampabirejz.supabase.co`), using the **same Postgres
-  credential `/BWEBackup` already uses** (`BWE-Supabase-DB` in Windows Credential
-  Manager) instead of the two now-defunct `HDBS-Supabase-DB-Prod`/`-Staging` credentials
-  — there's only one shared project/user/password now, so one stored credential covers
-  both. Output filenames unchanged (`<timestamp>HDBS-prod.sql`, `<timestamp>HDBS-staging.sql`).
-  Syntax-validated with PowerShell's own parser before considering this done; not yet
-  run for real (next scheduled nightly run will be the first real test).
-- `/BWEHDBSBackup` skill: fully rewritten to match — same shared host, same
-  `BWE-Supabase-DB` credential, `-n`-scoped dumps per schema, plus the unchanged repo-zip
-  step. The skill's own file documents this history so a future cold read doesn't
-  rediscover the same trap.
+**Fixed, then both removed outright — superseded, not just patched.** `backup_hdbs.ps1`
+was corrected first (schema-scoped `-n hdbs_prod`/`-n hdbs_staging` dumps from the shared
+host, reusing `/BWEBackup`'s own `BWE-Supabase-DB` credential), and `/BWEHDBSBackup` was
+rewritten to match. **Both were then deleted the same session**, per explicit direction:
+this project has no database of its own to back up anymore — `/BWEBackup`'s own
+`pg_dump` already connects to the whole shared `postgres` database with no schema
+filter, so it already captures `hdbs_prod`/`hdbs_staging` alongside BWE's own data every
+time it runs. A separate HDBS-scoped backup was pure duplication once both apps landed
+in one project. **`/BWEHDBSBackup` (the Claude Code skill) and `backup_hdbs.ps1` (the
+repo script, tracked in this repo) are both gone as of this session** — commits
+`8e8e02a...4f078dd`. There is now no Task-Scheduler-registered nor on-demand
+HDBS-specific backup mechanism, by design — `/BWEBackup` in the Business Web Express
+project is the one and only backup path for this shared database going forward.
 
-**Not yet verified for real** — the old `HDBS-Supabase-DB-Prod`/`HDBS-Supabase-DB-Staging`
-credentials in Windows Credential Manager are now unused by both the script and skill
-(harmless to leave, nothing references them) but were not deleted. The `BWE-Supabase-DB`
-credential this now depends on was **assumed** to already exist and be valid (since
-`/BWEBackup` depends on it too) — not confirmed working end-to-end this session. **Worth
-running `/BWEHDBSBackup` for real next session** to confirm the fix actually produces a
-valid dump, the same way the 2026-08-10 BOM-fix entry below wasn't trusted until it was
-exercised for real.
+**Worth knowing if this project ever gets a separate Supabase project again** (e.g. if
+BWE and HDBS are ever split back apart): a dedicated HDBS backup would need to be
+rebuilt from scratch at that point, not resumed — nothing of this session's rewrite was
+kept.
 
 ### Checkpoints this session (four, following the `4.48.0` secret-drift checkpoint below)
 - `4.49.0` — staging-only buttons hidden on prod (commit `c05fcfb`), Version ID
@@ -150,19 +146,16 @@ exercised for real.
   `79d7095`), Version ID `219c1cba-a3df-4c65-9c41-67c46e325a9f`.
 
 **Both staging and production are on `4.52.0`, matching the latest pushed commit
-(`12b94ff`) — nothing locally ahead of what's deployed**, except `backup_hdbs.ps1`
-(uncommitted as of this writeup — see below, not a deploy artifact).
+(`4f078dd`) — nothing locally ahead of what's deployed.**
 
 ### Immediate next step
-- **Run `/BWEHDBSBackup` for real** to confirm the corrected shared-project/schema-scoped
-  backup actually produces valid dumps — not yet exercised end-to-end this session (see
-  #5 above).
-- Confirm the `BWE-Supabase-DB` Windows Credential Manager entry is actually present and
-  valid on this machine — both the skill and `backup_hdbs.ps1` now depend on it instead
-  of the two old HDBS-specific credentials.
+- None on backups — resolved this session (see #5 above): HDBS has no backup mechanism
+  of its own by design, `/BWEBackup` (Business Web Express project) covers this shared
+  database in full.
 - The two now-unused `HDBS-Supabase-DB-Prod`/`HDBS-Supabase-DB-Staging` credentials in
-  Windows Credential Manager are harmless to leave but could be removed for cleanliness
-  if this area gets touched again.
+  Windows Credential Manager are harmless leftovers (nothing references them anymore,
+  the deleted script/skill were the only consumers) — could be removed for cleanliness
+  whenever convenient, not urgent.
 - Chrome extension connectivity for Supabase/browser automation remains unverified this
   session (not attempted — no DB migration work happened) — still worth assuming it may
   not work, per the last several sessions' pattern (entries below).
