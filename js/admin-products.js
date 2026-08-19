@@ -268,7 +268,7 @@ function showPF(id){
     '<div><label class="fl">Badge</label><input class="afi" id="pf-b" value="'+(p?p.badge:'')+'" placeholder="e.g. New"></div>'+
     '<div><label class="fl">Weight (lbs)</label><input class="afi" id="pf-w" type="number" step="0.1" min="0" value="'+(p&&p.weight?p.weight:'')+'" placeholder="e.g. 1.5"></div>'+
     '<div><label class="fl">COGM - Cost of Manufacturer ($)</label><input class="afi" id="pf-cogm" type="number" step="0.01" min="0" value="'+(p&&p.cogm?p.cogm:(p?(p.price*0.5).toFixed(2):''))+'" placeholder="Defaults to 50% of price" onblur="if(this.value===\'\'){var priceEl=document.getElementById(\'pf-p\');this.value=priceEl?(priceEl.value*0.5).toFixed(2):\'\'}"></div>'+
-    '<div><label class="fl">Launch Date</label><input class="afi" id="pf-launch" type="date" value="'+(p&&p.launch_date?p.launch_date:'2026-07-01')+'"></div>'+
+    '<div><label class="fl">Launch Date</label><input class="afi" id="pf-launch" type="date" value="'+(p&&p.launch_date?p.launch_date:new Date().toISOString().slice(0,10))+'"></div>'+
     '<div><label class="fl">Shipping</label><select class="afi" id="pf-shipmode" onchange="pfToggleShipFixed()">'+
       '<option value="weight"'+(!p||p.ship_mode!=='fixed'?' selected':'')+'>By weight (zone + weight)</option>'+
       '<option value="fixed"'+(p&&p.ship_mode==='fixed'?' selected':'')+'>Fixed amount per item</option>'+
