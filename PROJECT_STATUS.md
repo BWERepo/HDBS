@@ -5,6 +5,104 @@
 
 ---
 
+## Current state — 2026-08-19 (Production live on `4.45.0`: new Receipt Report (fillable, checkbox-driven print layout, heavily iterated), plus two Tax Sweep width fixes)
+
+**Direct continuation of the same-day Reports session below** (`4.41.0`, Inventory Report). This
+session added a second report and fixed two unrelated width complaints on an existing screen.
+Four checkpoints ran, ending on **`4.45.0`**.
+
+### 1. New "🧾 Receipt Report" (`js/admin-reports.js`)
+A second card in the Shop → Reports hub, alongside Inventory Report. Same underlying product data
+(SKU/name/price/tax/cash-check price/credit-card fee/credit-card total, `reportRows()`/
+`reportTableHtml()` now shared helpers between both reports), but with two things Inventory Report
+doesn't have:
+- **Row checkboxes** (`receipt-cb` class, `data-idx` mapping into a module-level `RECEIPT_ROWS`
+  array) plus **Check All** / **Clear** buttons, so only some products need receipts printed.
+  Sort/filter are deliberately disabled on this table (`data-tk-sort="false" data-tk-filter="false"`)
+  — TableKit reorders/hides `<tr>` elements directly, which would desync a checkbox's on-screen
+  position from the product `data-idx` it's actually bound to.
+- **A custom Print action.** The toolbar's built-in Print button is overridden for this screen only
+  (clone-and-replace the button node, exact same pattern `admin-nav.js`'s `showPageToolbar` already
+  uses for its Export/Import overrides — `toolbar.js` itself is never touched) to call
+  `printReceipts()` instead of the default whole-table print. `printReceipts()` opens its own popup
+  and generates one fillable receipt box per **checked** product (not all products), using the same
+  `window.onafterprint = () => window.close()` auto-close pattern already proven reliable in
+  `admin-coupons.js`'s coupon-print flow — this is a **different, independently-working code path**
+  from the real, still-unfixed `toolbar.js` Print bug logged in the entry below (that bug is specific
+  to `toolbar.js`'s own `doPrint()`, not to this custom popup).
+
+### 2. Receipt layout — extensively iterated on direct visual feedback, several real fixes along the way
+Final shipped layout per receipt box: SKU + product name header, full-width Customer Name and Email
+fillable lines, dotted-leader price rows (Price, Sales Tax, bold Cash/Check Price, Credit Card Fee),
+a plain bold "Credit Card Total" line (no divider above it), then a bordered Payment section (Date,
+Paid By ☐Cash/☐Check/☐Credit Card, Check #, Receipt #, Amount Paid) — all bold, all-black, dotted
+fillable lines throughout, no page title, 3 receipts per printed page.
+
+**Two real, worth-remembering bugs found and fixed mid-iteration, not just cosmetic tweaks**:
+- **CSS `border-style: dotted` renders as small dashes in Chromium's print engine at 1px width**,
+  not round dots. Fixed by switching every fillable/leader line to a `radial-gradient` background
+  pattern (`background-image:radial-gradient(circle,#000 1px,transparent 1.3px);
+  background-size:5px 5px;...repeat-x`) instead of relying on `border-bottom:dotted` — this is the
+  reliable way to get an actual dotted line in a Chromium print context, worth reusing anywhere else
+  in this app that ever wants a fillable dotted line.
+- **Black-background badges (SKU pill, "PAYMENT" label, credit-card-total bar) printed as washed-out
+  grey**, not black. This is Chromium's default print behavior of suppressing/lightening background
+  colors unless the user has "Background graphics" enabled in their print dialog — not a CSS color
+  bug. Fixed at the root by **not depending on background colors at all**: those elements became
+  plain bold black text instead of white-on-black badges. More robust than instructing users to
+  flip a browser print setting, and works on any printer/browser.
+- Also fixed, self-inflicted during iteration: an early revision let the "Paid: ☐ Cash ☐ Check
+  ☐ Credit Card" line get silently clipped by the box's `overflow:hidden` once column gaps were
+  widened — caught from a screenshot showing "☐ Credit Card" missing, fixed by allowing that
+  specific line to wrap (`white-space:normal` override) instead of forcing `nowrap`.
+
+User also provided a full visual mockup mid-session (navy/badge/icon design) — deliberately **not**
+copied verbatim: adopted the structural ideas (badges, dotted leaders, a highlighted total, icons)
+but kept this project's already-established field names (`Cash/Check Price`, `Receipt #`, etc.)
+rather than the mockup's incidental wording (`Cash/Check Total`, `Square Receipt #`), for consistency
+with the Inventory Report and the rest of the admin panel. The navy color scheme itself was later
+explicitly dropped in favor of black-only, per direct instruction.
+
+**Iteration history on non-content knobs, most-recent value shown** (earlier intermediate values are
+not worth preserving — only today's session-end state matters for a cold start): receipts per page
+went 3 → 4 → 2 → 3 (currently **3**); box layout went single-column → 2-column → full-width
+Customer Name/Email above a single pricing column (current); the "RECEIPTS" page title was added
+then explicitly removed.
+
+### 3. Two Tax Sweep width fixes (`js/admin-misc.js`, `rSweep`/`renderSweepPanel`)
+Unrelated to Reports — a separate user-reported complaint on the existing Tax Sweep screen (Admin →
+Shop → Tax Sweep → Sweep History table):
+- The "Orders Swept" column's `min-width` was `280px`, too narrow for an order ID + its swept tax
+  amount on one line — widened to `440px`.
+- The whole panel (`renderSweepPanel`'s outer wrapper) was capped at `max-width:700px`, leaving most
+  of the screen blank and forcing the table into its own horizontal scrollbar even with the column
+  fix above — widened to `1200px`.
+
+### Checkpoints this session (four, all auto-bumped minor, all healthy, no rollbacks)
+1. `4.42.0` — Receipt Report shipped (commit `479dbb6`), Version ID
+   `dfd9e857-eff9-4695-903e-e7a5e9670f77`.
+2. `4.43.0` — 3-per-page (commit `8d9e630`), Version ID `5099b18e-20bd-409b-bc2a-dcc6845f4022`.
+3. `4.44.0` — Orders Swept column width (commit `7917d30`), Version ID
+   `f54e6813-b55a-4c69-8655-f11b66050961`.
+4. `4.45.0` — Tax Sweep panel width (commit `544197a`), Version ID
+   `070a55b9-6061-45d4-9324-1ea2f0dc4b13`.
+
+**Both staging and production are on `4.45.0`, matching the latest pushed commit (`544197a`) —
+nothing locally ahead of what's deployed.**
+
+### Immediate next step
+None blocking. The one open item from earlier today's Reports session (below) is still open and
+unchanged this session:
+- **`toolbar.js`'s Print popup doesn't reliably auto-close** (a real, confirmed bug in the shared,
+  never-modified component — `window.onafterprint` not firing reliably). Affects every admin screen
+  with a Print button EXCEPT the new Receipt Report, which deliberately bypasses `toolbar.js`'s
+  Print entirely with its own independent popup (see #1 above) specifically because of this bug.
+  Left unfixed per the user's explicit "leave it alone" from earlier today — revisit only if raised
+  again, and get explicit permission before editing `toolbar.js` (or find a real updated copy from
+  the external Web Utilities source instead of patching this repo's copy directly).
+
+---
+
 ## Current state — 2026-08-19 (Production live on `4.41.0`: new Admin → Shop → Reports section with an Inventory Report; a real bug found in the shared, never-modified `toolbar.js` component and deliberately left unfixed)
 
 **Single-feature session**: added a Reports hub to the admin back office, with one report
