@@ -110,7 +110,8 @@ function rProds(el){
       '<span style="font-size:.78rem;color:#6b6040;margin-left:auto">'+filtered.length+' of '+PRODS.length+' products</span>'+
     '</div>'+
     '<div id="pfc"></div>'+
-    '<div style="overflow:auto;max-height:calc(100vh - 260px)"><table class="tablekit">'+buildProdThead()+'<tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:#6b6040">No products</td></tr>')+'</tbody></table></div>'+
+    '<style>#prod-tbl-wrap .tk-wrap{max-height:calc(100vh - 260px);overflow:auto}</style>'+
+    '<div id="prod-tbl-wrap"><table class="tablekit">'+buildProdThead()+'<tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:#6b6040">No products</td></tr>')+'</tbody></table></div>'+
     '</div>';
   if(typeof TableKit!=='undefined')TableKit.initAll();
   // onExport overrides the toolbar's generic table export (which would include the Actions
