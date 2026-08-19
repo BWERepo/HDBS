@@ -175,7 +175,7 @@ function renderSweepPanel(el, d){
           '<th style="padding:5px 10px;font-size:.75rem;font-weight:700;text-transform:uppercase;text-align:left">Period To</th>'+
           '<th style="padding:5px 10px;font-size:.75rem;font-weight:700;text-transform:uppercase;text-align:center">Count</th>'+
           '<th style="padding:5px 10px;font-size:.75rem;font-weight:700;text-transform:uppercase;text-align:right">Total Tax</th>'+
-          '<th style="padding:5px 10px;font-size:.75rem;font-weight:700;text-transform:uppercase;text-align:left;min-width:280px">Orders Swept</th>'+
+          '<th style="padding:5px 10px;font-size:.75rem;font-weight:700;text-transform:uppercase;text-align:left;min-width:440px">Orders Swept</th>'+
           '<th style="padding:6px 10px;text-align:left">Actions</th>'+
         '</tr></thead><tbody>'+
         rows.map(function(r,i){
