@@ -103,8 +103,8 @@ function rProds(el){
     '<div style="max-width:1400px">'+
     '<div style="display:flex;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap;align-items:center">'+
       '<div id="pf-action-btns"><button class="bp" onclick="showPF(null)">+ Add Product</button></div>'+
-      '<button class="bs" onclick="setAllStock1()">📦 Set All Inventory to 1</button>'+
-      '<button class="bs" onclick="setAllPrice1()">💲 Set All Prices to $1</button>'+
+      (IS_STAGING?'<button class="bs" onclick="setAllStock1()">📦 Set All Inventory to 1</button>':'')+
+      (IS_STAGING?'<button class="bs" onclick="setAllPrice1()">💲 Set All Prices to $1</button>':'')+
       '<button class="bs" onclick="autoAssignSkus()" title="Auto-assign SKUs to products missing one">🏷️ Auto-assign SKUs</button>'+
       (isFiltered?'<button class="bs" onclick="PROD_F={name:\'\',cat:\'\',sku:\'\',status:\'\'};rProds(document.getElementById(\'acnt\'))" style="color:#c62828">✕ Clear Filters</button>':'')+
       '<span style="font-size:.78rem;color:#6b6040;margin-left:auto">'+filtered.length+' of '+PRODS.length+' products</span>'+

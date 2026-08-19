@@ -20,7 +20,8 @@ function isoDateToMDY(iso){
   return parts[1]+'/'+parts[2]+'/'+parts[0];
 }
 var SEC=null;
-var SQUARE_MODE=(typeof location!=='undefined'&&location.hostname.indexOf('staging.')===0)?'test':'live';
+var IS_STAGING=(typeof location!=='undefined'&&location.hostname.indexOf('staging.')===0);
+var SQUARE_MODE=IS_STAGING?'test':'live';
 // PayPal runs alongside Square. Staging uses the PayPal sandbox, production uses live —
 // this mirrors the backend env split in api/paypal.php. The client id is public (safe in
 // the browser); the secret lives only in secrets.php. Replace the placeholders below with
