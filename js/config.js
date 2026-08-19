@@ -1,4 +1,24 @@
 // ── GLOBALS ──
+// Site-wide date formatting: mm/dd/yyyy (zero-padded), optionally with a time suffix.
+function fmtMDY(dt){
+  var d=(dt instanceof Date)?dt:new Date(dt);
+  if(!dt||isNaN(d.getTime()))return '';
+  var mm=('0'+(d.getMonth()+1)).slice(-2),dd=('0'+d.getDate()).slice(-2);
+  return mm+'/'+dd+'/'+d.getFullYear();
+}
+function fmtMDYT(dt){
+  var d=(dt instanceof Date)?dt:new Date(dt);
+  if(!dt||isNaN(d.getTime()))return '';
+  return fmtMDY(d)+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+}
+// For a plain date-only ISO string ("2026-07-01") — splits instead of parsing via `new Date()` so
+// it can't shift a day off in timezones behind UTC (a date-only string parses as UTC midnight).
+function isoDateToMDY(iso){
+  if(!iso)return '';
+  var parts=String(iso).slice(0,10).split('-');
+  if(parts.length!==3)return iso;
+  return parts[1]+'/'+parts[2]+'/'+parts[0];
+}
 var SEC=null;
 var SQUARE_MODE=(typeof location!=='undefined'&&location.hostname.indexOf('staging.')===0)?'test':'live';
 // PayPal runs alongside Square. Staging uses the PayPal sandbox, production uses live —

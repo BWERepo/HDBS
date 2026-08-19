@@ -88,12 +88,12 @@ function fullName(fn: string | null, ln: string | null): string {
   return `${fn ?? ""} ${ln ?? ""}`.trim();
 }
 
-/** Ports PHP's `date('n/j/Y', strtotime($joined_at))`. */
+/** Formats as mm/dd/yyyy. */
 function formatJoined(joinedAt: string | null): string {
   if (!joinedAt) return "";
   const d = new Date(joinedAt);
   if (Number.isNaN(d.getTime())) return "";
-  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`;
+  return `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${String(d.getUTCDate()).padStart(2, "0")}/${d.getUTCFullYear()}`;
 }
 
 function toListItem(row: CustomerRow): CustomerListItem {

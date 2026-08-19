@@ -277,7 +277,7 @@ function formatOrderDate(dateStr: string | null): string {
   if (!dateStr) return "";
   const [y, m, d] = dateStr.split("-").map(Number);
   if (!y || !m || !d) return "";
-  return `${m}/${d}/${y}`;
+  return `${String(m).padStart(2, "0")}/${String(d).padStart(2, "0")}/${y}`;
 }
 
 /** Ports created_at (stored UTC) -> America/New_York -> `g:i A` (e.g. "1:37 PM"). */

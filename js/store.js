@@ -633,7 +633,7 @@ function placeOrder(){
   var total=Math.round((subtotal-couponDisc-creditDisc+shipping+tax)*100)/100;
   var now=new Date();
   var isoDate=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
-  var dispDate=(now.getMonth()+1)+'/'+now.getDate()+'/'+now.getFullYear();
+  var dispDate=fmtMDY(now);
   var hrs=now.getHours();var mins=String(now.getMinutes()).padStart(2,'0');
   var dispTime=(hrs%12||12)+':'+mins+' '+(hrs<12?'AM':'PM');
   var addr=ad?(ad+', '+document.getElementById('co-ci').value+' '+document.getElementById('co-st').value+' '+document.getElementById('co-zip').value):'';

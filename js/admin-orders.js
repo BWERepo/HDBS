@@ -495,7 +495,7 @@ function printOrdersPdf(){
       '@media print{@page{margin:1.5cm}button{display:none}}'+
     '</style></head><body>'+
     '<h2>'+bizNamePrint+' — Orders</h2>'+
-    '<div class="sub">Printed: '+new Date().toLocaleString()+' · '+filt.length+' orders</div>'+
+    '<div class="sub">Printed: '+fmtMDYT(new Date())+' · '+filt.length+' orders</div>'+
     '<table><thead><tr>'+cols.map(function(c){return'<th>'+c+'</th>';}).join('')+'</tr></thead><tbody>'+
     rows+
     '<tr class="totals"><td colspan="3">Totals ('+filt.length+' orders)</td>'+
@@ -2203,7 +2203,7 @@ function sqPayRenderTable(){
     if(k==='fee')return '-$'+p.fee.toFixed(2);
     if(k==='refunded')return (p.refunded||0)>0?'-$'+p.refunded.toFixed(2):'--';
     if(k==='net')return '$'+(p.net-(p.refunded||0)).toFixed(2);
-    if(k==='created'){var dt=p.created?new Date(p.created):'';return dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';}
+    if(k==='created'){var dt=p.created?new Date(p.created):'';return dt?fmtMDY(dt):'';}
     return '';
   };
   var filt=SQ_PAY_DATA.filter(function(p){
@@ -2222,7 +2222,7 @@ function sqPayRenderTable(){
   var hs=['Date / Time','Order','Status','Amount','Tax','Fee','Refunded','Net','Card','Buyer'].map(function(l){return'<th>'+l+'</th>';}).join('');
   var rows=filt.map(function(p){
     var dt=p.created?new Date(p.created):'';
-    var dtStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'--';
+    var dtStr=dt?fmtMDYT(dt):'--';
     var sc=p.status==='COMPLETED'?'#2e7d32':p.status==='REFUNDED'?'#c62828':p.status==='PARTIAL_REFUND'?'#e65100':p.status==='FAILED'?'#c62828':'#6b6040';
     var statusLabel=p.status==='PARTIAL_REFUND'?'Partial Refund':(p.status?p.status.charAt(0)+p.status.slice(1).toLowerCase():'--');
     var card=p.card_brand&&p.last4?(p.card_brand+'....'+p.last4):'--';
@@ -2253,7 +2253,7 @@ function sqPayExportCsv(){
   var rows=[headers.join(',')];
   SQ_PAY_DATA.forEach(function(p){
     var dt=p.created?new Date(p.created):'';
-    var dtStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'';
+    var dtStr=dt?fmtMDYT(dt):'';
     var card=p.card_brand&&p.last4?(p.card_brand+'....'+p.last4):'--';
     rows.push([
       '"'+dtStr+'"',
@@ -2292,7 +2292,7 @@ function sqPayFilt(col){
     if(k==='fee')return '-$'+p.fee.toFixed(2);
     if(k==='refunded')return (p.refunded||0)>0?'-$'+p.refunded.toFixed(2):'--';
     if(k==='net')return '$'+(p.net-(p.refunded||0)).toFixed(2);
-    if(k==='created'){var dt=p.created?new Date(p.created):'';return dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';}
+    if(k==='created'){var dt=p.created?new Date(p.created):'';return dt?fmtMDY(dt):'';}
     return '';
   };
   var seen={};
@@ -2390,7 +2390,7 @@ function renderPpPayTable(el,d,begin,end){
   var hs=['Date / Time','Order','Method','Status','Amount','Tax','Fee','Refunded','Net','Buyer'].map(function(l){return'<th>'+l+'</th>';}).join('');
   var rows=PP_PAY_DATA.map(function(p){
     var dt=p.created?new Date(p.created):'';
-    var dtStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'--';
+    var dtStr=dt?fmtMDYT(dt):'--';
     var sc=p.status==='COMPLETED'?'#2e7d32':p.status==='REFUNDED'?'#c62828':p.status==='PARTIAL_REFUND'?'#e65100':'#6b6040';
     var statusLabel=p.status==='PARTIAL_REFUND'?'Partial Refund':(p.status.charAt(0)+p.status.slice(1).toLowerCase());
     var methodPill=p.method==='Venmo'
@@ -2424,7 +2424,7 @@ function ppPayExportCsv(){
   var rows=[headers.join(',')];
   PP_PAY_DATA.forEach(function(p){
     var dt=p.created?new Date(p.created):'';
-    var dtStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'';
+    var dtStr=dt?fmtMDYT(dt):'';
     rows.push([
       '"'+dtStr+'"',
       '"'+(p.order_id||'').replace(/"/g,'""')+'"',

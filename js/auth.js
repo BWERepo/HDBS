@@ -67,8 +67,7 @@ function loadMyStoreCredit(token,containerId){
     var balHtml='<div style="font-size:1.1rem;font-weight:700;color:#a07810;padding:.3rem 0 .6rem">$'+balance.toFixed(2)+' available</div>';
     if(!rows.length){el.innerHTML=balHtml+'<p style="font-size:.83rem;color:#6b6040;padding:.2rem 0">No store credit activity yet.</p>';return;}
     var list=rows.map(function(t){
-      var dt=t.created_at?new Date(t.created_at):null;
-      var dtStr=dt&&!isNaN(dt.getTime())?(dt.getMonth()+1)+'/'+dt.getDate()+'/'+dt.getFullYear():'';
+      var dtStr=fmtMDY(t.created_at);
       var pos=Number(t.amount)>=0;
       return '<div style="display:flex;justify-content:space-between;font-size:.83rem;padding:.3rem 0;border-bottom:1px solid #f0e8d0">'+
         '<span>'+_moEsc(t.reason)+' &middot; '+_moEsc(dtStr)+'</span>'+
@@ -86,8 +85,7 @@ function loadMyCoupons(token,containerId){
     var rows=d.redemptions||[];
     if(!rows.length){el.innerHTML='<p style="font-size:.83rem;color:#6b6040;padding:.6rem 0">No coupons used yet.</p>';return;}
     el.innerHTML=rows.map(function(r){
-      var dt=r.date?new Date(r.date):null;
-      var dtStr=dt&&!isNaN(dt.getTime())?(dt.getMonth()+1)+'/'+dt.getDate()+'/'+dt.getFullYear():'';
+      var dtStr=fmtMDY(r.date);
       return '<div style="display:flex;justify-content:space-between;font-size:.83rem;padding:.35rem 0;border-bottom:1px solid #f0e8d0">'+
         '<span><code style="color:#a07810">'+_moEsc(r.code)+'</code> &middot; '+_moEsc(dtStr)+'</span>'+
         '<span style="color:#2e7d32;font-weight:600">-$'+Number(r.discount).toFixed(2)+'</span></div>';

@@ -147,8 +147,7 @@ function fmtSweepDt(dt){
   if(!dt)return '—';
   var d=new Date(dt.replace(' ','T'));
   if(isNaN(d))return dt;
-  return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+
-    ' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+  return fmtMDYT(d);
 }
 function rSweep(el){
   el.innerHTML='<div style="padding:2rem;text-align:center;color:#6b6040">Checking for unswept tax orders…</div>';
@@ -193,7 +192,7 @@ function renderSweepPanel(el, d){
               }).join('')
             : '<span style="font-size:.72rem;color:#6b6040;font-style:italic">Not recorded</span>';
           return '<tr style="background:'+(i%2===0?'#fff':'#fffdf0')+'">'+
-            '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-weight:600;white-space:nowrap">'+r.sweep_date+'</td>'+
+            '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;font-weight:600;white-space:nowrap">'+isoDateToMDY(r.sweep_date)+'</td>'+
             '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;color:#6b6040;white-space:nowrap">'+fmtSweepDt(r.period_from)+'</td>'+
             '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;color:#6b6040;white-space:nowrap">'+fmtSweepDt(r.period_to)+'</td>'+
             '<td style="padding:6px 10px;border-bottom:1px solid #f0e8d0;text-align:center">'+r.order_count+'</td>'+
@@ -217,7 +216,7 @@ function renderSweepPanel(el, d){
           '<div style="font-size:.85rem;color:#6b6040;margin-top:.3rem">No unswept tax orders found.</div>'+
         '</div>';
     } else {
-      var today=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      var today=fmtMDY(new Date());
       // Store sweep data globally so OK button can access it safely
       window._pendingSweep={count:d.count,total_tax:d.total_tax,date_from:d.date_from,date_to:d.date_to,order_ids:d.order_ids,order_details:d.order_details||[]};
       pendingHtml=
@@ -615,7 +614,7 @@ function rDeployLog(el){
     });
     var rows=sessions.map(function(dep){
       var dt=dep.ts?new Date(dep.ts):null;
-      var dateStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—';
+      var dateStr=dt?fmtMDY(dt):'—';
       var timeStr=dt?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
       var badge=dep.mode==='full'
         ?'<span style="background:#e3f2fd;color:#1565c0;border-radius:4px;padding:.1rem .45rem;font-size:.75rem;font-weight:600">Full</span>'
@@ -690,7 +689,7 @@ function _renderGitLog(el,d,deploys){
   }
   var rows=d.commits.map(function(c){
     var dt=c.date?new Date(c.date):null;
-    var dateStr=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—';
+    var dateStr=dt?fmtMDY(dt):'—';
     var timeStr=dt?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
     var files=c.files!=null?c.files+' file'+(c.files!==1?'s':''):'—';
     var sha='<a href="'+c.url+'" target="_blank" style="color:#a07810;font-family:monospace;font-size:.8rem">'+c.sha+'</a>';
@@ -986,7 +985,7 @@ function elFmtDate(dtStr){
   if(p.length<5)return dtStr;
   var mo=parseInt(p[1]),dy=parseInt(p[2]),h=parseInt(p[3]),mi=parseInt(p[4]);
   var ampm=h<12?'AM':'PM';h=h%12||12;
-  return mo+'/'+dy+'/'+p[0]+' '+h+':'+String(mi).padStart(2,'0')+' '+ampm+' EDT';
+  return String(mo).padStart(2,'0')+'/'+String(dy).padStart(2,'0')+'/'+p[0]+' '+h+':'+String(mi).padStart(2,'0')+' '+ampm+' EDT';
 }
 
 function elPreview(html){

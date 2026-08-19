@@ -89,7 +89,7 @@ function rProds(el){
       '<td style="text-align:center"><input type="checkbox" '+(p.sell!==0?'checked':'')+' onchange="toggleSell(\''+p.id+'\',this.checked)"></td>'+
       '<td style="font-weight:700">$'+p.price.toFixed(2)+'</td>'+
       '<td style="font-weight:600;color:#6b6040">$'+(p.cogm?p.cogm.toFixed(2):'0.00')+'</td>'+
-      '<td style="font-size:.78rem;color:#6b6040">'+((p&&p.launch_date)?p.launch_date:'2026-07-01')+'</td>'+
+      '<td style="font-size:.78rem;color:#6b6040">'+isoDateToMDY((p&&p.launch_date)?p.launch_date:'2026-07-01')+'</td>'+
       '<td style="font-size:.78rem;color:#6b6040">'+(p.size||'—')+'</td>'+
       '<td style="font-size:.78rem;color:#6b6040;text-align:center">'+(p.weight?p.weight+' lbs':'—')+'</td>'+
       '<td style="font-size:.78rem;color:#6b6040;text-align:center">'+(p.ship_mode==='fixed'?'Fixed $'+(parseFloat(p.ship_fixed)||0).toFixed(2):'By weight')+'</td>'+

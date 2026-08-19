@@ -31,7 +31,7 @@ describe("listCustomers", () => {
     store.customers.set("C1", makeCustomerRow({ id: "C1", email: "a@example.com", first_name: "Jane", last_name: "Doe", order_count: 3, joined_at: "2026-07-03T12:00:00Z" }));
     const result = await listCustomers(store);
     expect(result.data?.customers).toEqual([
-      { id: "C1", fn: "Jane", ln: "Doe", name: "Jane Doe", em: "a@example.com", ph: "", orders: 3, joined: "7/3/2026" },
+      { id: "C1", fn: "Jane", ln: "Doe", name: "Jane Doe", em: "a@example.com", ph: "", orders: 3, joined: "07/03/2026" },
     ]);
   });
 });

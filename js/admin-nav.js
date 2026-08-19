@@ -83,7 +83,7 @@ function renderSubsTable(el){
   var rows='';
   for(var i=SUBS.length-1;i>=0;i--){
     var s=SUBS[i];
-    rows+='<tr><td>'+s.email+'</td><td>'+s.date+'</td>' +
+    rows+='<tr><td>'+s.email+'</td><td>'+isoDateToMDY(s.date)+'</td>' +
       '<td><button class="bd" onclick="delSub(\''+s.email+'\')">Remove</button></td></tr>';
   }
   el.innerHTML=

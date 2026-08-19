@@ -195,7 +195,7 @@ function viewCouponCodes(id){
       return '<tr><td><code style="color:#a07810">'+c.code+'</code></td><td>'+statusBadge+'</td>'+
         '<td>'+orderCell+'</td><td>'+(c.email||(c.used?'Guest':''))+'</td>'+
         '<td style="text-align:right">'+(c.discount!==null?'$'+Number(c.discount).toFixed(2):'')+'</td>'+
-        '<td>'+(c.date?new Date(c.date).toLocaleString():'')+'</td></tr>';
+        '<td>'+fmtMDYT(c.date)+'</td></tr>';
     }).join('');
     v.innerHTML='<div class="acct-card">'+
       '<div class="acct-title">Codes: '+(coupon?coupon.name:'')+'</div>'+

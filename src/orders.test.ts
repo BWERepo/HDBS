@@ -21,11 +21,11 @@ beforeEach(() => {
 });
 
 describe("mapOrderForResponse", () => {
-  it("formats order_date as n/j/Y with no leading zeros", () => {
+  it("formats order_date as mm/dd/yyyy", () => {
     const order = makeOrderRow({ id: "o1", order_date: "2026-07-03" });
     const dto = mapOrderForResponse(order, []);
-    expect(dto.date).toBe("7/3/2026");
-    expect(dto.dispDate).toBe("7/3/2026");
+    expect(dto.date).toBe("07/03/2026");
+    expect(dto.dispDate).toBe("07/03/2026");
   });
 
   it("converts created_at (UTC) to America/New_York 12-hour time", () => {
