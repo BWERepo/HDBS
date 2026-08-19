@@ -11,6 +11,20 @@
 
 const TableKit = (() => {
 
+  // Admin screens commonly rebuild a table's entire innerHTML in response to an unrelated
+  // action (toggling a checkbox, editing a row, a bulk action) — that throws away the old
+  // <table> element, and with it this module's in-memory sort/filter state, which otherwise
+  // silently resets an admin's active column filter on every single table interaction. Persist
+  // state across such rebuilds, keyed by the table's own column-header signature (stable across
+  // a rebuild since the columns themselves don't change; the DOM node does).
+  const stateStore = new Map();
+
+  function tableKey(headerRow) {
+    const labels = [];
+    for (let i = 0; i < headerRow.cells.length; i++) labels.push(headerRow.cells[i].textContent.trim());
+    return labels.join('|');
+  }
+
   function init(table) {
     if (table._tk) return;
     table._tk = true;
@@ -23,6 +37,8 @@ const TableKit = (() => {
 
     const headerRow = thead.rows[0];
     const cols = headerRow.cells.length;
+    const stateKey = tableKey(headerRow);
+    const saved = stateStore.get(stateKey);
 
     // Wrap table
     if (!table.parentElement.classList.contains('tk-wrap')) {
@@ -38,13 +54,22 @@ const TableKit = (() => {
     emptyMsg.textContent = 'No matching rows.';
     table.parentElement.appendChild(emptyMsg);
 
-    let sortCol = null;
-    let sortDir = null;
+    let sortCol = saved ? saved.sortCol : null;
+    let sortDir = saved ? saved.sortDir : null;
 
     // checkedValues[col] = Set of values that are checked (visible); null = all visible
-    const checkedValues = Array(cols).fill(null);
+    const checkedValues = saved
+      ? saved.checkedValues.map(v => v === null ? null : new Set(v))
+      : Array(cols).fill(null);
 
     const dropdowns = [];
+
+    function saveState() {
+      stateStore.set(stateKey, {
+        sortCol, sortDir,
+        checkedValues: checkedValues.map(v => v === null ? null : [...v])
+      });
+    }
 
     // Build each header cell
     for (let i = 0; i < cols; i++) {
@@ -92,6 +117,15 @@ const TableKit = (() => {
       }
 
       dropdowns.push({ ascBtn, descBtn, inner, checklistWrap, col: i });
+
+      // Restore this column's visual filter/sort indicators from saved state (the underlying
+      // checkedValues/sortCol/sortDir are already restored above; applyFilter/applySort below
+      // makes the restored state take visible effect on the rebuilt rows).
+      if (checkedValues[i] !== null) inner.dataset.filtered = 'true';
+      if (sortCol === i) {
+        inner.dataset.sort = sortDir;
+        (sortDir === 'asc' ? ascBtn : descBtn) && (sortDir === 'asc' ? ascBtn : descBtn).classList.add('active');
+      }
 
       th.appendChild(inner);
       th.appendChild(panel);
@@ -155,6 +189,7 @@ const TableKit = (() => {
         checkedValues[col] = allCb.checked ? null : new Set();
         inner.dataset.filtered = checkedValues[col] !== null ? 'true' : 'false';
         applyFilter();
+        saveState();
         buildChecklist(col, wrap, inner);
       });
       wrap.appendChild(allCb.parentElement);
@@ -170,6 +205,7 @@ const TableKit = (() => {
           if (checkedValues[col].size === uniqueValues.length) checkedValues[col] = null;
           inner.dataset.filtered = checkedValues[col] !== null ? 'true' : 'false';
           applyFilter();
+          saveState();
           const allCbEl = wrap.querySelector('.tk-checklist-all input');
           if (allCbEl) allCbEl.checked = checkedValues[col] === null;
         });
@@ -207,6 +243,7 @@ const TableKit = (() => {
         (dir === 'asc' ? ascBtn : descBtn).classList.add('active');
       }
       applySort();
+      saveState();
     }
 
     function applySort() {
@@ -239,6 +276,11 @@ const TableKit = (() => {
       });
       emptyMsg.classList.toggle('visible', visible === 0);
     }
+
+    // Make any restored filter/sort take visible effect on this freshly-built table immediately
+    // — without this, a restored `checkedValues`/`sortCol` sits correct in memory but the rows
+    // themselves still show everything, unsorted, until the admin happens to reopen a dropdown.
+    if (saved) applySort();
   }
 
   function initAll() {
