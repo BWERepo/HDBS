@@ -5,6 +5,68 @@
 
 ---
 
+## Current state — 2026-08-19 (Production live on `4.48.0`: `SQUARE_APP_ID` secret drift investigated and resolved on production; `SQUARE_WEBHOOK_SIG_KEY` drift confirmed as intentional, not a gap)
+
+**Direct continuation of the same-day Donations session below (`4.47.0`).** No new feature code
+this session — pure secret-drift follow-up plus a re-checkpoint to confirm the pipeline.
+
+### 1. `SQUARE_APP_ID` secret set on production
+The `4.47.0` entry below flagged secret-parity drift found by `scripts/check-secret-parity.sh`:
+`SQUARE_APP_ID` missing from production, `SQUARE_WEBHOOK_SIG_KEY` present on production but not
+staging. This session ran that down:
+- **`SQUARE_APP_ID`**: the user retrieved the real **Production** Application ID from Square's own
+  Developer Dashboard (Credentials → Production, not Sandbox) and set it on `hdbs` themselves via
+  `npx wrangler secret put SQUARE_APP_ID` — the value never passed through Claude, per this
+  project's standing rule that secret values are typed in directly by the user. Confirmed set
+  (secret-parity script no longer lists it as missing).
+- **Investigated but left as-is, correctly**: grepping `src/` shows `SQUARE_APP_ID` is declared in
+  `src/types.ts`'s `Env` interface but **not actually read anywhere** in the Worker's route/business
+  logic — the frontend instead gets its Square App ID from the `square_app_id` **database setting**
+  (`src/settings.ts`), not this env var. `docs/phase-9-cutover-checklist.md` (lines 25, 150)
+  independently flagged this exact same thing back at cutover time as "likely vestigial dead
+  config," deliberately left unset on both environments with real cleanup (removing the unused
+  `Env` field) deferred, never done. Setting the secret today is harmless either way — the user
+  explicitly chose to leave the code as-is rather than also remove the dead `Env` field, since the
+  secret being present-but-unused isn't breaking anything.
+- **`SQUARE_WEBHOOK_SIG_KEY`**: confirmed **not** a gap. It's genuinely read
+  (`src/routes/payments.ts:100-101`, webhook signature verification), and
+  `docs/phase-9-cutover-checklist.md` (lines 229-232) explicitly documents that staging was
+  deliberately never given its own copy — that would require a second, separate Square Sandbox
+  webhook subscription that was never set up during cutover. The parity script's "only on
+  production" flag for this one name is expected, by design, not a follow-up item.
+
+**Remaining drift after this session, both confirmed non-issues, no action needed**: production
+now has `SQUARE_APP_ID` that staging lacks (harmless, unread by either environment's code) and
+`SQUARE_WEBHOOK_SIG_KEY` that staging lacks (intentional, documented at cutover). Re-running
+`scripts/check-secret-parity.sh` in a future session will still show these two — that's expected,
+not a regression.
+
+### `4.48.0` checkpoint
+No code changes existed at the time this ran (only the just-set `SQUARE_APP_ID` secret, which
+`wrangler secret put` applies immediately without needing a redeploy) — run purely to confirm the
+release pipeline and bump the version. Auto-bumped (no version given) from `4.47.0`. Staging
+deployed first (Version ID `bcc064b2-4993-44f6-8333-04559cac7291`), verified healthy. Production:
+pre-deploy rollback target captured (`c41559f7-67c5-4a20-bd33-1b9f90204f9c`, the secret-change
+deploy that had put `SQUARE_APP_ID` live), deployed clean (both custom domains, no DNS/cron
+errors), new Version ID `8fa70154-ba14-4c01-9188-56bd018c8fd2`, verified healthy — no rollback
+needed. Commit `d66a41f Set version to 4.48.0 for release`, pushed to `main`. **Both staging and
+production are on `4.48.0`, matching the latest pushed commit — nothing locally ahead of what's
+deployed.**
+
+### Immediate next step
+None blocking. Carried forward from below, still genuinely open:
+- Chrome extension connectivity for Supabase/browser automation has failed **three sessions running**
+  (see the `4.47.0`/`4.40.0`/`4.39.0` entries) — expect to hand raw SQL to the user by hand if a
+  future session needs to verify or change DB state directly.
+- `toolbar.js`'s Print popup not reliably auto-closing (see the `4.45.0`/`4.41.0` entries) — still
+  open, untouched, left deliberately per the user's earlier "leave it alone."
+- The real cleanup `docs/phase-9-cutover-checklist.md` deferred at cutover — removing the unused
+  `SQUARE_APP_ID` field from `src/types.ts`'s `Env` interface — remains undone, by explicit choice
+  this session ("leave it as-is, it's harmless"). Not urgent; revisit only if this area gets
+  touched again.
+
+---
+
 ## Current state — 2026-08-19 (Production live on `4.47.0`: new Donations feature — Donated flag on products + a Shop → Donations log — shipped from work already sitting complete/uncommitted at session start)
 
 **This session picked up substantial uncommitted work that a prior session had already fully
