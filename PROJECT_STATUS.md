@@ -5,6 +5,94 @@
 
 ---
 
+## Current state — 2026-08-19 (Production live on `4.41.0`: new Admin → Shop → Reports section with an Inventory Report; a real bug found in the shared, never-modified `toolbar.js` component and deliberately left unfixed)
+
+**Single-feature session**: added a Reports hub to the admin back office, with one report
+(Inventory) live so far — the design leaves room for more reports to be added the same way later.
+
+### What shipped: Admin → Shop → Reports → Inventory Report
+New file `js/admin-reports.js`, wired into the nav via `js/admin-misc.js` (`ADMIN_NAV_LABELS`,
+`ADMIN_NAV_STRUCTURE_DEFAULT`, plus a one-time migration block for already-saved `nav_order`
+settings, matching the exact pattern used for prior nav additions like `emaillog`/`sqpay`) and
+`js/admin-nav.js` (titles map + routing), and loaded in `public/index.html`
+(`<script src="js/admin-reports.js?v=1">`).
+
+`rReports(el)` renders a hub screen (currently a single clickable card); `rInvReport(el)` renders
+the actual report: **SKU, Name, Price, Sales Tax, Cash/Check Price, Credit Card Fee, Credit Card
+Total**, sorted ascending by SKU. Entirely client-side — no new API endpoints — computed from
+`PRODS` (already loaded) and the existing `SQ_FEE_PCT`/`SQ_FEE_CENTS` globals (Settings → Square
+Fees, unchanged despite the column now being *labeled* "Credit Card Fee" per the user's explicit
+rename request — same underlying rate).
+
+**Explicit decision, asked and answered**: what sales-tax rate to use for a report that isn't tied
+to any specific sale/shipping-destination. User chose the **flat 9.75%** fallback — the exact
+value `js/store.js`'s `getStateTaxRate()` already uses for TN when no specific city/county match is
+found — rather than a specific city rate or a new admin-configurable setting. `REPORT_TAX_RATE`
+in `admin-reports.js` is a plain constant; if this ever needs to become configurable, that's a
+new, separate decision.
+
+### Iteration arc on this single screen (all user-driven, several real bugs found along the way)
+1. **Width/alignment**: initial 900px container was too narrow for all 7 columns (last column cut
+   off) — widened to 1150px. Column headers weren't right-aligned to match the right-aligned
+   currency cells — fixed via a small scoped `<style>` block targeting `#inv-report-tbl`'s
+   `.tk-th-inner`/`.tk-th-label` (TableKit's own header-wrapper classes), **not** by editing
+   `table.css` itself.
+2. **"Filters do not work" — investigated, concluded not a real bug.** User initially reported the
+   column-header dropdown (▼) not opening on this report. Rather than guessing blind, asked the
+   user to test an *existing* working table (Subscribers) to isolate whether this was specific to
+   the new report or a site-wide TableKit regression — confirmed existing tables work fine, so the
+   issue was scoped to this report. Asked for a browser-console error next; user then retested and
+   confirmed **it actually works, no issue** — treat this as resolved/non-issue, not a lurking bug.
+3. **Removed a custom "Export CSV" button** the report initially shipped with, per explicit request
+   — the code+function were deleted outright (not just hidden). Note: the page toolbar's own
+   *generic* Export button (built into every admin screen via `showPageToolbar`) is untouched and
+   still present — only the report's extra bespoke button was removed.
+4. **A real, confirmed bug in `toolbar.js`'s Print feature — deliberately left unfixed.**
+   `toolbar.js`'s `doPrint()` opens a popup, calls `window.print()`, and is *supposed to*
+   auto-close via `window.onafterprint = () => window.close()` — but doesn't reliably. This
+   surfaced when the user asked to "remove this page that appears after print." Two DOM-manipulation
+   workarounds were tried and explicitly reverted by the user in turn (hiding the Print button
+   entirely — reverted, "the print button is fine, it's the screen after printing that
+   shouldn't display"). Since the only real fix lives inside `toolbar.js` itself — a shared
+   component this project's `CLAUDE.md` explicitly says to never modify, meant to be synced from an
+   external "Web Utilities" source this session has no access to — **explicitly asked the user
+   whether to patch it directly. User said no, and then explicitly said "leave it alone."**
+   **Current state, and this is the one open item**: the Inventory Report's Print button behaves
+   exactly like every other admin screen's Print button (unchanged, working as designed elsewhere)
+   — the underlying `window.onafterprint` auto-close bug is real, reproducible, and still present
+   in `toolbar.js`, affecting every screen that uses Print, not just this one. Nothing was changed
+   to work around it. If this bug needs fixing later, it requires either explicit permission to
+   patch `toolbar.js` in this repo, or a real updated copy from the external Web Utilities source —
+   neither happened this session, by the user's own choice.
+5. **Print density**: separately (before the above back-and-forth), made the printed table denser
+   via **inline** cell styles (`padding:3px 8px;font-size:.78rem;white-space:nowrap` on every
+   `<td>`/`<th>`) rather than a `<style>` block — necessary because `toolbar.js`'s `doPrint()`
+   clones only the table's cells into a separate popup with its own hardcoded stylesheet; a
+   scoped `<style>` element sitting outside the table wouldn't travel with the clone, but inline
+   styles on the cells themselves do (and win over the popup's stylesheet via specificity). This
+   is still live and unrelated to the open Print-popup-not-closing issue above.
+6. **Column rename**: "Square Fee" → "Credit Card Fee" (header + the explanatory caption text
+   below the table), per explicit request. No calculation change.
+
+### Checkpoint this session
+Auto-bumped (no version given) to **`4.41.0`**. Staging deployed and verified first (Version ID
+`d486e5a8-e0e9-4fda-bde8-0e6cb812dcd9`), then production (Version ID
+`f6b1e1e4-ed5b-4c96-92cd-e312f1961461`) — both `/api/health` and `/api/products.php` confirmed
+real content, no rollback needed. Commit `9353760 Add Shop > Reports with an Inventory Report`,
+pushed to `main`. **Both staging and production are on `4.41.0`, matching the latest pushed
+commit — nothing locally ahead of what's deployed.**
+
+### Immediate next step
+None blocking. One open item carried forward:
+- **`toolbar.js`'s Print popup doesn't reliably auto-close** (`window.onafterprint` not firing
+  reliably across at least Chrome). Affects every admin screen with a Print button, not just
+  Inventory Report. Left deliberately unfixed this session per the user's explicit "leave it
+  alone" — revisit only if the user raises it again, and get explicit permission before editing
+  `toolbar.js` (or find a real updated copy from the external Web Utilities source instead of
+  patching this repo's copy directly).
+
+---
+
 ## Current state — 2026-08-18 (Production live on `4.40.0`: coupons redesigned as batches of single-use random codes; store-credit crediting removed as dead code; two real storefront bugs found and fixed — a coupon-template caching gotcha and a stale "Sold Out" display after a cancelled payment)
 
 **Long session, continuing directly from the coupons/store-credit feature that shipped last
