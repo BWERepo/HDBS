@@ -5,6 +5,88 @@
 
 ---
 
+## Current state — 2026-08-19 (Production live on `4.47.0`: new Donations feature — Donated flag on products + a Shop → Donations log — shipped from work already sitting complete/uncommitted at session start)
+
+**This session picked up substantial uncommitted work that a prior session had already fully
+built** (13 modified files, 5 new files, an unapplied-by-Claude migration) but never
+checkpointed or documented in this file — the previous entry below (`4.45.0`, Receipt Report) was
+the last thing actually written up here, so this Donations feature effectively appeared between
+sessions with no writeup. This session's job was verifying it, confirming the DB migration status
+with the user, and shipping it — no new feature code was written from scratch.
+
+### What the feature does
+A **"Donated" checkbox on products** (`src/products.ts`'s `ProductRow`/`ProductDto`/`ProductInput`,
+new `donated boolean` column) — mutually exclusive with `sell`: `saveProduct()` now forces
+`sell:false` whenever `donated` is true, enforced server-side (not just via the admin form's own
+uncheck-Sell-when-Donated-is-checked UI behavior), so a donated item can't end up sellable through
+any other path that posts `sell:1` without also clearing `donated`. CSV import never sets
+`donated:true` (`src/products-csv.ts`) — it's admin-checkbox-only, not a CSV-managed field.
+
+Separately, a new **Shop → Donations** admin screen (`js/admin-donations.js`, wired into
+`js/admin-nav.js`'s titles/routing and `js/admin-misc.js`'s `ADMIN_NAV_LABELS`/
+`ADMIN_NAV_STRUCTURE_DEFAULT` + a one-time nav-migration block for already-saved `nav_order`
+settings, matching the exact pattern used for prior nav additions) lets the admin log actual
+donations — date, recipient, which product — backed by a new `donations` table (`product_id` FK to
+`products`, `donation_date`, `recipient`). **Checking a product's Donated checkbox does NOT itself
+create a donation log entry** — logging a donation is a deliberate separate action via the new
+screen, so the log can't gain a phantom entry just from flipping the flag, and un-checking Donated
+later doesn't erase donation history. Backend: `src/donations.ts` (business logic) +
+`src/routes/donations.ts` (Hono route, registered in `src/index.ts`) +
+`supabase/migrations/0015_donations.sql` (adds `products.donated` and creates `donations` in both
+`hdbs_staging` and `hdbs_prod` schemas, one file/one paste per this project's established
+shared-DR-project convention). 8 new tests in `src/donations.test.ts`, plus coverage in
+`src/products.test.ts` for the sell/donated mutual-exclusion rule — 542/542 total passing,
+typecheck clean.
+
+Unrelated one-line UX fix folded into the same uncommitted batch: `js/admin-business.js`'s Capital
+Equipment "Date Purchased" field now defaults to today's date on both Add and Cancel-edit, instead
+of defaulting to blank.
+
+### This session's actual work: verification, not construction
+1. Found the working tree already had all the above sitting modified/untracked, undocumented in
+   this file. Ran `npm test` (542/542 pass) and `npx tsc --noEmit` (clean) to confirm the
+   already-written code was actually sound before trusting it.
+2. **Could not verify migration `0015_donations.sql` had actually been run against Supabase** —
+   `mcp__claude-in-chrome__tabs_context_mcp` reported "Claude in Chrome is not connected" again,
+   the same recurring gotcha noted in the `4.40.0` and `4.39.0` entries below (three sessions in a
+   row now that this automated path hasn't worked). **Asked the user directly rather than
+   guessing or deploying blind** — confirmed both `hdbs_staging` and `hdbs_prod` already had the
+   migration applied, so it was safe to ship code that depends on `products.donated`/`donations`
+   existing.
+3. Ran `bash scripts/check-secret-parity.sh` before deploying, per the checkpoint skill's own
+   pre-release step — found **pre-existing, unrelated drift**: `SQUARE_WEBHOOK_SIG_KEY` present on
+   production but not staging, and `SQUARE_APP_ID` missing from production entirely (expected per
+   `src/types.ts`). **Not caused by this session and not fixed by it** — the Donations feature
+   needs no new secrets, so this was flagged and left for a separate, deliberate follow-up rather
+   than bundled into this release. Worth confirming/fixing before it causes a real incident.
+
+### `4.47.0` checkpoint
+Auto-bumped (no version given) from `4.46.0`. Staging deployed first (Version ID
+`28d66634-a827-4956-a200-50c57768ce28`), verified healthy
+(`/api/health` → `{"ok":true,"environment":"staging"}`, `/api/products.php` real content). Then
+production: pre-deploy rollback target captured (`ee3c507f-d88e-4a7f-ad1b-d6e04ece6c33`, the prior
+`4.46.0` deploy), deployed clean (both `handmadedesignsbysuzi.com` and
+`www.handmadedesignsbysuzi.com` custom domains, no DNS/cron errors), new Version ID
+`23f2572d-b5da-4adf-a974-05799d2a5e27`, verified healthy — no rollback needed. Commit `28c1cda
+Add Donations feature: Donated flag on products + Shop > Donations log; set version to 4.47.0`,
+pushed to `main`. **Both staging and production are on `4.47.0`, matching the latest pushed
+commit — nothing locally ahead of what's deployed.**
+
+### Immediate next step
+- **Secret drift found (see #3 above), not yet fixed**: production is missing `SQUARE_APP_ID`
+  (expected per `src/types.ts`) and has `SQUARE_WEBHOOK_SIG_KEY` that staging lacks. Run
+  `bash scripts/check-secret-parity.sh` again to reconfirm before touching Square-payment code on
+  either environment, and get the actual secret values from the user directly (never guessed or
+  reused) if `SQUARE_APP_ID` genuinely needs setting on production.
+- Chrome extension connectivity for Supabase/browser automation has now failed **three sessions in
+  a row** (`4.40.0`, `4.39.0` entries below, and this one) — if a future session needs to run SQL
+  or verify DB state directly, expect to hand raw SQL to the user again rather than assume the
+  `/Supabase` skill's automated path will work.
+- The one still-open item from the `4.45.0`/`4.41.0` entries below (`toolbar.js`'s Print popup not
+  reliably auto-closing) remains open and untouched this session — see that entry for full detail.
+
+---
+
 ## Current state — 2026-08-19 (Production live on `4.45.0`: new Receipt Report (fillable, checkbox-driven print layout, heavily iterated), plus two Tax Sweep width fixes)
 
 **Direct continuation of the same-day Reports session below** (`4.41.0`, Inventory Report). This
