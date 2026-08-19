@@ -5,6 +5,177 @@
 
 ---
 
+## Current state — 2026-08-19 (Production live on `4.52.0`: five small admin-panel fixes across five checkpoints — staging-only test buttons hidden on prod, Launch Date defaults to today, TableKit filters now survive table re-renders sitewide, a real two-part admin table scrollbar bug found and fixed; plus a real, dated bug found and fixed in the nightly Supabase backup)
+
+**Direct continuation of the same-day secret-drift session below (`4.48.0`).** Five
+separate small fixes, each its own checkpoint (`4.49.0` through `4.52.0`), plus an
+end-of-session backup-tooling fix that touches no deployed code. All auto-bumped, all
+healthy, no rollbacks.
+
+### 1. Staging-only test-data buttons hidden on production (`4.49.0`)
+"Set All Inventory to 1" and "Set All Prices to $1" (Admin → Shop → Products toolbar) are
+meant for staging test data only but were showing — and working — on production too. Fixed
+by adding a shared `IS_STAGING` flag to `js/config.js` (`location.hostname` starting with
+`staging.`, the same detection pattern this file's `SQUARE_MODE`/`PAYPAL_ENV` already use)
+and gating both buttons on it in `js/admin-products.js`. "Auto-assign SKUs" was left
+untouched — safe and useful in both environments. Commit `c05fcfb`.
+
+### 2. New product's Launch Date now defaults to today (`4.50.0`)
+The Add-Product form's Launch Date field (`js/admin-products.js`, `pf-launch` input) was
+hardcoded to default to `2026-07-01` for every new product, regardless of when it was
+actually added. Now defaults to `new Date().toISOString().slice(0,10)`. Only the
+**default** changed — editing an existing product's already-saved `launch_date` is
+untouched. Commit `dffe5db`.
+
+### 3. Real fix: TableKit column filters were silently resetting on every table action (`4.51.0`)
+User-reported, traced to a genuine architectural gap in `js/table.js` (TableKit) — the
+shared, "never modify without asking" component. **Explicitly asked the user for
+permission before touching it** (same policy as the still-open Print-popup bug below);
+user said yes.
+
+Root cause: TableKit keeps each column's active filter/sort selection in a closure private
+to the specific `<table>` DOM element it was applied to. Nearly every admin action
+(toggling Sell, editing/deleting a row, bulk actions) rebuilds the whole table via
+`innerHTML`, creating a brand-new `<table>` — TableKit re-initializes fresh on it with no
+memory of the old one's filter, silently resetting any active column filter after any
+table interaction, not just after real data changes.
+
+**Fix**: `js/table.js` now persists filter/sort state in a module-level `Map`, keyed by
+the table's own column-header-label signature (stable across a rebuild since the columns
+don't change, only the DOM node does). On `init()`, if saved state exists for that key, it
+restores `checkedValues`/`sortCol`/`sortDir` and immediately applies it to the freshly
+rebuilt rows — no need to reopen a dropdown to see it take effect. This is sitewide, not
+Products-specific — every admin screen using TableKit benefits.
+
+**Verified without touching the live admin panel** (avoids ever entering admin
+credentials): built a throwaway standalone test harness loading the real `table.js` via a
+local Python HTTP server, simulated a filter selection followed by an unrelated table
+rebuild, and confirmed via the DOM (`tr[data-tk-hidden]`, `dataset.filtered`) that the
+filter and its visual indicator both survived automatically. Test files deleted after
+verification — nothing left in the repo. Commit `255e3e1`.
+
+### 4. Real bug found and fixed: Product Management's horizontal scrollbar was unreachable — took two attempts, second one verified correct (`4.52.0`)
+User reported the horizontal scrollbar "at the bottom of the table, not visible" without
+scrolling the whole page down first. Two real, distinct causes, found and fixed in
+sequence — **the first fix was real but incomplete; don't assume a single round covers
+this class of bug**:
+
+**Cause 1 (fixed in commit `13b174f`)**: `.amain` (`css/shop.css`, the admin content
+column, a row flex-item of `#apanel`) had no `min-width:0`. A table wider than the
+viewport grew the *entire admin content column* instead of scrolling within its own
+`overflow-x:auto` wrapper — the classic flexbox "min-width:auto" overflow trap. Fixed by
+adding `min-width:0` to `.amain`. This genuinely fixed the "scrollbar bleeds to the bottom
+of the whole page" complaint.
+
+**Cause 2 (fixed in commit `c615343`, then corrected again in `79d7095`)**: with the table
+now confined to its own container, the scrollbar was still unreachable — because that
+container could be taller than the viewport, so its horizontal scrollbar (at its own
+bottom) still sat below the fold. First attempt (`c615343`) wrapped the table in a
+**second** `overflow:auto;max-height:...` div — this was wrong and was caught before
+being trusted: TableKit already wraps every table in its own internal `.tk-wrap`
+(`overflow-x:auto`, no height limit, from `table.css`). Nesting a second scrollable box
+around it meant the outer div's vertical scrollbar worked, but the *horizontal* scrollbar
+still lived on the inner `.tk-wrap`, glued to the bottom of the full, unclipped table —
+reachable only by scrolling the outer div past every row, i.e. the same bug relocated one
+level deeper. **Diagnosed for real, not guessed**, via a standalone offline test harness
+(same pattern as fix #3): `.tk-wrap.scrollWidth` (2752) vs `clientWidth` (1027) proved
+genuine horizontal overflow existed but was invisible because `.tk-wrap.offsetHeight` was
+1409 (full table height, unclipped) while the visible window was only ~445px tall.
+
+**Real fix (`79d7095`)**: dropped the redundant outer wrapper. Instead, `js/admin-products.js`'s
+`rProds()` now emits a scoped `<style>#prod-tbl-wrap .tk-wrap{max-height:calc(100vh -
+260px);overflow:auto}</style>` targeting TableKit's *own* wrapper directly — the same
+established pattern Inventory Report already uses for its own table CSS tweaks
+(`admin-reports.js`, scoped `<style>` blocks, never editing `table.css`/`table.js`
+directly). Verified via the same offline harness: `.tk-wrap` now shows both `hasH:true`
+and `hasV:true` with a bounded `clientH`, meaning both scrollbars live on the same
+height-constrained box.
+
+**Worth remembering for any future "wrap a TableKit table for extra scroll behavior"
+task**: TableKit already inserts its own `.tk-wrap` around every table — adding another
+`overflow:auto` ancestor around *that* creates two independently-scrolling boxes whose
+scroll positions can desync exactly like this. Style `.tk-wrap` itself via a scoped
+selector instead of adding a new wrapper.
+
+### 5. Real, dated bug found and fixed: the nightly Supabase backup was dumping the wrong, abandoned databases since 2026-08-13
+Not a deploy — this touches only `backup_hdbs.ps1` (Windows Task Scheduler script, outside
+the Worker/repo build, but tracked in this repo) and the `/BWEHDBSBackup` Claude Code
+skill (`C:\Users\Admin\.claude\skills\BWEHDBSBackup\SKILL.md`). Found while updating the
+skill per a direct request ("change the skill to do a backup of our Supabase database" —
+the skill was still written for the retired Hostinger MySQL era).
+
+**The real bug**: `backup_hdbs.ps1`'s 2026-08-12 rewrite (see that date's entry below)
+correctly pointed at two separate Supabase projects, one per environment
+(`ckiyvsejstptrnwkinir` for prod, `ukzhnizosofbkwcpuvye` for staging) — accurate *at the
+time*. The very next day's DR migration (2026-08-13 entry below) moved both HDBS
+environments into **one shared Supabase project** also used by Business Web Express
+(`qrsydsglkgampabirejz`), as separate schemas (`hdbs_prod`, `hdbs_staging`) rather than
+separate projects — confirmed live against `wrangler.jsonc`'s `SUPABASE_DB_SCHEMA`
+comments. `backup_hdbs.ps1` was never updated to match. **Every nightly scheduled run
+between 2026-08-13 and today (2026-08-19) was silently pg_dump'ing the old, abandoned,
+no-longer-written-to projects instead of the real live database** — six nights of
+backups that, while they didn't fail loudly, back up the wrong data entirely.
+
+**Fixed in both places**:
+- `backup_hdbs.ps1`: now dumps by schema (`-n hdbs_prod`, `-n hdbs_staging`) from the one
+  shared host (`db.qrsydsglkgampabirejz.supabase.co`), using the **same Postgres
+  credential `/BWEBackup` already uses** (`BWE-Supabase-DB` in Windows Credential
+  Manager) instead of the two now-defunct `HDBS-Supabase-DB-Prod`/`-Staging` credentials
+  — there's only one shared project/user/password now, so one stored credential covers
+  both. Output filenames unchanged (`<timestamp>HDBS-prod.sql`, `<timestamp>HDBS-staging.sql`).
+  Syntax-validated with PowerShell's own parser before considering this done; not yet
+  run for real (next scheduled nightly run will be the first real test).
+- `/BWEHDBSBackup` skill: fully rewritten to match — same shared host, same
+  `BWE-Supabase-DB` credential, `-n`-scoped dumps per schema, plus the unchanged repo-zip
+  step. The skill's own file documents this history so a future cold read doesn't
+  rediscover the same trap.
+
+**Not yet verified for real** — the old `HDBS-Supabase-DB-Prod`/`HDBS-Supabase-DB-Staging`
+credentials in Windows Credential Manager are now unused by both the script and skill
+(harmless to leave, nothing references them) but were not deleted. The `BWE-Supabase-DB`
+credential this now depends on was **assumed** to already exist and be valid (since
+`/BWEBackup` depends on it too) — not confirmed working end-to-end this session. **Worth
+running `/BWEHDBSBackup` for real next session** to confirm the fix actually produces a
+valid dump, the same way the 2026-08-10 BOM-fix entry below wasn't trusted until it was
+exercised for real.
+
+### Checkpoints this session (four, following the `4.48.0` secret-drift checkpoint below)
+- `4.49.0` — staging-only buttons hidden on prod (commit `c05fcfb`), Version ID
+  `d6fd0848-f353-4d01-ba2e-60a70760a171`.
+- `4.50.0` — Launch Date default (commit `dffe5db`), Version ID
+  `95e7388f-2847-4dfb-ac0d-f441695f298b`.
+- `4.51.0` — TableKit filter persistence (commit `255e3e1`), Version ID
+  `15224c51-17f5-491a-baad-04d92564338d`.
+- `4.52.0` — admin table scrollbar fix, both parts (commits `13b174f`, `c615343`,
+  `79d7095`), Version ID `219c1cba-a3df-4c65-9c41-67c46e325a9f`.
+
+**Both staging and production are on `4.52.0`, matching the latest pushed commit
+(`12b94ff`) — nothing locally ahead of what's deployed**, except `backup_hdbs.ps1`
+(uncommitted as of this writeup — see below, not a deploy artifact).
+
+### Immediate next step
+- **Run `/BWEHDBSBackup` for real** to confirm the corrected shared-project/schema-scoped
+  backup actually produces valid dumps — not yet exercised end-to-end this session (see
+  #5 above).
+- Confirm the `BWE-Supabase-DB` Windows Credential Manager entry is actually present and
+  valid on this machine — both the skill and `backup_hdbs.ps1` now depend on it instead
+  of the two old HDBS-specific credentials.
+- The two now-unused `HDBS-Supabase-DB-Prod`/`HDBS-Supabase-DB-Staging` credentials in
+  Windows Credential Manager are harmless to leave but could be removed for cleanliness
+  if this area gets touched again.
+- Chrome extension connectivity for Supabase/browser automation remains unverified this
+  session (not attempted — no DB migration work happened) — still worth assuming it may
+  not work, per the last several sessions' pattern (entries below).
+- `toolbar.js`'s Print popup not reliably auto-closing (see the `4.45.0`/`4.41.0` entries
+  below) — still open, untouched, left deliberately per the user's earlier "leave it
+  alone."
+- The `SQUARE_APP_ID`/`SQUARE_WEBHOOK_SIG_KEY` secret-parity findings from the `4.48.0`
+  entry below are both confirmed non-issues (harmless unused config; intentional
+  staging/production split, respectively) — no action needed, don't re-flag these as new
+  drift in a future session.
+
+---
+
 ## Current state — 2026-08-19 (Production live on `4.48.0`: `SQUARE_APP_ID` secret drift investigated and resolved on production; `SQUARE_WEBHOOK_SIG_KEY` drift confirmed as intentional, not a gap)
 
 **Direct continuation of the same-day Donations session below (`4.47.0`).** No new feature code

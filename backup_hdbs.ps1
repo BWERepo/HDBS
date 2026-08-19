@@ -2,12 +2,33 @@
 # Standalone script (no Claude Code / subscription dependency) for Windows Task Scheduler.
 #
 # Produces, in Z:\Backup\Websites\HDBS\Backup\:
-#   <timestamp>HDBS-prod.sql     pg_dump of the production Supabase database
-#   <timestamp>HDBS-staging.sql  pg_dump of the staging Supabase database
+#   <timestamp>HDBS-prod.sql     pg_dump of the production schema (hdbs_prod)
+#   <timestamp>HDBS-staging.sql  pg_dump of the staging schema (hdbs_staging)
 #   <timestamp>HDBS.zip          full repo zip
 #
 # ---------------------------------------------------------------------------
-# 2026-08-12 REWRITE - now a real pg_dump. History of what this replaces:
+# 2026-08-19 FIX - pointed at the wrong project since the 2026-08-13 DR move.
+#
+# The 2026-08-12 rewrite (see below) pointed this script at two separate
+# Supabase projects (ckiyvsejstptrnwkinir for prod, ukzhnizosofbkwcpuvye for
+# staging) - correct at the time. The very next day's DR migration moved both
+# HDBS environments into ONE shared Supabase project also used by Business
+# Web Express (qrsydsglkgampabirejz), as separate schemas (hdbs_prod,
+# hdbs_staging) rather than separate projects - confirmed live against
+# wrangler.jsonc's SUPABASE_DB_SCHEMA vars. This script was never updated to
+# match, so every nightly run between 2026-08-13 and this fix was silently
+# dumping the old, abandoned, no-longer-written-to databases instead of the
+# real live one. Found while updating the /BWEHDBSBackup Claude Code skill,
+# which had the same stale assumption.
+#
+# Now dumps by schema (-n) from the one shared project/host instead of by
+# separate project/host, and uses the same Postgres credential
+# BWE-Supabase-DB already uses (same project, same postgres superuser, same
+# password - there's only one to store) rather than two separate
+# HDBS-specific credentials that would just duplicate it.
+#
+# ---------------------------------------------------------------------------
+# 2026-08-12 REWRITE - became a real pg_dump. History of what this replaces:
 #
 # Until the 2026-08-02 Cloudflare/Supabase cutover this pulled a MySQL dump
 # from api/db_backup.php on the old Hostinger site. After the cutover the same
@@ -32,10 +53,9 @@
 # dumps up to 2026-08-02, JSON exports from 2026-08-03. The new files carry a
 # -prod / -staging suffix, so nothing collides and the archive stays readable.
 #
-# Passwords come from Windows Credential Manager at runtime and are passed to
-# pg_dump via PGPASSWORD rather than inside a connection-string argument, so
-# they never appear in the process's argv where Task Manager or `ps` could
-# read them. They are never logged or written to disk.
+# The password comes from Windows Credential Manager at runtime and is
+# passed to pg_dump inside the connection string built just-in-time, never
+# hardcoded, logged, or written to disk.
 # ---------------------------------------------------------------------------
 
 $ErrorActionPreference = "Stop"
@@ -48,10 +68,14 @@ function Write-Log($msg) {
     Add-Content -LiteralPath $logFile -Value $line
 }
 
-# Each environment's Credential Manager target and Postgres host.
-$environments = @(
-    @{ Name = "prod";    Target = "HDBS-Supabase-DB-Prod";    DbHost = "db.ckiyvsejstptrnwkinir.supabase.co" },
-    @{ Name = "staging"; Target = "HDBS-Supabase-DB-Staging"; DbHost = "db.ukzhnizosofbkwcpuvye.supabase.co" }
+# Both HDBS environments now live in ONE shared Supabase project (also used by
+# Business Web Express) as separate schemas, not separate projects - see the
+# 2026-08-19 note above. One host, one credential; only the schema differs.
+$dbHost = "db.qrsydsglkgampabirejz.supabase.co"
+$credTarget = "BWE-Supabase-DB"
+$schemas = @(
+    @{ Name = "prod";    Schema = "hdbs_prod" },
+    @{ Name = "staging"; Schema = "hdbs_staging" }
 )
 
 $failures = @()
@@ -66,52 +90,53 @@ if (-not (Test-Path -LiteralPath $pgDump)) {
 
 Import-Module CredentialManager
 
-# --- Step 1: one pg_dump per environment ---
+$cred = Get-StoredCredential -Target $credTarget
+if ($null -eq $cred) {
+    $msg = "No '$credTarget' credential in Windows Credential Manager. This is the shared Postgres credential /BWEBackup also depends on - store it with New-StoredCredential (use Read-Host -AsSecureString so the password never reaches the console or shell history)."
+    Write-Log "FAILED: $msg"
+    throw $msg
+}
+$env:PGPASSWORD = $cred.GetNetworkCredential().Password
+Remove-Variable cred
+
+# --- Steps 1 & 2: one pg_dump per schema, same shared host/credential ---
 #
 # Each is attempted independently and its failure recorded rather than thrown
-# immediately, so a paused or unreachable staging database can never stop
+# immediately, so a paused or unreachable staging schema can never stop
 # production from being backed up. Any failure still fails the run at the end,
 # so Task Scheduler reports honestly - the whole point of the earlier fix.
-foreach ($e in $environments) {
-    $outFile = Join-Path $backupDir "${timestamp}HDBS-$($e.Name).sql"
-    try {
-        $cred = Get-StoredCredential -Target $e.Target
-        if ($null -eq $cred) {
-            throw "No '$($e.Target)' credential in Windows Credential Manager. Store it with New-StoredCredential (use Read-Host -AsSecureString so the password never reaches the console or shell history)."
-        }
-
-        $env:PGPASSWORD = $cred.GetNetworkCredential().Password
+try {
+    foreach ($s in $schemas) {
+        $outFile = Join-Path $backupDir "${timestamp}HDBS-$($s.Name).sql"
         try {
-            & $pgDump -h $e.DbHost -p 5432 -U postgres -d postgres `
+            & $pgDump -h $dbHost -p 5432 -U postgres -d postgres -n $s.Schema `
                 --no-owner --no-privileges -f $outFile
-            $exit = $LASTEXITCODE
-        } finally {
-            # Clear the password from the environment even if pg_dump throws.
-            Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
-            Remove-Variable cred -ErrorAction SilentlyContinue
-        }
-        if ($exit -ne 0) { throw "pg_dump exited with code $exit" }
+            if ($LASTEXITCODE -ne 0) { throw "pg_dump exited with code $LASTEXITCODE" }
 
-        # A dump that "succeeds" but is empty or truncated is the failure mode
-        # worth catching - verify the file exists and carries pg_dump's own
-        # completion marker rather than trusting the exit code alone.
-        if (-not (Test-Path -LiteralPath $outFile)) { throw "pg_dump reported success but wrote no file" }
-        $item = Get-Item -LiteralPath $outFile
-        if ($item.Length -eq 0) { throw "pg_dump wrote an empty file" }
-        $tail = Get-Content -LiteralPath $outFile -Tail 5 | Out-String
-        if ($tail -notmatch "PostgreSQL database dump complete") {
-            throw "Dump is missing pg_dump's completion marker - it is probably truncated ($($item.Length) bytes)"
-        }
+            # A dump that "succeeds" but is empty or truncated is the failure mode
+            # worth catching - verify the file exists and carries pg_dump's own
+            # completion marker rather than trusting the exit code alone.
+            if (-not (Test-Path -LiteralPath $outFile)) { throw "pg_dump reported success but wrote no file" }
+            $item = Get-Item -LiteralPath $outFile
+            if ($item.Length -eq 0) { throw "pg_dump wrote an empty file" }
+            $tail = Get-Content -LiteralPath $outFile -Tail 5 | Out-String
+            if ($tail -notmatch "PostgreSQL database dump complete") {
+                throw "Dump is missing pg_dump's completion marker - it is probably truncated ($($item.Length) bytes)"
+            }
 
-        Write-Log "OK: $($e.Name) dump -> $outFile ($($item.Length) bytes)"
-    } catch {
-        $msg = "$($e.Name): $($_.Exception.Message)"
-        Write-Log "FAILED: $msg"
-        $failures += $msg
+            Write-Log "OK: $($s.Name) dump (schema $($s.Schema)) -> $outFile ($($item.Length) bytes)"
+        } catch {
+            $msg = "$($s.Name): $($_.Exception.Message)"
+            Write-Log "FAILED: $msg"
+            $failures += $msg
+        }
     }
+} finally {
+    # Clear the password from the environment no matter how the loop above exits.
+    Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
 }
 
-# --- Step 2: repo zip ---
+# --- Step 3: repo zip ---
 try {
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
