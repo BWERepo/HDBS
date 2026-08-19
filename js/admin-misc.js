@@ -395,7 +395,7 @@ var ADMIN_NAV_LABELS={
   subs:'✉️ Subscribers',blast:'📣 Email Blast',faqs:'❓ FAQs',
   tncity:'🏙️ TN City Sales Taxes',reviews:'⭐ Reviews',
   cats:'🏷️ Categories',shipping:'🚚 Shipping Charges',studio:'🎨 Design Studio',
-  sqpay:'💳 Square Payments',paypalpay:'🅿️ PayPal Payments',sweep:'🧾 Tax Sweep',coupons:'🎟️ Coupons',
+  sqpay:'💳 Square Payments',paypalpay:'🅿️ PayPal Payments',sweep:'🧾 Tax Sweep',coupons:'🎟️ Coupons',reports:'📊 Reports',
   regtest:'🧪 Regression Tests',emaillog:'📧 Email Log',
   logs:'📋 Error Logs',bizprofile:'👤 Profile',
   bizdocs:'📄 Documents',bizinv:'📦 Inventory',bizreports:'📊 Reports',bizequip:'🏗️ Capital Equipment',
@@ -409,7 +409,7 @@ var ADMIN_NAV_DEFAULT=Object.keys(ADMIN_NAV_LABELS).map(function(s){return{sec:s
 // Default nested structure with Shop and Developer folders
 var ADMIN_NAV_STRUCTURE_DEFAULT=[
   {type:'item',sec:'dash'},
-  {type:'folder',sec:'shop',label:'🛍️ Shop',children:['prods','orders','custs','sales','subs','blast','emaillog','sqpay','paypalpay','coupons']},
+  {type:'folder',sec:'shop',label:'🛍️ Shop',children:['prods','orders','custs','sales','subs','blast','emaillog','sqpay','paypalpay','coupons','reports']},
   {type:'item',sec:'studio'},
   {type:'folder',sec:'business',label:'🏢 Business',children:['bizprofile','bizdocs','bizinv','bizreports','bizequip']},
   {type:'folder',sec:'developer',label:'🔧 Developer',children:['regtest','gitlog','deploylog','dbbackup','logs','settings']},
@@ -500,6 +500,15 @@ function loadNavOrder(callback){
           if(idx>=0)n.children.splice(idx+1,0,'paypalpay');
           else n.children.push('paypalpay');
         }
+      });
+    })();
+    // One-time migration: add Reports into Shop, on saved nav_orders that predate it (a fresh
+    // install picks this up from the folder default above).
+    (function(){
+      var inShop=structure.some(function(n){return n.type==='folder'&&n.sec==='shop'&&(n.children||[]).indexOf('reports')>=0;});
+      if(inShop)return;
+      structure.forEach(function(n){
+        if(n.type==='folder'&&n.sec==='shop')n.children.push('reports');
       });
     })();
     // Add any new secs not yet present anywhere in structure
