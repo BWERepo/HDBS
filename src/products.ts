@@ -50,6 +50,7 @@ export interface ProductRow {
   weight: number | null;
   size: string | null;
   sell: boolean;
+  donated: boolean;
   img1: string | null;
   img2: string | null;
   img3: string | null;
@@ -72,6 +73,7 @@ export interface ProductDto {
   weight: number;
   size: string;
   sell: 0 | 1;
+  donated: 0 | 1;
   imgs: [string, string, string];
   hasImg: boolean;
   sku: string;
@@ -114,6 +116,7 @@ export interface ProductInput {
   weight?: number | string;
   size?: string;
   sell?: unknown;
+  donated?: unknown;
   imgs?: [string?, string?, string?];
   ship_mode?: string;
   ship_fixed?: number | string;
@@ -228,6 +231,11 @@ export async function saveProduct(
   const cogm = input.cogm !== undefined && input.cogm !== null ? Number(input.cogm) : defaultCogm;
   // `isset($d['sell']) ? (int)$d['sell'] : 1` — same present-vs-absent distinction as cogm.
   const sell = input.sell !== undefined && input.sell !== null ? toIntFlag(input.sell) : 1;
+  const donated = phpNotEmpty(input.donated);
+  // A donated item is never sellable — enforced here too (not just via the admin form's own
+  // uncheck-Sell-when-Donated-is-checked behavior), so a donated product can't end up sellable
+  // through any other path that posts sell:1 without also clearing donated.
+  const finalSell = donated ? false : sell === 1;
 
   await store.upsertProduct({
     id,
@@ -240,7 +248,8 @@ export async function saveProduct(
     badge: input.badge ?? "",
     weight: Number(input.weight ?? 0),
     size: input.size ?? "",
-    sell: sell === 1,
+    sell: finalSell,
+    donated,
     img1: processed.saved[0],
     img2: processed.saved[1],
     img3: processed.saved[2],
@@ -280,6 +289,7 @@ export function mapProductForResponse(row: ProductRow, isAdmin: boolean): Produc
     weight: Number(row.weight ?? 0),
     size: row.size ?? "",
     sell: row.sell ? 1 : 0,
+    donated: row.donated ? 1 : 0,
     imgs: [row.img1 ?? "", row.img2 ?? "", row.img3 ?? ""],
     hasImg: !!row.img1,
     sku: row.sku ?? "",
@@ -335,6 +345,7 @@ export function makeProductRow(overrides: Partial<ProductRow> & Pick<ProductRow,
     weight: 0,
     size: "",
     sell: true,
+    donated: false,
     img1: "",
     img2: "",
     img3: "",

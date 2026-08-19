@@ -126,6 +126,7 @@ export async function importProductsCsv(store: ProductsStore, csvText: string, m
       // "sell" column — even for a blank cell — so `?? 1` only ever fires when the column is
       // absent entirely; a present-but-blank cell casts to (int)'' = 0, not the 1 default.
       sell: r.sell === undefined ? true : (parseInt(r.sell, 10) || 0) !== 0,
+      donated: false, // not a CSV-managed field — import never marks a product donated
       img1: (r.img1 ?? "").trim(),
       img2: (r.img2 ?? "").trim(),
       img3: (r.img3 ?? "").trim(),

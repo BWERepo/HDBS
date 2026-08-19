@@ -51,6 +51,7 @@ describe("mapProductForResponse", () => {
       weight: 1.2,
       size: "medium",
       sell: 1,
+      donated: 0,
       imgs: ["/product_images/a.jpg", "/product_images/b.jpg", ""],
       hasImg: true,
       sku: "MUG-1",
@@ -178,6 +179,18 @@ describe("saveProduct", () => {
     await saveProduct(store, { id: "p2", name: "Mug 2", sell: false });
     expect(store.rows[0 /* p1 unaffected */]!.sell).toBe(true);
     expect(store.rows.find((r) => r.id === "p2")!.sell).toBe(false);
+  });
+
+  it("donated forces sell off, even if sell:true is also sent", async () => {
+    await saveProduct(store, { id: "p1", name: "Mug", donated: true, sell: true });
+    expect(store.rows[0]!.donated).toBe(true);
+    expect(store.rows[0]!.sell).toBe(false);
+  });
+
+  it("donated defaults to false, and sell is unaffected when donated is absent", async () => {
+    await saveProduct(store, { id: "p1", name: "Mug" });
+    expect(store.rows[0]!.donated).toBe(false);
+    expect(store.rows[0]!.sell).toBe(true);
   });
 
   it("coming_soon follows PHP empty() semantics: 0/'0'/absent -> false, anything else truthy -> true", async () => {

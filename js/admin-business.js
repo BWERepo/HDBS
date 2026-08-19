@@ -573,7 +573,7 @@ function renderBizEquip(el){
       '<div style="font-weight:700;margin-bottom:.9rem" id="ce-form-title">➕ Add Equipment</div>'+
       '<input type="hidden" id="ce-id">'+
       '<div class="g2">'+
-        '<div><label class="fl">Date Purchased</label><input class="afi" id="ce-date" type="date"></div>'+
+        '<div><label class="fl">Date Purchased</label><input class="afi" id="ce-date" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
         '<div><label class="fl">Purchase Price ($)</label><input class="afi" id="ce-price" type="number" step="0.01" min="0.01" placeholder="0.00"></div>'+
       '</div>'+
       '<label class="fl">Description</label><textarea class="afi" id="ce-desc" rows="2" placeholder="e.g. Brother PE800 embroidery machine" style="resize:vertical"></textarea>'+
@@ -659,7 +659,7 @@ function editBizEquip(id){
 }
 function cancelBizEquipEdit(){
   document.getElementById('ce-id').value='';
-  document.getElementById('ce-date').value='';
+  document.getElementById('ce-date').value=new Date().toISOString().slice(0,10);
   document.getElementById('ce-price').value='';
   document.getElementById('ce-desc').value='';
   var receiptInput=document.getElementById('ce-receipt-file');if(receiptInput)receiptInput.value='';

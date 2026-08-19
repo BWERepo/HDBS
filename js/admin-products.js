@@ -1,6 +1,6 @@
 // ── PRODUCT ADMIN ──
 function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-var PROD_SORT={col:'name',dir:1};
+var PROD_SORT={col:'sku',dir:1};
 var PROD_F={name:'',cat:'',sku:'',size:'',sell:'',status:''};
 
 function prodSort(col){if(PROD_SORT.col===col)PROD_SORT.dir*=-1;else PROD_SORT={col:col,dir:1};rProds(document.getElementById('acnt'));}
@@ -75,7 +75,7 @@ function applyProdFilters(){
 }
 
 function buildProdThead(){
-  return '<thead><tr><th>Product</th><th>Cat</th><th>SKU</th><th>Sell</th><th>Price</th><th>COGM</th><th>Launch Date</th><th>Size</th><th>Weight</th><th>Shipping</th><th>Stock</th><th>Description</th><th>Actions</th></tr></thead>';
+  return '<thead><tr><th>Product</th><th>Cat</th><th>SKU</th><th>Sell</th><th>Donation</th><th>Price</th><th>COGM</th><th>Launch Date</th><th>Size</th><th>Weight</th><th>Shipping</th><th>Stock</th><th>Description</th><th>Actions</th></tr></thead>';
 }
 
 function rProds(el){
@@ -87,6 +87,7 @@ function rProds(el){
       '<td>'+parseCats(p.cat).join(', ')+'</td>'+
       '<td style="font-family:monospace;font-size:.78rem;color:#a07810">'+(p.sku||'—')+'</td>'+
       '<td style="text-align:center"><input type="checkbox" '+(p.sell!==0?'checked':'')+' onchange="toggleSell(\''+p.id+'\',this.checked)"></td>'+
+      '<td style="text-align:center"><input type="checkbox" '+(p.donated?'checked':'')+' disabled title="Managed on the Donations page">'+'</td>'+
       '<td style="font-weight:700">$'+p.price.toFixed(2)+'</td>'+
       '<td style="font-weight:600;color:#6b6040">$'+(p.cogm?p.cogm.toFixed(2):'0.00')+'</td>'+
       '<td style="font-size:.78rem;color:#6b6040">'+isoDateToMDY((p&&p.launch_date)?p.launch_date:'2026-07-01')+'</td>'+
@@ -99,6 +100,7 @@ function rProds(el){
   }
   var isFiltered=PROD_F.name||PROD_F.cat||PROD_F.sku||PROD_F.status;
   el.innerHTML=
+    '<div style="max-width:1400px">'+
     '<div style="display:flex;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap;align-items:center">'+
       '<div id="pf-action-btns"><button class="bp" onclick="showPF(null)">+ Add Product</button></div>'+
       '<button class="bs" onclick="setAllStock1()">📦 Set All Inventory to 1</button>'+
@@ -108,7 +110,8 @@ function rProds(el){
       '<span style="font-size:.78rem;color:#6b6040;margin-left:auto">'+filtered.length+' of '+PRODS.length+' products</span>'+
     '</div>'+
     '<div id="pfc"></div>'+
-    '<div style="overflow-x:auto"><table class="tablekit">'+buildProdThead()+'<tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:#6b6040">No products</td></tr>')+'</tbody></table></div>';
+    '<div style="overflow-x:auto"><table class="tablekit">'+buildProdThead()+'<tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:#6b6040">No products</td></tr>')+'</tbody></table></div>'+
+    '</div>';
   if(typeof TableKit!=='undefined')TableKit.initAll();
   // onExport overrides the toolbar's generic table export (which would include the Actions
   // column and no image URLs) with the clean products_csv.php export.
@@ -277,12 +280,16 @@ function showPF(id){
       '</div>'+
     '</div>'+
     '<div style="display:flex;align-items:center;gap:.5rem;padding:.4rem 0">'+
-      '<input type="checkbox" id="pf-sell" '+(p&&p.sell!==0?'checked':'')+'>'+
+      '<input type="checkbox" id="pf-sell" '+(p&&p.sell!==0?'checked':'')+' onchange="if(this.checked)document.getElementById(\'pf-donated\').checked=false;">'+
       '<label for="pf-sell" style="font-size:.83rem;color:#2d2220;cursor:pointer">List for sale on home page</label>'+
     '</div>'+
     '<div style="display:flex;align-items:center;gap:.5rem;padding:.4rem 0">'+
       '<input type="checkbox" id="pf-coming" '+(p&&p.coming_soon?'checked':'')+'>'+
       '<label for="pf-coming" style="font-size:.83rem;color:#2d2220;cursor:pointer">Coming Soon — tease on home page, not yet for sale</label>'+
+    '</div>'+
+    '<div style="display:flex;align-items:center;gap:.5rem;padding:.4rem 0">'+
+      '<input type="checkbox" id="pf-donated" '+(p&&p.donated?'checked':'')+' onchange="if(this.checked)document.getElementById(\'pf-sell\').checked=false;">'+
+      '<label for="pf-donated" style="font-size:.83rem;color:#2d2220;cursor:pointer">Donated — no longer for sale</label>'+
     '</div>'+
     '</div>'+
 
@@ -409,6 +416,7 @@ function saveP(){
   var obj={id:EDITID||('p'+Date.now()),name:n,price:pr,stock:st,cat:JSON.stringify(pfGetCats()),
     desc:document.getElementById('pf-d').value.trim(),badge:document.getElementById('pf-b').value.trim(),
     sku:skuVal,weight:wt,size:sz,sell:document.getElementById('pf-sell').checked?1:0,
+    donated:document.getElementById('pf-donated')&&document.getElementById('pf-donated').checked?1:0,
     coming_soon:document.getElementById('pf-coming')&&document.getElementById('pf-coming').checked?1:0,
     ship_mode:shipMode,ship_fixed:shipFixed,cogm:cogm,launch_date:launch,imgs:[EDIT_PHOTOS[0],EDIT_PHOTOS[1],EDIT_PHOTOS[2]]};
   // Disable save buttons while saving

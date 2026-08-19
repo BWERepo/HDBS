@@ -18,6 +18,7 @@ import type { Env } from "./types";
 import type { AdminAuthStore, AdminSession } from "./auth";
 import type { SettingsStore } from "./settings";
 import type { ProductsStore, ProductRow } from "./products";
+import type { DonationsStore, DonationRow } from "./donations";
 import type { OrdersStore, OrderRow, OrderItemRow, OrderInsert, OrderUpdatableFields } from "./orders";
 import type { TaxStore, TnCityTaxRow, PendingTaxOrder, TaxSweepRow } from "./tax";
 import type { SubscribersStore, SubscriberRow } from "./subscribers";
@@ -155,7 +156,7 @@ export class SupabaseProductsStore implements ProductsStore {
     const { data, error } = await this.db
       .from("products")
       .select(
-        "id, sku, name, description, price, stock, category, badge, weight, size, sell, img1, img2, img3, ship_mode, ship_fixed, coming_soon, cogm, launch_date"
+        "id, sku, name, description, price, stock, category, badge, weight, size, sell, donated, img1, img2, img3, ship_mode, ship_fixed, coming_soon, cogm, launch_date"
       )
       .order("created_at", { ascending: true });
     checkError("listProducts", error);
@@ -179,6 +180,31 @@ export class SupabaseProductsStore implements ProductsStore {
 
   putProductImage(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
     return r2Put(this.r2, key, bytes, contentType);
+  }
+}
+
+/** Wires donations.ts's DonationsStore to the `donations` table. */
+export class SupabaseDonationsStore implements DonationsStore {
+  constructor(private db: SupabaseClient) {}
+
+  async insertDonation(row: Omit<DonationRow, "id" | "created_at">): Promise<number> {
+    const { data, error } = await this.db.from("donations").insert(row).select("id").single();
+    checkError("insertDonation", error);
+    return (data as { id: number }).id;
+  }
+  async listDonations(): Promise<DonationRow[]> {
+    const { data, error } = await this.db.from("donations").select("*");
+    checkError("listDonations", error);
+    return (data ?? []) as DonationRow[];
+  }
+  async deleteDonation(id: number): Promise<void> {
+    const { error } = await this.db.from("donations").delete().eq("id", id);
+    checkError("deleteDonation", error);
+  }
+  async productExists(productId: string): Promise<boolean> {
+    const { data, error } = await this.db.from("products").select("id").eq("id", productId).maybeSingle();
+    checkError("productExists", error);
+    return !!data;
   }
 }
 
