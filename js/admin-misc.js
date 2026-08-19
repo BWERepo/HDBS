@@ -275,7 +275,7 @@ function renderSweepPanel(el, d){
         '</div>';
     }
 
-    el.innerHTML='<div style="max-width:700px">'+pendingHtml+histHtml+'</div>';
+    el.innerHTML='<div style="max-width:1200px">'+pendingHtml+histHtml+'</div>';
     if(typeof TableKit!=='undefined')TableKit.initAll();
     showPageToolbar({title:'Tax Sweep',logoText:(window.BIZ_NAME||'Handmade Designs By Suzi')});
   }).catch(function(){
