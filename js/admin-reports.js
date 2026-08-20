@@ -32,7 +32,13 @@ function reportRows(){
     var price=Number(p.price)||0;
     var tax=Math.round(price*REPORT_TAX_RATE*100)/100;
     var cashPrice=Math.round((price+tax)*100)/100;
-    var fee=Math.round((cashPrice*(SQ_FEE_PCT/100)+SQ_FEE_CENTS)*100)/100;
+    // cardSurcharge() (js/store.js) — the same gross-up formula real checkout charges, matching
+    // src/payments.ts's computeSquareSurcharge exactly. A flat cashPrice*rate+fixed calculation
+    // (the old formula here) always undercharges relative to what Square actually withholds,
+    // since Square's real fee is computed on the FINAL charged amount (which already includes
+    // the fee), not the pre-fee base — confirmed live: this report showed $1.89 for the same
+    // order whose real checkout/TRANS FEE was $1.95.
+    var fee=cardSurcharge(cashPrice);
     var cardTotal=Math.round((cashPrice+fee)*100)/100;
     return {sku:p.sku||'',name:p.name,price:price,tax:tax,cashPrice:cashPrice,fee:fee,cardTotal:cardTotal};
   });
