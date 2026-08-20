@@ -10,7 +10,7 @@ import { createDb, SupabaseAdminAuthStore, SupabaseOrdersStore } from "../db";
 import { isValidAdminToken } from "../auth";
 import { createSquareGateway } from "../lib/square-gateway";
 import { createPaypalGateway } from "../lib/paypal-gateway";
-import { getPaypalPaymentsReport, checkPaypalStatus, getSquarePaymentsReport } from "../payment-reports";
+import { getPaypalPaymentsReport, checkPaypalStatus, getSquarePaymentsReport, backfillSquareTransactionFees } from "../payment-reports";
 
 export const paymentReportsRoute = new Hono<{ Bindings: Env }>();
 
@@ -43,5 +43,17 @@ paymentReportsRoute.get("/api/square_payments.php", async (c) => {
     end: c.req.query("end"),
     cursor: c.req.query("cursor"),
   });
+  return result.ok ? ok(c, result.data) : fail(c, result.error!, result.status);
+});
+
+// The admin "Update Trans Fees" button (js/admin-orders.js's updateTransFees()) POSTs
+// {action:'backfill_fees'} to this same URL — matching the PHP's own single-endpoint,
+// action-dispatched shape rather than a separate route.
+paymentReportsRoute.post("/api/square_payments.php", async (c) => {
+  if (!(await requireAdmin(c))) return fail(c, "Unauthorized", 401);
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  if (body.action !== "backfill_fees") return fail(c, "Unknown action");
+  const gateway = createSquareGateway(c.env.SQUARE_TOKEN, apiHosts(c.env).square);
+  const result = await backfillSquareTransactionFees(gateway, new SupabaseOrdersStore(createDb(c.env)), c.env.SQUARE_LOCATION_ID);
   return result.ok ? ok(c, result.data) : fail(c, result.error!, result.status);
 });

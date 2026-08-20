@@ -1,6 +1,7 @@
-// Admin payment-reporting screens: ports api/paypal_payments.php, api/paypal_status.php, and the
-// read-only reporting half of api/square_payments.php (its `backfill_fees` POST action is a
-// historical-data maintenance tool, deliberately deferred — see this file's own note below).
+// Admin payment-reporting screens: ports api/paypal_payments.php, api/paypal_status.php, and both
+// halves of api/square_payments.php (its GET report and its `backfill_fees` POST maintenance
+// action — see backfillSquareTransactionFees's own note for why the latter was deferred, then
+// added, during this migration).
 //
 // `mode`/`env` strings (sandbox vs. live) are supplied by the caller from c.env.ENVIRONMENT rather
 // than detected here — same architecture decision as payments.ts: this migration resolves
@@ -121,13 +122,6 @@ function estimateSquareFee(amountCents: number): number {
  * our own orders table for tax (Square never itemizes it — process_payment.php charges a flat
  * total, not a Square Order with line items) and refund status (issued through our own
  * api/refund.php, not Square's refund status).
- *
- * Deliberately NOT ported: the `backfill_fees` POST action, a historical-data maintenance tool
- * that re-fetches Square payments for old orders missing a transaction_fee and backfills it. New
- * orders get their fee from the async Square webhook (payments.ts's handleSquareWebhookEvent)
- * going forward, so this only matters for orders that predate that webhook being live — a
- * one-time cleanup job, not part of the ongoing reporting surface. Can be added later if a real
- * backlog of fee-less historical orders turns out to need it after data migration.
  */
 export async function getSquarePaymentsReport(
   gateway: SquareGateway,
@@ -179,4 +173,81 @@ export async function getSquarePaymentsReport(
   });
 
   return { ok: true, data: { payments, cursor: listed.cursor, count: payments.length } };
+}
+
+export interface BackfillFeesResult {
+  updated: number;
+  skipped: number;
+  total: number;
+  errors: string[];
+  unmatched: string[];
+}
+
+/**
+ * Ports api/square_payments.php's `backfill_fees` POST action — a historical-data maintenance
+ * tool that re-fetches Square payments for orders still missing a transaction_fee and backfills
+ * it. New orders get their fee from the async Square webhook automatically
+ * (payments.ts's handleSquareWebhookEvent) — a two-delivery process confirmed live 2026-08-20
+ * (Square Sandbox sends an initial payment.updated with no fee yet, then a second one ~a minute
+ * later once it's computed), so this is now genuinely a one-time/occasional cleanup tool for
+ * orders that predate that webhook being live or reliable, not the primary path.
+ *
+ * Deliberately kept close to the PHP's own logic rather than reusing getSquarePaymentsReport's
+ * single List Payments call: each candidate order gets its own List Payments call scoped to a
+ * narrow ±30-day window around that order's own date and matched by note containing the order id
+ * — the PHP's approach for correctness across a batch of orders that may span months, at the cost
+ * of one Square API call per order (capped at 100 orders per run, same as the PHP).
+ */
+export async function backfillSquareTransactionFees(
+  gateway: SquareGateway,
+  ordersStore: OrdersStore,
+  locationId: string
+): Promise<ReportResult<BackfillFeesResult>> {
+  const allOrders = await ordersStore.listOrders();
+  const candidates = allOrders
+    .filter((o) => (o.payment_method === "Credit Card" || o.payment_method === "Square") && (o.transaction_fee === null || Number(o.transaction_fee) === 0))
+    .sort((a, b) => (b.order_date ?? "").localeCompare(a.order_date ?? ""))
+    .slice(0, 100);
+
+  let updated = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+  const unmatched: string[] = [];
+
+  for (const order of candidates) {
+    const orderDate = order.order_date ?? new Date().toISOString().slice(0, 10);
+    const begin = `${shiftDate(orderDate, -30)}T00:00:00Z`;
+    const end = `${shiftDate(orderDate, 30)}T23:59:59Z`;
+
+    const listed = await gateway.listPayments({ locationId, beginTime: begin, endTime: end, limit: 100 });
+    if (!listed.ok) {
+      errors.push(`${order.id}: ${listed.message}`);
+      skipped++;
+      continue;
+    }
+
+    const matched = listed.payments.find((p) => p.note.includes(order.id) && (p.status === "COMPLETED" || p.status === "APPROVED"));
+    if (!matched) {
+      unmatched.push(order.id);
+      skipped++;
+      continue;
+    }
+
+    let fee = matched.feeCents / 100;
+    if (Math.abs(fee) < 0.001) fee = estimateSquareFee(matched.amountCents);
+    fee = round2(Math.abs(fee));
+
+    await ordersStore.updateOrderFields(order.id, { transaction_fee: fee });
+    updated++;
+  }
+
+  return { ok: true, data: { updated, skipped, total: candidates.length, errors, unmatched } };
+}
+
+/** date +/- days, plain YYYY-MM-DD in/out — used only for the +-30-day Square List Payments
+ *  window above, no timezone subtlety needed at day granularity. */
+function shiftDate(isoDate: string, days: number): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }

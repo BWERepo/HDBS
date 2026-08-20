@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getPaypalPaymentsReport, checkPaypalStatus, getSquarePaymentsReport } from "./payment-reports";
+import { getPaypalPaymentsReport, checkPaypalStatus, getSquarePaymentsReport, backfillSquareTransactionFees } from "./payment-reports";
 import { OrdersStoreFake, makeOrderRow } from "./orders";
 import { FakePayPalGateway, FakeSquareGateway } from "./payments";
 
@@ -99,5 +99,69 @@ describe("getSquarePaymentsReport", () => {
     const result = await getSquarePaymentsReport(gateway, orders, "LOC1", {});
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/PAYMENTS_READ/);
+  });
+});
+
+describe("backfillSquareTransactionFees", () => {
+  it("backfills the real fee for a Credit Card order matched by note", async () => {
+    orders.orders = [makeOrderRow({ id: "ORD-1", payment_method: "Credit Card", transaction_fee: 0, order_date: "2026-08-01" })];
+    const gateway = new FakeSquareGateway();
+    gateway.listPaymentsResult = {
+      ok: true,
+      cursor: null,
+      payments: [{ id: "SQ1", createdAt: "", status: "COMPLETED", amountCents: 5677, tipCents: 0, feeCents: 195, note: "ORD-1", cardBrand: "", last4: "", buyerEmail: "" }],
+    };
+    const result = await backfillSquareTransactionFees(gateway, orders, "LOC1");
+    expect(result.ok).toBe(true);
+    expect(result.data!.updated).toBe(1);
+    expect(result.data!.unmatched).toEqual([]);
+    expect(orders.orders[0]!.transaction_fee).toBe(1.95);
+  });
+
+  it("estimates the fee (amount*2.6%+$0.10) when Square reports zero, same formula as the report", async () => {
+    orders.orders = [makeOrderRow({ id: "ORD-1", payment_method: "Credit Card", transaction_fee: 0, order_date: "2026-08-01" })];
+    const gateway = new FakeSquareGateway();
+    gateway.listPaymentsResult = {
+      ok: true,
+      cursor: null,
+      payments: [{ id: "SQ1", createdAt: "", status: "COMPLETED", amountCents: 6000, tipCents: 0, feeCents: 0, note: "ORD-1", cardBrand: "", last4: "", buyerEmail: "" }],
+    };
+    const result = await backfillSquareTransactionFees(gateway, orders, "LOC1");
+    expect(orders.orders[0]!.transaction_fee).toBe(1.66); // 60 * 0.026 + 0.10
+    expect(result.data!.updated).toBe(1);
+  });
+
+  it("leaves orders alone that already have a real fee recorded (not a candidate at all)", async () => {
+    orders.orders = [makeOrderRow({ id: "ORD-1", payment_method: "Credit Card", transaction_fee: 2.5, order_date: "2026-08-01" })];
+    const gateway = new FakeSquareGateway();
+    const result = await backfillSquareTransactionFees(gateway, orders, "LOC1");
+    expect(result.data!.total).toBe(0);
+    expect(orders.orders[0]!.transaction_fee).toBe(2.5);
+  });
+
+  it("ignores non-card payment methods (Cash/Check never had a Square fee to backfill)", async () => {
+    orders.orders = [makeOrderRow({ id: "ORD-1", payment_method: "Cash", transaction_fee: 0, order_date: "2026-08-01" })];
+    const gateway = new FakeSquareGateway();
+    const result = await backfillSquareTransactionFees(gateway, orders, "LOC1");
+    expect(result.data!.total).toBe(0);
+  });
+
+  it("records an order as unmatched, not an error, when no Square payment's note contains it", async () => {
+    orders.orders = [makeOrderRow({ id: "ORD-1", payment_method: "Credit Card", transaction_fee: 0, order_date: "2026-08-01" })];
+    const gateway = new FakeSquareGateway();
+    gateway.listPaymentsResult = { ok: true, cursor: null, payments: [] };
+    const result = await backfillSquareTransactionFees(gateway, orders, "LOC1");
+    expect(result.data!.updated).toBe(0);
+    expect(result.data!.skipped).toBe(1);
+    expect(result.data!.unmatched).toEqual(["ORD-1"]);
+  });
+
+  it("records a gateway failure as an error, not a silent skip", async () => {
+    orders.orders = [makeOrderRow({ id: "ORD-1", payment_method: "Square", transaction_fee: 0, order_date: "2026-08-01" })];
+    const gateway = new FakeSquareGateway();
+    gateway.listPaymentsResult = { ok: false, message: "cURL error: network error" };
+    const result = await backfillSquareTransactionFees(gateway, orders, "LOC1");
+    expect(result.data!.updated).toBe(0);
+    expect(result.data!.errors[0]).toContain("ORD-1");
   });
 });
