@@ -5,6 +5,141 @@
 
 ---
 
+## Current state — 2026-08-20 (Production live on `4.54.0`: the customer-facing Square card surcharge feature is now fully correct end-to-end — a real order-matching bug, a real math gap, and a stale report formula all found and fixed live, each confirmed against real Square Sandbox payments; `transaction_fee` webhook is now unconditionally authoritative; Orders list shows a live "Waiting" state; "Update Trans Fees" ported for real)
+
+**Direct continuation of the same-day session below (`4.52.0`/`0b5a08d`), which shipped the
+Square surcharge feature to staging only.** This entry covers everything since — four real bugs
+found through live testing on staging (not hypothetical, each reproduced with a real Square
+Sandbox payment), all fixed, verified, and checkpointed to **production** as `4.53.0` then
+`4.54.0`. **Both environments are now on `4.54.0`, fully in sync — nothing pending.**
+
+### 1. Real bug: the webhook's order-matching compared the wrong Square id field (commit `376602e`)
+The `transaction_fee` backfill from the prior session's entry (below) turned out to be
+**unreachable in practice** — traced live when a fresh staging test order still showed
+`TRANS FEE: $0.00` after the fix. Root cause in `handleSquareWebhookEvent`
+(`src/payments.ts`): its 3rd matching fallback compared `square_payment_id` against
+`payment.order_id` — a **different Square id space** (an "Order" object id, not a "Payment" id),
+structurally unable to ever match anything this codebase writes. Fallback 1 (note parsing) never
+matches our own checkout's bare-order-id note format either, and fallback 2 explicitly excludes
+already-Paid orders (its real job is marking a still-open order Paid, not this). Net effect: no
+Square card order, ever, could get its fee backfilled by the webhook — only the broken "Update
+Trans Fees" button could, and it 404'd (see #4).
+
+**Fixed**: compare against `payment.id` instead — the field `chargeOrderWithSquare`'s own
+synchronous charge already stamps into `square_payment_id` at charge time. Exact/unique, so it
+also can't be confused by two orders sharing an identical total (added as its own regression
+test: two Paid $56.77 orders, webhook must match the right one by payment id, not amount). **All
+prior tests for this used an unrealistic `note: "Order X"` shape** that happened to match
+fallback 1 and never exercised the real path — exactly how this went unnoticed until real
+staging orders surfaced it. New tests use the realistic bare-id note shape.
+
+**Live-diagnosed via Square's own dashboard**, not guesswork: inspected real Webhook Logs
+payloads (Summary + Payload tabs) for two consecutive `payment.updated` deliveries on the same
+payment — confirmed **Square Sandbox sends two separate deliveries per payment**: an immediate
+one at capture with no `processing_fee` yet (`version: 2`), then a second one ~1 minute later
+once Square has computed the real fee (`version: 3`, now with `processing_fee`). This two-delivery
+behavior is now documented and load-bearing for how the fix works — the first delivery correctly
+matches but no-ops (no fee data yet), the second delivers and writes the real fee.
+
+### 2. Real bug: card surcharge undercharged relative to Square's actual fee (commit `39c1ed1`)
+Confirmed on a real order: base $54.88, flat surcharge formula produced $1.89, but Square's own
+real `processing_fee` on the resulting $56.77 charge was $1.95 — a 6¢ shortfall the business
+would eat on every card sale. Cause: `computeSquareSurcharge` (added in the prior session) used a
+flat `base*rate+fixed` calculation, but Square charges its real fee on the **final** amount
+actually charged — which already includes the surcharge itself — so a flat calc on the
+pre-surcharge base always undercharges. **Fixed with a gross-up formula**: solving
+`S = rate*(base+S) + fixed` for `S` gives `S = (rate*base + fixed) / (1 - rate)`, which makes the
+collected surcharge exactly cover Square's real fee on the final total — the business nets the
+full base amount, never out of pocket even by a cent. Applied both server-side
+(`computeSquareSurcharge`, `src/payments.ts`) and client-side (`cardSurcharge()`, `js/store.js`,
+used for the pre-payment fee note/Pay-button amount) — both now produce identical numbers. New
+test asserts the property directly: collected surcharge >= Square's real fee on the final total.
+
+### 3. Real bug: "Update Trans Fees" button was silently broken since the Cloudflare migration (commits `ab8c1a2`, `135fbdc`)
+Clicking it threw a raw `Network error: Unexpected token '<'... is not valid JSON` — the
+`backfill_fees` POST action had been **deliberately deferred during the migration**
+(`src/payment-reports.ts`'s own comment: "new orders get their fee from the async webhook going
+forward"), which wasn't true until fix #1 above, so the button 404'd to the SPA shell. **Ported
+the PHP's own logic for real**: `backfillSquareTransactionFees()` — for each Credit
+Card/Square order still missing a fee (capped at 100, newest first), a ±30-day-scoped List
+Payments call matched by note containing the order id. New `POST /api/square_payments.php` route
+(same URL as the existing GET report, action-dispatched like the PHP). **A second bug found
+immediately after fixing the first**: `updateTransFees()` (`js/admin-orders.js`) used a raw
+`fetch()` instead of `apiFetch()`, so it never sent `X-Admin-Token` — the endpoint, now real,
+correctly rejected it as `Unauthorized`. Fixed by switching to `apiFetch`.
+
+### 4. Real bug: the backfill's own fee estimate used a hardcoded rate, and got permanently stuck (commit `ecf6de6`)
+Once #3 above made the backfill actually run, it produced its **own** wrong number: `$1.58`
+instead of the real `$1.95` for a live order, because `estimateSquareFee` (used when Square's
+List Payments API hasn't settled a real fee yet) hardcoded `2.6%+$0.10` regardless of the
+project's actual configured `square_fees` rate (`2.9%+$0.30`). Worse: once written, this **wrong
+estimate could never self-correct** — the webhook's own fee-backfill guard refused to overwrite
+an already-nonzero `transaction_fee`, so a premature manual backfill permanently poisoned the
+value.
+
+**Both fixed together, per explicit direction ("webhook should always override even when fee is
+nonzero")**: `estimateSquareFee` now reads the real `square_fees` setting (same one
+`computeSquareSurcharge` uses) instead of a hardcoded rate, AND the webhook's fee-backfill is now
+**unconditionally authoritative** — it always overwrites with Square's own confirmed fee when one
+arrives (`feeDollars > 0`), regardless of what's already recorded, only ever no-op'ing when
+Square genuinely hasn't settled a real number yet (`feeDollars === 0`). `BackfillFeesResult`'s
+`pending` field (an earlier, now-superseded attempt to solve this by not writing an estimate at
+all) was replaced with `estimated` — informational only, since the webhook fixing it later makes
+withholding the write unnecessary.
+
+### 5. Checkout: disclose the possible fee earlier, and show it in the report screens too (commits `5cfc37b`, `47f40fd`)
+- The initial checkout form's "Est. Total" summary never mentioned a possible card surcharge —
+  only the payment step did. Added a line to the existing secure-checkout note
+  (`public/index.html`'s `#co-secure-note`) so it's disclosed before "Review & Pay", not just at
+  the point of paying.
+- **Real bug, found by the user comparing a printed receipt against a real order**: the Receipt
+  Report and Inventory Price List (`js/admin-reports.js`'s `reportRows()`) still computed
+  "Credit Card Fee" with the **old flat formula** predating fix #2's gross-up — so the moment #2
+  shipped, these reports silently drifted from real checkout math (showed `$1.89` for an order
+  whose real total/TRANS FEE was `$1.95`). Fixed by calling the same shared `cardSurcharge()`
+  (`js/store.js`, already loaded first) instead of duplicating the math — both reports now match
+  real checkout charges exactly, by construction (one formula, one place it lives).
+
+### 6. Orders list: a "Waiting" state instead of a misleading `$0.00`, with live auto-refresh (commit `fc34391`)
+A Paid Credit Card/Square order with no fee yet (genuinely waiting on Square's async webhook, not
+stuck) previously looked identical in the TRANS FEE column to an order that will never get a fee
+(Cash/Check) or one still Awaiting Payment. Now shows a distinct `⏳ Waiting` state
+(`ordFeeWaiting()`/`ordFeeCellHtml()`, `js/admin-orders.js`), and the Orders screen **polls
+itself every 8s** while any visible order is in that state, re-rendering once the real fee lands
+— no manual refresh needed. Self-stops once nothing's waiting, or the admin navigates to a
+different screen (checked via `#upd-fee-btn`'s presence, specific to this screen's own toolbar).
+
+### 7. Two smaller, unrelated fixes folded in along the way
+- **Email Log showed every staging email as "✗ Failed"** (`js/admin-misc.js`) — the status
+  column only special-cased `'sent'`, so the legitimate `'sink'` status (`EMAIL_MODE=sink`,
+  always the case on staging) fell through to "Failed", making every single staging email look
+  broken even though sink mode was working exactly as designed. Now shows a neutral `○ Sink`
+  badge instead (commit `a2baf19`).
+- User asked what "Sink" meant and whether emails were actually being received — clarified
+  (no code change): sink mode deliberately never calls Brevo, by design, so no real send ever
+  happens on staging; production runs `EMAIL_MODE=live` and does send for real.
+
+### Checkpoints this session (two, following the `4.52.0` checkpoint below)
+- `4.53.0` — everything through item #6 above (commits `376602e` through `fc34391`), Version ID
+  `fa4a20e8-dc28-4aa5-b95e-b8ff1cf05ed3`. Extra safety gate run before this one specifically
+  (test suite + typecheck), beyond what the checkpoint skill itself requires, given the
+  real-money payment-math changes involved — 558/558 passing, clean.
+- `4.54.0` — the Receipt/Inventory Price List report fix (commit `47f40fd`), Version ID
+  `522296c3-01b5-4dac-b705-717c8454c73c`.
+
+**Both staging and production are on `4.54.0`, matching the latest pushed commit (`fb889d7`) —
+nothing locally ahead of what's deployed.**
+
+### Immediate next step
+- None blocking. Production now runs on real Square **live** credentials (unlike staging's
+  Sandbox) — worth watching the first few real card orders closely to confirm the surcharge and
+  fee-backfill behave as expected with real money, though nothing here is expected to differ
+  from Sandbox behavior structurally.
+- `toolbar.js`'s Print popup not reliably auto-closing (see the `4.45.0`/`4.41.0` entries further
+  below) — still open, untouched, left deliberately per the user's earlier "leave it alone."
+
+---
+
 ## Current state — 2026-08-20 (Staging ahead of production on `4.52.0`: checkout's State field is now a dropdown, Inventory Report renamed to Inventory Price List, Receipt Report's Select-All checkbox fixed twice, a real Square transaction_fee bug fixed, and a brand-new customer-facing Square card surcharge feature — staging also gained its own Square Sandbox webhook subscription for the first time)
 
 **Direct continuation of the same-day admin-fixes session below (`4.52.0`).** Everything in this
