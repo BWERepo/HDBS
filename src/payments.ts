@@ -477,20 +477,27 @@ export interface SquareWebhookEvent {
 }
 
 /**
- * Ports square-webhook.php's payment.updated handler: a backstop that auto-marks an order Paid if
- * the synchronous charge flow above somehow didn't. Order identification tries three fallbacks in
- * order, all ported as-is even though two of them look structurally unable to ever match:
+ * Ports square-webhook.php's payment.updated handler: a backstop that (a) auto-marks an order
+ * Paid if the synchronous charge flow above somehow didn't, and (b) backfills transaction_fee on
+ * an order the synchronous flow already DID mark Paid (see below) — Square usually hasn't finished
+ * computing the real processing fee by the time chargeOrderWithSquare's own synchronous charge
+ * completes, so this webhook, arriving later, is normally the only place that fee ever becomes
+ * available. Order identification tries three fallbacks in order:
  *
  * 1. Parse "Order XXXX" out of the payment's note. process_payment.php sets `note` to the BARE
  *    order id with no "Order " prefix, so this never matches a payment this codebase's own charge
  *    flow created — but Square Terminal/POS sales (which also fire this webhook) might format
  *    their note differently, so it's kept rather than removed.
- * 2. Match the most recent non-final order by amount. The only fallback realistically effective
- *    for this codebase's own checkout.
- * 3. Look up by `square_payment_id = payment.order_id` — comparing a column that always holds a
- *    PAYMENT id against a SEPARATE identifier space (Square's own ORDER id). This can't match
- *    anything this codebase ever writes. Preserved rather than fixed, matching this migration's
- *    general policy of documenting rather than silently correcting non-security-relevant quirks.
+ * 2. Match the most recent non-final order (excludes Paid/Cancelled) by amount — for genuinely
+ *    marking a still-open order Paid, not for finding one that's already Paid.
+ * 3. Look up by `square_payment_id = payment.id` — the field chargeOrderWithSquare's own
+ *    synchronous charge already stamped at charge time. This is the ONLY fallback that can find an
+ *    order this codebase's own checkout flow already marked Paid, which is the realistic case for
+ *    (b) above: fallback 1 never matches (note format) and fallback 2 explicitly excludes Paid
+ *    orders. **Previously compared against `payment.order_id`** (a separate Square id space,
+ *    structurally unable to ever match anything this codebase writes) — fixed to compare
+ *    `payment.id`, the field this lookup was always meant to use. Exact/unique, so it also can't
+ *    be confused by two orders sharing the same total (which amount-matching alone could be).
  */
 export async function handleSquareWebhookEvent(
   store: OrdersStore,
@@ -516,8 +523,16 @@ export async function handleSquareWebhookEvent(
     if (found) orderId = found.id;
   }
 
-  if (!orderId && payment.order_id) {
-    const found = await store.findOrderBySquarePaymentId(payment.order_id);
+  // Matches by the payment's own id (payment.id) against square_payment_id — the column
+  // chargeOrderWithSquare stamps synchronously at charge time. This is the ONLY fallback that can
+  // find an order our own checkout flow already marked Paid: fallback 1 never matches (note format,
+  // see above), and fallback 2 explicitly excludes Paid orders (its own actual job is marking a
+  // still-open order Paid, not backfilling one that already is). Originally compared against
+  // payment.order_id (a different Square id space entirely, structurally unable to ever match —
+  // see this function's own former doc comment) until that was corrected here; payment.id is the
+  // field that was always meant to be compared.
+  if (!orderId && payment.id) {
+    const found = await store.findOrderBySquarePaymentId(payment.id);
     if (found) orderId = found.id;
   }
 

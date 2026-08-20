@@ -435,6 +435,50 @@ describe("handleSquareWebhookEvent", () => {
     expect(store.orders[0]!.square_payment_id).toBeNull(); // untouched — not overwritten by this backfill
   });
 
+  it("backfills transaction_fee via square_payment_id on the REALISTIC note shape — bare order id, no 'Order ' prefix, exactly what chargeOrderWithSquare's own charge sends", async () => {
+    // Every prior test in this file used note: "Order ORD-9", which matches fallback 1 and never
+    // exercises the real path — this is why the underlying matching bug (payment.order_id instead
+    // of payment.id in fallback 3) went unnoticed until a real staging order failed to backfill.
+    store.orders = [
+      makeOrderRow({ id: "ORD-9", status: "Paid", total: 92.8, tax_amount: 7.8, transaction_fee: 0, square_payment_id: "sqpay-real", created_at: new Date().toISOString() }),
+    ];
+    const result = await handleSquareWebhookEvent(store, {
+      type: "payment.updated",
+      data: {
+        object: {
+          payment: {
+            id: "sqpay-real",
+            status: "COMPLETED",
+            note: "ORD-9", // bare id, no "Order " prefix
+            order_id: "SQORDER-XYZ", // Square's own order id -- a different id space, must NOT be compared against square_payment_id
+            processing_fee: [{ amount_money: { amount: 189 } }],
+          },
+        },
+      },
+    });
+    expect(result.handled).toBe(true);
+    expect(result.orderId).toBe("ORD-9");
+    expect(store.orders[0]!.transaction_fee).toBe(1.89);
+  });
+
+  it("matches the correct order by payment id even when two Paid orders share the identical total (the exact bug reported live)", async () => {
+    store.orders = [
+      makeOrderRow({ id: "ORD-EARLIER", status: "Paid", total: 56.77, transaction_fee: 1.95, square_payment_id: "sqpay-earlier", created_at: new Date(Date.now() - 60000).toISOString() }),
+      makeOrderRow({ id: "ORD-LATER", status: "Paid", total: 56.77, transaction_fee: 0, square_payment_id: "sqpay-later", created_at: new Date().toISOString() }),
+    ];
+    const result = await handleSquareWebhookEvent(store, {
+      type: "payment.updated",
+      data: {
+        object: {
+          payment: { id: "sqpay-later", status: "COMPLETED", note: "ORD-LATER", processing_fee: [{ amount_money: { amount: 210 } }] },
+        },
+      },
+    });
+    expect(result.orderId).toBe("ORD-LATER"); // not the earlier order, despite the identical amount
+    expect(store.orders.find((o) => o.id === "ORD-LATER")!.transaction_fee).toBe(2.1);
+    expect(store.orders.find((o) => o.id === "ORD-EARLIER")!.transaction_fee).toBe(1.95); // untouched
+  });
+
   it("never overwrites an already-recorded transaction_fee on a Paid order (webhook retry safety)", async () => {
     store.orders = [makeOrderRow({ id: "ORD-9", status: "Paid", total: 92.8, tax_amount: 7.8, transaction_fee: 2.5, created_at: new Date().toISOString() })];
     await handleSquareWebhookEvent(store, {
