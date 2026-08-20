@@ -374,7 +374,7 @@ describe("handleSquareWebhookEvent", () => {
     expect(result.orderId).toBe("ORD-7");
   });
 
-  it("does not touch an order already marked Paid (idempotent backstop)", async () => {
+  it("does not touch status/square_payment_id on an order already marked Paid (idempotent backstop)", async () => {
     store.orders = [makeOrderRow({ id: "ORD-9", status: "Paid", total: 92.8, tax_amount: 7.8, created_at: new Date().toISOString() })];
     const result = await handleSquareWebhookEvent(store, {
       type: "payment.updated",
@@ -382,6 +382,40 @@ describe("handleSquareWebhookEvent", () => {
     });
     expect(result.handled).toBe(true);
     expect(store.orders[0]!.square_payment_id).toBeNull(); // unchanged — the guard skipped the update
+  });
+
+  it("backfills transaction_fee on an already-Paid order — the realistic case, since chargeOrderWithSquare's synchronous flow always marks Paid before this webhook arrives", async () => {
+    store.orders = [makeOrderRow({ id: "ORD-9", status: "Paid", total: 92.8, tax_amount: 7.8, transaction_fee: 0, created_at: new Date().toISOString() })];
+    const result = await handleSquareWebhookEvent(store, {
+      type: "payment.updated",
+      data: {
+        object: {
+          payment: {
+            id: "sqpay-new",
+            status: "COMPLETED",
+            note: "Order ORD-9",
+            processing_fee: [{ amount_money: { amount: 189 } }],
+          },
+        },
+      },
+    });
+    expect(result.handled).toBe(true);
+    expect(store.orders[0]!.transaction_fee).toBe(1.89);
+    expect(store.orders[0]!.status).toBe("Paid"); // untouched, still Paid — not re-set
+    expect(store.orders[0]!.square_payment_id).toBeNull(); // untouched — not overwritten by this backfill
+  });
+
+  it("never overwrites an already-recorded transaction_fee on a Paid order (webhook retry safety)", async () => {
+    store.orders = [makeOrderRow({ id: "ORD-9", status: "Paid", total: 92.8, tax_amount: 7.8, transaction_fee: 2.5, created_at: new Date().toISOString() })];
+    await handleSquareWebhookEvent(store, {
+      type: "payment.updated",
+      data: {
+        object: {
+          payment: { id: "sqpay-retry", status: "COMPLETED", note: "Order ORD-9", processing_fee: [{ amount_money: { amount: 189 } }] },
+        },
+      },
+    });
+    expect(store.orders[0]!.transaction_fee).toBe(2.5); // unchanged — already had a real fee recorded
   });
 
   it("returns unhandled when no order can be identified", async () => {

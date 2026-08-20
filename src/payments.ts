@@ -501,12 +501,30 @@ export async function handleSquareWebhookEvent(
   }
 
   const current = await store.getOrder(orderId);
-  if (!current || current.status === "Paid") return { handled: true, orderId };
+  if (!current) return { handled: true, orderId };
 
   const taxDollars = (payment.total_tax_money?.amount ?? 0) / 100;
   let feeDollars = 0;
   for (const pf of payment.processing_fee ?? []) {
     feeDollars += (pf.amount_money?.amount ?? 0) / 100;
+  }
+
+  if (current.status === "Paid") {
+    // chargeOrderWithSquare's synchronous charge flow marks an order Paid immediately, before
+    // Square has finished computing the real processing fee — this webhook, arriving later, is
+    // normally the only place that fee ever becomes available. Previously this function no-op'd
+    // entirely for an already-Paid order, which meant no Square card order ever got a real
+    // transaction_fee unless an admin manually ran Admin -> Orders -> "Update Trans Fees".
+    // Backfill just the fee here instead — status/tax_amount/square_payment_id are already
+    // correct from the synchronous charge, so only the fee is genuinely missing. Guarded so a
+    // webhook retry (or one with no fee data yet) can never zero out an already-recorded fee.
+    if (feeDollars > 0 && !current.transaction_fee) {
+      await store.updateOrderFields(orderId, { transaction_fee: feeDollars });
+      if (appLog) {
+        await appLog.append("webhook_log.txt", { context: "FEE-BACKFILLED", message: `Order: ${orderId} | Square: ${payment.id ?? ""} | Fee: $${feeDollars.toFixed(2)}` });
+      }
+    }
+    return { handled: true, orderId };
   }
 
   await store.updateOrderFields(orderId, {
