@@ -671,8 +671,8 @@ function exportOrdersCsv(){
 function updateTransFees(){
   var btn=document.getElementById('upd-fee-btn');
   if(btn){btn.disabled=true;btn.textContent='Updating…';}
-  fetch(API+'/square_payments.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'backfill_fees'})})
-  .then(function(r){return r.json();})
+  // apiFetch (not a raw fetch) so X-Admin-Token actually goes out -- the endpoint requires it.
+  apiFetch('square_payments.php','POST',{action:'backfill_fees'})
   .then(function(d){
     if(btn){btn.disabled=false;btn.textContent='💳 Update Trans Fees';}
     if(d.success){
