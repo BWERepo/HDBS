@@ -841,6 +841,29 @@ function rOrders(el){
   }).catch(function(){renderOrdersTable(el);});
 }
 var ORD_SORT={col:'date',dir:-1};
+var ORD_POLL_TIMER=null;
+// A Paid Credit Card/Square order with no fee yet is genuinely waiting on Square's async
+// payment.updated webhook (see src/payments.ts's handleSquareWebhookEvent) -- not a permanent
+// $0.00, so it's shown as a distinct "waiting" state rather than looking identical to an order
+// that will never get one (Cash/Check, or an order still Awaiting Payment).
+function ordFeeWaiting(o){return o.status==='Paid'&&(o.pay==='Credit Card'||o.pay==='Square')&&!(o.fee>0);}
+function ordFeeCellHtml(o){
+  if(ordFeeWaiting(o))return '<span style="color:#a07810;font-style:italic;white-space:nowrap" title="Waiting on Square\'s webhook to report the real processing fee -- updates automatically">⏳ Waiting</span>';
+  return '$'+parseFloat(o.fee||0).toFixed(2);
+}
+// Re-fetches and re-renders while any visible order is still waiting on its fee, so the admin
+// doesn't have to manually refresh to see it land. Stops itself once nothing is waiting anymore,
+// or the admin has navigated to a different screen (checked via #upd-fee-btn, specific to this
+// screen's own toolbar -- gone the moment any other screen's innerHTML replaces it).
+function ordScheduleFeePoll(anyWaiting){
+  if(ORD_POLL_TIMER){clearTimeout(ORD_POLL_TIMER);ORD_POLL_TIMER=null;}
+  if(!anyWaiting)return;
+  ORD_POLL_TIMER=setTimeout(function(){
+    ORD_POLL_TIMER=null;
+    if(!document.getElementById('upd-fee-btn'))return; // navigated away from Orders
+    rOrders(document.getElementById('acnt'));
+  },8000);
+}
 var ORD_F={id:'',cust:'',dateFrom:'',dateTo:'',subtotal:'',shipping:'',tax:'',fee:'',total:'',pay:'',order_type:'',status:'',swept_date:''};
 function ordNormDate(o){var raw=(o.dispDate||o.date||'');var p=raw.replace(/\//g,'-').split('-');return p.length===3?(p[2]+'-'+p[0].padStart(2,'0')+'-'+p[1].padStart(2,'0')):raw;}
 function clearOrdFilters(){ORD_F={id:'',cust:'',dateFrom:'',dateTo:'',subtotal:'',shipping:'',tax:'',fee:'',total:'',pay:'',order_type:'',status:'',swept_date:''};renderOrdersTable(document.getElementById('acnt'));}
@@ -872,7 +895,7 @@ function renderOrdersTable(el){
       '<td style="font-size:.8rem">$'+parseFloat(o.subtotal||0).toFixed(2)+'</td>'+
       '<td style=\"font-size:.8rem\">'+(o.shipping>0?'$'+parseFloat(o.shipping).toFixed(2):'Free')+'</td>'+
       '<td style="font-size:.8rem;color:#6b6040">'+(o.tax>0?'$'+o.tax.toFixed(2):'\u2014')+'</td>'+
-      '<td style="font-size:.78rem">$'+parseFloat(o.fee||0).toFixed(2)+'</td>'+
+      '<td style="font-size:.78rem">'+ordFeeCellHtml(o)+'</td>'+
       '<td style="font-weight:700;color:#a07810">$'+o.total.toFixed(2)+'</td>'+
       '<td style="font-size:.8rem;color:#c0392b">'+((o.refunded_amount||0)>0?'$'+o.refunded_amount.toFixed(2):'—')+'</td>'+
       '<td>'+(o.pay==='Test'?'<span class="badge bt">Test</span>':o.pay)+(o.check_number?'<br><span style="font-size:.7rem;color:#6b6040">Chk #'+o.check_number+'</span>':'')+'</td>'+
@@ -917,6 +940,7 @@ function renderOrdersTable(el){
     selTh.appendChild(selCb);
   }
   showPageToolbar({title:'Orders',logoText:(window.BIZ_NAME||'Handmade Designs By Suzi')});
+  ordScheduleFeePoll(filt.some(ordFeeWaiting));
 }
 function applyOrderFilters(){
   return ORDERS.filter(function(o){
@@ -960,7 +984,7 @@ function buildOrderRow(o){
     '<td style="font-size:.8rem">$'+parseFloat(o.subtotal||0).toFixed(2)+'</td>'+
       '<td style=\"font-size:.8rem\">'+(o.shipping>0?'$'+parseFloat(o.shipping).toFixed(2):'Free')+'</td>'+
     '<td style="font-size:.8rem;color:#6b6040">'+(o.tax>0?'$'+o.tax.toFixed(2):'\u2014')+'</td>'+
-      '<td style="font-size:.78rem">$'+parseFloat(o.fee||0).toFixed(2)+'</td>'+
+      '<td style="font-size:.78rem">'+ordFeeCellHtml(o)+'</td>'+
       '<td style="font-weight:700;color:#a07810">$'+o.total.toFixed(2)+'</td>'+
 
     '<td>'+(o.pay==='Test'?'<span class="badge bt">Test</span>':o.pay)+'</td>'+
