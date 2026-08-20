@@ -103,7 +103,7 @@ function rReceiptReport(el){
     '<p style="font-size:.78rem;color:#6b6040;margin:0 0 .8rem">Sales tax assumes a flat '+(REPORT_TAX_RATE*100).toFixed(2)+'%. Credit card fee assumes '+SQ_FEE_PCT+'% + $'+SQ_FEE_CENTS.toFixed(2)+' (Settings → Square Fees). Print generates one fillable receipt per checked product.</p>'+
     '<style>#receipt-report-tbl td:nth-child(n+4),#receipt-report-tbl th:nth-child(n+4) .tk-th-inner{justify-content:flex-end}#receipt-report-tbl td:nth-child(n+4){text-align:right}#receipt-report-tbl th:nth-child(n+4) .tk-th-label{text-align:right}</style>'+
     '<table id="receipt-report-tbl" class="tablekit" data-tk-sort="false" data-tk-filter="false"><thead><tr>'+
-    '<th style="padding:3px 8px;font-size:.78rem"><input type="checkbox" id="receipt-select-all" checked onchange="setAllReceiptChecks(this.checked)"></th>'+
+    '<th style="padding:3px 8px;font-size:.78rem"></th>'+
     '<th style="padding:3px 8px;font-size:.78rem">SKU</th><th style="padding:3px 8px;font-size:.78rem">Name</th>'+
     '<th style="padding:3px 8px;font-size:.78rem">Price</th><th style="padding:3px 8px;font-size:.78rem">Sales Tax</th>'+
     '<th style="padding:3px 8px;font-size:.78rem">Cash/Check Price</th><th style="padding:3px 8px;font-size:.78rem">Credit Card Fee</th>'+
@@ -117,6 +117,21 @@ function rReceiptReport(el){
   // directly rather than the underlying data, which would desync the displayed check state from
   // which product it actually belongs to.
   if(typeof TableKit!=='undefined')TableKit.initAll();
+  // TableKit's own init() rebuilds every header cell via `th.textContent=''` + a fresh label
+  // span — that wipes any actual HTML (like this column's checkbox) the header cell had,
+  // leaving only an empty label and a pointless dropdown arrow (sort/filter are both off for
+  // this table, so that dropdown has nothing in it). table.js itself is never modified —
+  // instead, re-inject the checkbox into TableKit's own rebuilt header after the fact, same
+  // clone-and-patch pattern admin-nav.js already uses for toolbar button overrides.
+  (function(){
+    var th=document.querySelector('#receipt-report-tbl thead th:first-child');
+    var inner=th&&th.querySelector('.tk-th-inner');
+    if(!inner||inner.querySelector('#receipt-select-all'))return;
+    var cb=document.createElement('input');
+    cb.type='checkbox';cb.id='receipt-select-all';cb.checked=true;
+    cb.onchange=function(){setAllReceiptChecks(this.checked);};
+    inner.insertBefore(cb,inner.firstChild);
+  })();
   showPageToolbar({title:'Receipt Report',logoText:(window.BIZ_NAME||'Handmade Designs By Suzi')});
   // Swap the toolbar's built-in Print (which would just print the plain table, same as the
   // Inventory Report) for the 3-receipts-per-product layout below. Same clone-to-replace pattern
