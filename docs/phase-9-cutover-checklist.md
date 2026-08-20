@@ -20,7 +20,7 @@ confirmed, per `docs/production-isolation.md`'s one-way-door warning.
 | R2 buckets | Created, private, real product/logo media loaded (159+1 files) | ✅ Same — created 2026-08-01, private, 159 product images + 1 logo loaded and verified |
 | Supabase schema | migrations `0001`-`0011` | ✅ `0001`-`0011`, all applied and confirmed live 2026-08-01 |
 | Supabase data | Real prod snapshot loaded (`scripts/migrate-data.mjs`, Phase 1) | ✅ Real snapshot loaded 2026-08-01, verified row-for-row against all 12 tables |
-| Secrets present | Same 10 names as production (no `SQUARE_WEBHOOK_SIG_KEY` — production-only, see step 5) | ✅ `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SMOKE_TOKEN`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `SQUARE_WEBHOOK_SIG_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`, `BREVO_API_KEY`, `USPS_CONSUMER_KEY`, `USPS_CONSUMER_SECRET` — every one verified genuinely live against its real provider's own API, 2026-08-01 |
+| Secrets present | Same 11 names as production, including its own `SQUARE_WEBHOOK_SIG_KEY` as of 2026-08-20 (see note below — this table's original 2026-08-01 audit said staging deliberately had no webhook key; that's now stale) | ✅ `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORDER_TOKEN_SECRET`, `SMOKE_TOKEN`, `SQUARE_TOKEN`, `SQUARE_LOCATION_ID`, `SQUARE_WEBHOOK_SIG_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`, `BREVO_API_KEY`, `USPS_CONSUMER_KEY`, `USPS_CONSUMER_SECRET` — every one verified genuinely live against its real provider's own API, 2026-08-01 |
 | Email | `EMAIL_MODE=sink` (never calls Brevo) | ✅ `EMAIL_MODE=live`, Brevo wired, verified with a real send through the real deployed code (`send_confirm.php` → `ORD-MSAT7Q4O`), 2026-08-01 |
 | Missing on *both* | `SQUARE_APP_ID` (likely vestigial dead config, see step 5) | (same) |
 | `npm run check:secrets` | — | ✅ Name-parity passes as of 2026-08-01 (was failing at audit time) |
@@ -226,10 +226,22 @@ point is identical secret *names*, deliberately different *values*.
     (expected — Square's canned test payload references a fake order id, not one of this store's
     real orders), proving the full handler path executed correctly, not just the signature check.
     Test log entry cleared afterward.
-  - **Deliberately production-only, not a parity gap**: staging doesn't get its own
-    `SQUARE_WEBHOOK_SIG_KEY` since that would require a second, separate Square Sandbox webhook
-    subscription this checklist never asked for — `check-secret-parity.sh`'s "Only on production"
-    flag for this one name is expected and fine.
+  - **Superseded 2026-08-20 — staging now has its own Sandbox webhook too.** The line above
+    ("deliberately production-only") was accurate until a real need showed up: a same-day fix to
+    `handleSquareWebhookEvent` (backfilling `transaction_fee`, the real Square-withheld amount, on
+    orders already marked Paid — see `PROJECT_STATUS.md`'s 2026-08-19/20 entries) had no way to be
+    verified on staging without a real webhook delivery there. A second, separate Square **Sandbox**
+    webhook subscription was created via the Sandbox app's dashboard (not the API this time —
+    creating one by hand in the dashboard UI works identically), pointed at
+    `https://staging.handmadedesignsbysuzi.com/api/square-webhook.php`, subscribed to
+    `payment.updated`. The signing key was set as staging's own `SQUARE_WEBHOOK_SIG_KEY` via
+    `wrangler secret put --env staging` (typed directly by the user, never seen by Claude, per this
+    project's standing secret-handling rule). Verified two ways: `curl`ing the endpoint with no/a
+    bad signature returned `403` (not the old `500 "Webhook key not configured"`, confirming the
+    secret is live), then Square's own **Webhook logs** page (Sandbox tab) showed two real test
+    deliveries, both `200 payment.updated`. `check-secret-parity.sh`'s "Only on production" flag
+    for `SQUARE_WEBHOOK_SIG_KEY` is now stale — both Workers legitimately have their own copy,
+    pointed at their own (Sandbox vs. Production) Square webhook subscription.
 - 🤖 `bash scripts/check-secret-parity.sh` — **all real gaps closed as of 2026-08-01.** The only
   remaining "MISSING from hdbs" item is `SQUARE_APP_ID`, already flagged as likely-vestigial dead
   config (the real value comes from the `settings` table, not this env binding) — worth a small

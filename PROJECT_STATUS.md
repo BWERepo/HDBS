@@ -5,6 +5,149 @@
 
 ---
 
+## Current state — 2026-08-20 (Staging ahead of production on `4.52.0`: checkout's State field is now a dropdown, Inventory Report renamed to Inventory Price List, Receipt Report's Select-All checkbox fixed twice, a real Square transaction_fee bug fixed, and a brand-new customer-facing Square card surcharge feature — staging also gained its own Square Sandbox webhook subscription for the first time)
+
+**Direct continuation of the same-day admin-fixes session below (`4.52.0`).** Everything in this
+entry is committed and deployed to **staging only** — production is still on `4.52.0`
+(commit `12b94ff`), unchanged since the last checkpoint. **A checkpoint is needed to ship
+everything below to production**, including the Square surcharge feature, which changes what
+customers are actually charged — verify on staging first if that hasn't happened yet.
+
+### 1. Checkout State field: free-text → full dropdown (commit `3d53eb1`)
+`public/index.html`'s `#co-st` input (2-letter, uppercase, no validation) is now a `<select>` with
+all 50 states + DC, matching exactly the set `TAX_RATES` (`js/config.js`) already supports. No JS
+changes needed elsewhere — the select keeps the same `id`/2-letter-value contract every existing
+read site (`store.js`'s tax/shipping-zone lookups) already expected.
+
+### 2. "Inventory Report" renamed to "Inventory Price List" (commit `b189d04`)
+Display-text-only rename in `js/admin-reports.js` (hub card title, page toolbar title, the Receipt
+Report's own description text referencing it). Internal identifiers (`rInvReport` function name,
+`inv-report-tbl` element id) deliberately left unchanged — no functional risk, just relabeling.
+
+### 3. Receipt Report's Select-All checkbox — two real bugs, fixed in sequence
+User reported two separate issues here, each a genuine bug, not the same one recurring:
+- **First**: redundant "Check All"/"Clear" buttons removed since the header checkbox already did
+  the same job (commit `d1ee04a`).
+- **Second, more interesting**: the header checkbox then turned out to be silently destroyed by
+  TableKit's own `init()`, which rebuilds every `<th>` via `textContent=''` — that wipes any real
+  HTML a header cell had, including a checkbox, since `data-tk-sort`/`data-tk-filter` being `false`
+  only suppresses the sort/filter *contents* of the dropdown, not TableKit's header rebuild itself
+  (commit `a536b82`, fixed by re-injecting the checkbox into TableKit's rebuilt header after
+  `initAll()` — same DOM-patch-without-touching-table.js pattern as the toolbar Print override).
+- **That fix itself then reportedly broke** ("clicking it displays a text box rather than
+  toggling") — re-injecting the checkbox into TableKit's own header cell put it inside a container
+  TableKit also attaches click handlers/dropdown state to, which the re-injection couldn't fully
+  account for. **Not reproduced in an isolated offline test harness** (built the same way as the
+  earlier TableKit filter-persistence fix's verification — a throwaway HTML file loading the real
+  `table.js`), but rather than keep chasing an intermittent interaction bug inside TableKit's own
+  managed DOM, the checkbox was moved **entirely outside** the `<table>`/`<thead>` — a plain,
+  independent element positioned just above the checkbox column (commit `e32c1cd`), matching the
+  user's original literal request ("a checkbox toggle above the checkbox column") and removing any
+  shared DOM/event space with TableKit. Simpler and more robust than the header-injection approach,
+  even though the original bug report was never conclusively reproduced.
+
+### 4. Real bug fixed: Square card orders never got a real `transaction_fee` recorded (commit `42ea12c`)
+User showed a real Paid in-person Credit Card order with `Transaction Fee: $0.00` — traced to
+`chargeOrderWithSquare` (`src/payments.ts`) marking an order Paid immediately, before Square
+finishes computing the real processing fee, combined with the webhook backstop
+(`handleSquareWebhookEvent`) that's supposed to backfill it later **unconditionally skipping any
+order already marked Paid** — which every card order already was by the time the webhook arrived.
+Net effect: **no Square card order, ever, got a real `transaction_fee`** automatically; only the
+manual "💳 Update Trans Fees" admin button could recover it after the fact.
+
+Fixed by letting the webhook still backfill just `transaction_fee` on an already-Paid order
+(status/tax_amount/square_payment_id are already correct from the synchronous charge, so left
+untouched), guarded so it can never zero out a fee already recorded by a prior delivery or manual
+backfill. Two new tests added; 44→ tests in `payments.test.ts` (see below for final count after
+the Square surcharge work).
+
+### 5. New feature: a customer-facing Square/card processing fee, matching PayPal/Venmo's existing treatment (commit `0bb4f7c`)
+User-directed, explicit and deliberate: "we need to include a transaction fee in the amount we send
+to square." Until now, **Square/card customers never saw a fee added at checkout at all** — the
+business absorbed Square's cut of the payout instead (that's `transaction_fee`, item #4 above,
+entirely separate and unrelated to what a customer pays). Only PayPal/Venmo disclosed and charged a
+real customer-facing surcharge. This session added the same treatment to Square, confirmed with the
+user on two specific design points before building: reuse the existing `square_fees` admin setting
+(Settings → Square Fees — the same one the Receipt/Inventory reports already assumed customers were
+paying), and disclose it exactly like PayPal's existing fee note (shown before payment, Pay button
+amount updated to match).
+
+**What shipped**:
+- `computeSquareSurcharge()` in `src/payments.ts` mirrors `computePaypalSurcharge()` exactly —
+  reads `square_fees`, defaults to 2.6%+$0.10 (matching `js/config.js`'s own hardcoded fallback) if
+  unset/corrupt.
+- `chargeOrderWithSquare` now charges Square for `(base total + surcharge)` and records both the
+  inclusive `total` and the surcharge itself in a new `square_surcharge` column (mirroring
+  `paypal_surcharge`) — `test_mode` is deliberately unaffected (no real card is charged in that
+  path, matching PayPal's own `test_mode` behavior).
+- **New migration** `supabase/migrations/0016_square_surcharge.sql` — `orders.square_surcharge
+  numeric not null default 0`, both schemas, one paste (shared DR project). **Already run** against
+  both `hdbs_staging` and `hdbs_prod` before the staging deploy — confirmed via a real staging test
+  purchase (see below), not yet exercised on production.
+- **Checkout UX** (`js/store.js`, `public/index.html`): a new `#card-fee-note` (same visual
+  treatment as the existing `#paypal-fee-note`) discloses "A card processing fee of $X will be
+  added — total $Y" before payment; the Pay button, Apple Pay, and Google Pay all request the
+  fee-inclusive amount (`cardTotal`, computed client-side from the same live `square_fees` setting
+  `SQ_FEE_PCT`/`SQ_FEE_CENTS` already load into). PayPal/Venmo's own fee, computed on the same base
+  `total`, is untouched — the two surcharges are independent and never compound.
+- **Email**: the payment-received email's fee row (`src/email.ts`) now says "Card Processing Fee"
+  for card payments instead of always saying "PayPal/Venmo Processing Fee" — label switches on
+  `order.payment_method`.
+- **Admin display**: both the order-detail screen (`js/admin-products.js`'s `viewOrder`) and the
+  printable invoice (`js/admin-orders.js`) now show the new surcharge when present, alongside the
+  existing PayPal one. Admin order-list columns/CSV export were deliberately **not** touched (kept
+  the change scoped to detail/invoice views).
+- 44 tests total in `src/payments.test.ts` (3 new: default-rate, custom-rate-from-setting,
+  test_mode-has-no-surcharge), plus the existing suite's `makeOrderRow`/`OrderRow` fixtures updated
+  everywhere `paypal_surcharge` already appeared. 547/547 full suite passing, typecheck clean.
+
+**Verified live on staging with a real test purchase**: Order `ORD-MT1N5IGP`, $50 subtotal + $4.88
+tax = $54.88 base, **Total $56.77** — exactly base + $1.89 (2.9%+$0.30, staging's actual configured
+rate). Confirms the surcharge math and checkout flow both work correctly end-to-end. The same
+order's `TRANS FEE` (item #4's fix) still showed $0.00 at first — not a new bug, see item #6 below
+for why and how that got resolved.
+
+### 6. Staging gained its own Square Sandbox webhook subscription for the first time (docs updated, not code)
+Verifying item #4's webhook backfill fix on staging turned out to be impossible as originally
+architected: `docs/phase-9-cutover-checklist.md` had explicitly documented `SQUARE_WEBHOOK_SIG_KEY`
+as **deliberately production-only** (2026-08-01) — staging never had its own Square Sandbox webhook
+subscription, so `handleSquareWebhookEvent` could never fire there no matter how many test
+purchases were run. That was a real, previously-correct decision that a new need (verifying this
+session's own fix) has now superseded.
+
+**Walked the user through creating one, live**: a new Sandbox webhook subscription via the Square
+Sandbox app's dashboard (not the API this time — the dashboard UI works identically), pointed at
+`https://staging.handmadedesignsbysuzi.com/api/square-webhook.php`, subscribed to
+`payment.updated`. The signing key was **typed directly by the user into `wrangler secret put
+SQUARE_WEBHOOK_SIG_KEY --env staging`** — never seen by Claude, per this project's standing
+secret-handling rule. Verified two ways: `curl`ing the endpoint with no/a bad signature now returns
+`403` (real signature checking), not the old `500 "Webhook key not configured"`; then Square's own
+**Webhook logs** page (Sandbox tab) showed two real test-event deliveries, both `200
+payment.updated`.
+
+`docs/phase-9-cutover-checklist.md` updated in place (not left stale) — the "deliberately
+production-only, not a parity gap" note is superseded with the full story above; the secrets-present
+table row corrected from "10 names… no SQUARE_WEBHOOK_SIG_KEY" to "11 names, including its own
+SQUARE_WEBHOOK_SIG_KEY as of 2026-08-20." `scripts/check-secret-parity.sh`'s "Only on production"
+flag for this one name is now genuinely stale — both Workers legitimately have their own copy.
+
+**Still not done**: place one more real staging test purchase now that the webhook is live, and
+confirm `TRANS FEE` actually populates (the two existing test orders from before the webhook
+existed will stay at $0.00 unless manually backfilled — expected, not a bug).
+
+### Immediate next step
+- **A checkpoint is needed** — production is still on `4.52.0`/commit `12b94ff`, six commits
+  behind staging (`3d53eb1` through `0bb4f7c` above). The Square surcharge feature changes real
+  customer charges, so confirm staging behaves as expected (ideally including a fresh test
+  purchase to confirm `TRANS FEE` backfills now that staging's webhook is live) before checkpointing.
+- Once checkpointed to production, **the exact same webhook-setup dance from item #6 is NOT
+  needed again for production** — production already had its own `SQUARE_WEBHOOK_SIG_KEY` and live
+  webhook subscription since the original 2026-08-01 cutover; only staging was missing one.
+- `toolbar.js`'s Print popup not reliably auto-closing (see the `4.45.0`/`4.41.0` entries further
+  below) — still open, untouched, left deliberately per the user's earlier "leave it alone."
+
+---
+
 ## Current state — 2026-08-19 (Production live on `4.52.0`: five small admin-panel fixes across five checkpoints — staging-only test buttons hidden on prod, Launch Date defaults to today, TableKit filters now survive table re-renders sitewide, a real two-part admin table scrollbar bug found and fixed; plus HDBS's own backup mechanism removed entirely — `/BWEBackup` already covers this shared database)
 
 **Direct continuation of the same-day secret-drift session below (`4.48.0`).** Five
