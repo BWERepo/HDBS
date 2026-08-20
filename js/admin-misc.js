@@ -1057,7 +1057,14 @@ function rEmailLog(el){
     var l=filtered[i];
     var color=typeColors[l.email_type]||'#6b6040';
     var badge='<span style="background:'+color+'22;color:'+color+';font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap">'+l.email_type+'</span>';
-    var statusEl=l.status==='sent'?'<span style="color:#2e7d32;font-size:.78rem">\u2713 Sent</span>':'<span style="color:#c62828;font-size:.78rem">\u2717 Failed</span>';
+    // 'sink' (EMAIL_MODE=sink, always the case on staging) is a legitimate success, not a
+    // failure \u2014 it means the send was correctly short-circuited rather than actually hitting
+    // Brevo. Previously only 'sent' was handled and everything else (sink included) fell through
+    // to "Failed", making every single staging email look broken even though sink mode was
+    // working exactly as designed.
+    var statusEl=l.status==='sent'?'<span style="color:#2e7d32;font-size:.78rem">\u2713 Sent</span>':
+      l.status==='sink'?'<span style="color:#6b6040;font-size:.78rem" title="EMAIL_MODE=sink \u2014 logged, not actually sent (expected on staging)">\u25cb Sink</span>':
+      '<span style="color:#c62828;font-size:.78rem">\u2717 Failed</span>';
     var thumb='';
     if(l.email_body){window._elBodies.push(l.email_body);var bi=window._elBodies.length-1;thumb='<span title="Preview email" style="cursor:pointer;font-size:1rem" onclick="elPreview(window._elBodies['+bi+'])">&#128231;</span>';}
     rows+='<tr>'+
