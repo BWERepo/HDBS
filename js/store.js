@@ -712,7 +712,12 @@ function placeOrder(){
 // a request earlier than the server's own copy. Square has no separate "create order" round trip
 // like PayPal to fetch an authoritative confirmed value before payment, so this estimate IS what's
 // shown throughout — it only differs from the server's if the fee setting changes mid-session.
-function cardSurcharge(total){return Math.round((total*SQ_FEE_PCT/100+SQ_FEE_CENTS)*100)/100;}
+// Gross-up formula, matching src/payments.ts's computeSquareSurcharge exactly: a flat
+// total*rate+fixed calculation always slightly undercharges, because Square's real fee is a
+// percentage of the FINAL charged amount (which already includes this surcharge), not the
+// pre-surcharge base. Solving S=rate*(total+S)+fixed for S gives S=(rate*total+fixed)/(1-rate),
+// which covers Square's real fee on the final total exactly.
+function cardSurcharge(total){var rate=SQ_FEE_PCT/100;return Math.round(((total*rate+SQ_FEE_CENTS)/(1-rate))*100)/100;}
 
 function showPaymentStep(subtotal,shipping,tax,total,couponDisc,couponCode,creditDisc){
   // Populate summary

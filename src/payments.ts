@@ -116,13 +116,22 @@ export async function computePaypalSurcharge(settings: PaymentSettingsStore, amo
   return round2((amount * pct) / 100 + cents);
 }
 
-/** Customer-facing Square/card processing fee, mirroring computePaypalSurcharge exactly — added
- *  only when paying by card. Until this existed, Square/card customers never saw a fee at all;
- *  the business absorbed Square's cut of the payout instead (still tracked separately as
- *  `transaction_fee`, what Square actually withheld — unrelated to this customer-facing amount).
- *  Admin sets the rate via Settings -> Square Fees (`square_fees` setting, the same one the
- *  Receipt/Inventory reports already assume); falls back to js/config.js's own hardcoded default
- *  (2.6% + $0.10) if unset or corrupt. */
+/** Customer-facing Square/card processing fee — added only when paying by card. Until this
+ *  existed, Square/card customers never saw a fee at all; the business absorbed Square's cut of
+ *  the payout instead (still tracked separately as `transaction_fee`, what Square actually
+ *  withheld — unrelated to this customer-facing amount). Admin sets the rate via Settings ->
+ *  Square Fees (`square_fees` setting, the same one the Receipt/Inventory reports already
+ *  assume); falls back to js/config.js's own hardcoded default (2.6% + $0.10) if unset/corrupt.
+ *
+ *  Uses a gross-up formula rather than computePaypalSurcharge's flat `amount*rate+fixed`: Square
+ *  charges its own real fee on the FINAL amount actually charged — which already includes this
+ *  surcharge — so a flat calculation on the pre-surcharge base always slightly undercharges the
+ *  customer relative to what Square actually withholds (confirmed against a real Square Sandbox
+ *  payment: base $54.88 produced a flat surcharge of $1.89, but Square's own real processing_fee
+ *  on the resulting $56.77 charge was $1.95 — a 6-cent shortfall the business would eat on every
+ *  card sale). Solving `S = rate*(base+S) + fixed` for `S` gives `S = (rate*base + fixed) / (1 -
+ *  rate)`, which makes the surcharge collected exactly cover Square's real fee on the final
+ *  charged total — the business nets the full base amount, never out of pocket even by a cent. */
 export async function computeSquareSurcharge(settings: PaymentSettingsStore, amount: number): Promise<number> {
   let pct = 2.6;
   let cents = 0.1;
@@ -136,7 +145,8 @@ export async function computeSquareSurcharge(settings: PaymentSettingsStore, amo
       // keep defaults — matches computePaypalSurcharge's own try/catch
     }
   }
-  return round2((amount * pct) / 100 + cents);
+  const rate = pct / 100;
+  return round2((amount * rate + cents) / (1 - rate));
 }
 
 async function shortHashHex(input: string): Promise<string> {
@@ -569,6 +579,13 @@ export async function handleSquareWebhookEvent(
       if (appLog) {
         await appLog.append("webhook_log.txt", { context: "FEE-BACKFILLED", message: `Order: ${orderId} | Square: ${payment.id ?? ""} | Fee: $${feeDollars.toFixed(2)}` });
       }
+    } else if (appLog) {
+      // Visibility for the two ways this can legitimately no-op, so a future "still $0.00" report
+      // can be diagnosed from webhook_log.txt alone instead of re-deriving this from scratch.
+      await appLog.append("webhook_log.txt", {
+        context: "FEE-BACKFILL-SKIPPED",
+        message: `Order: ${orderId} | Square: ${payment.id ?? ""} | feeDollars: ${feeDollars} | current.transaction_fee: ${current.transaction_fee}`,
+      });
     }
     return { handled: true, orderId };
   }

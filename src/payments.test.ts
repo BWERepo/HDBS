@@ -185,33 +185,45 @@ describe("chargeOrderWithSquare", () => {
     const result = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
     expect(result.ok).toBe(true);
     expect(result.data?.payment_id).toBe("sq_pay_1");
-    // 40 subtotal + 5 shipping + 3.90 (9.75%) tax = 48.9 base, plus the default 2.6% + $0.10
-    // card surcharge (round2(48.9*0.026+0.10) = 1.37) = 50.27 actually charged/saved.
-    expect(result.data?.total).toBe(50.27);
+    // 40 subtotal + 5 shipping + 3.90 (9.75%) tax = 48.9 base. Gross-up surcharge at the default
+    // 2.6% + $0.10: (48.9*0.026+0.10)/(1-0.026) = 1.3714/0.974 = 1.408... -> round2 = 1.41.
+    // Total = 48.9+1.41 = 50.31.
+    expect(result.data?.total).toBe(50.31);
     expect(store.orders[0]!.status).toBe("Paid");
     expect(store.orders[0]!.square_payment_id).toBe("sq_pay_1");
-    expect(store.orders[0]!.square_surcharge).toBe(1.37);
-    expect(gateway.calls[0]!.amountCents).toBe(5027); // the actual card charge includes the surcharge
+    expect(store.orders[0]!.square_surcharge).toBe(1.41);
+    expect(gateway.calls[0]!.amountCents).toBe(5031); // the actual card charge includes the surcharge
     expect(customers.calls).toEqual(["jane@example.com"]);
     expect(emailSender.sent).toHaveLength(1);
     expect(emailStore.logs).toHaveLength(1);
   });
 
-  it("defaults to 2.6% + $0.10 for the card surcharge when the square_fees setting is unset", async () => {
+  it("defaults to a 2.6%+$0.10 grossed-up card surcharge when the square_fees setting is unset", async () => {
     seedAwaitingOrder();
     const gateway = new FakeSquareGateway();
     await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
-    expect(store.orders[0]!.square_surcharge).toBe(1.37);
+    expect(store.orders[0]!.square_surcharge).toBe(1.41);
   });
 
-  it("reads pct/cents from the square_fees setting for the card surcharge", async () => {
+  it("reads pct/cents from the square_fees setting for the card surcharge, still grossed up", async () => {
     seedAwaitingOrder();
     await settings.setSetting("square_fees", JSON.stringify({ pct: 2.9, cents: 0.3 }));
     const gateway = new FakeSquareGateway();
     const result = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
-    // round2(48.9*0.029+0.30) = 1.72; total = 48.9+1.72 = 50.62
-    expect(store.orders[0]!.square_surcharge).toBe(1.72);
-    expect(result.data?.total).toBe(50.62);
+    // (48.9*0.029+0.30)/(1-0.029) = 1.7181/0.971 = 1.7694... -> round2 = 1.77; total = 50.67
+    expect(store.orders[0]!.square_surcharge).toBe(1.77);
+    expect(result.data?.total).toBe(50.67);
+  });
+
+  it("the collected surcharge fully covers Square's real fee on the final charged amount (the gross-up's whole point)", async () => {
+    seedAwaitingOrder();
+    await settings.setSetting("square_fees", JSON.stringify({ pct: 2.9, cents: 0.3 }));
+    const gateway = new FakeSquareGateway();
+    const result = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
+    // Square's real fee, computed on the FINAL charged total (not the pre-surcharge base) —
+    // this must come out <= the surcharge actually collected, or the business is still short.
+    const realSquareFeeOnFinalTotal = Math.round((result.data!.total * 0.029 + 0.3) * 100) / 100;
+    expect(store.orders[0]!.square_surcharge).toBeGreaterThanOrEqual(realSquareFeeOnFinalTotal);
   });
 
   it("test_mode never adds a card surcharge — no real card is charged in that path", async () => {
