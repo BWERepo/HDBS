@@ -12,12 +12,12 @@ function rReports(el){
   el.innerHTML=
     '<div style="max-width:700px;margin:0 auto">'+
     '<div class="acct-card" style="cursor:pointer" onclick="rInvReport(document.getElementById(\'acnt\'))">'+
-      '<div class="acct-title">📦 Inventory Report</div>'+
+      '<div class="acct-title">📦 Inventory Price List</div>'+
       '<p style="font-size:.82rem;color:#6b6040;margin:.2rem 0 0">Every product with its price, sales tax, cash/check price, credit card fee, and credit card total.</p>'+
     '</div>'+
     '<div class="acct-card" style="cursor:pointer" onclick="rReceiptReport(document.getElementById(\'acnt\'))">'+
       '<div class="acct-title">🧾 Receipt Report</div>'+
-      '<p style="font-size:.82rem;color:#6b6040;margin:.2rem 0 0">Same data as the Inventory Report, but Print generates one fillable receipt per product for handwriting in a customer\'s name and email.</p>'+
+      '<p style="font-size:.82rem;color:#6b6040;margin:.2rem 0 0">Same data as the Inventory Price List, but Print generates one fillable receipt per product for handwriting in a customer\'s name and email.</p>'+
     '</div>'+
     '</div>';
   showPageToolbar({title:'Reports',logoText:(window.BIZ_NAME||'Handmade Designs By Suzi')});
@@ -77,7 +77,7 @@ function rInvReport(el){
     reportTableHtml('inv-report-tbl',rows)+
     '</div>';
   if(typeof TableKit!=='undefined')TableKit.initAll();
-  showPageToolbar({title:'Inventory Report',logoText:(window.BIZ_NAME||'Handmade Designs By Suzi')});
+  showPageToolbar({title:'Inventory Price List',logoText:(window.BIZ_NAME||'Handmade Designs By Suzi')});
 }
 
 var RECEIPT_ROWS=[];
