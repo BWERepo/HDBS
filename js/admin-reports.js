@@ -97,9 +97,8 @@ function rReceiptReport(el){
 
   el.innerHTML=
     '<div style="max-width:1150px;margin:0 auto">'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">'+
+    '<div style="margin-bottom:1rem">'+
     '<button class="be" onclick="rReports(document.getElementById(\'acnt\'))">← Back to Reports</button>'+
-    '<div><button class="be" onclick="setAllReceiptChecks(true)">Check All</button> <button class="be" onclick="setAllReceiptChecks(false)">Clear</button></div>'+
     '</div>'+
     '<p style="font-size:.78rem;color:#6b6040;margin:0 0 .8rem">Sales tax assumes a flat '+(REPORT_TAX_RATE*100).toFixed(2)+'%. Credit card fee assumes '+SQ_FEE_PCT+'% + $'+SQ_FEE_CENTS.toFixed(2)+' (Settings → Square Fees). Print generates one fillable receipt per checked product.</p>'+
     '<style>#receipt-report-tbl td:nth-child(n+4),#receipt-report-tbl th:nth-child(n+4) .tk-th-inner{justify-content:flex-end}#receipt-report-tbl td:nth-child(n+4){text-align:right}#receipt-report-tbl th:nth-child(n+4) .tk-th-label{text-align:right}</style>'+
