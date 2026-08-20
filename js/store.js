@@ -706,6 +706,14 @@ function placeOrder(){
     });
 }
 
+// Client-side estimate of Square's card processing fee, mirroring the PayPal/Venmo fee note's own
+// estimate — both read the same admin-configured setting the server itself reads authoritatively
+// at charge time (square_fees / paypal_fees), so this is a real number, not a guess, just computed
+// a request earlier than the server's own copy. Square has no separate "create order" round trip
+// like PayPal to fetch an authoritative confirmed value before payment, so this estimate IS what's
+// shown throughout — it only differs from the server's if the fee setting changes mid-session.
+function cardSurcharge(total){return Math.round((total*SQ_FEE_PCT/100+SQ_FEE_CENTS)*100)/100;}
+
 function showPaymentStep(subtotal,shipping,tax,total,couponDisc,couponCode,creditDisc){
   // Populate summary
   var shipLine=shipping>0?'<div style="display:flex;justify-content:space-between;margin-bottom:.3rem"><span>Shipping</span><span>$'+shipping.toFixed(2)+'</span></div>':
@@ -720,9 +728,21 @@ function showPaymentStep(subtotal,shipping,tax,total,couponDisc,couponCode,credi
     shipLine+
     '<div style="display:flex;justify-content:space-between;margin-bottom:.3rem"><span>Tax (9.75%)</span><span>$'+tax.toFixed(2)+'</span></div>'+
     '<div style="display:flex;justify-content:space-between;font-weight:700;color:#2d2220;border-top:1px solid #e8e0b8;padding-top:.4rem;margin-top:.3rem"><span>Total</span><span style="color:#a07810">$'+total.toFixed(2)+'</span></div>';
-  // Update pay button label
+  // Card/Apple Pay/Google Pay all charge through Square, so all three need the surcharge baked
+  // into what's actually requested — PayPal/Venmo compute and disclose their own separate fee on
+  // this same base `total`, unaffected by this.
+  var cardFee=cardSurcharge(total);
+  var cardTotal=Math.round((total+cardFee)*100)/100;
+  var feeNote=document.getElementById('card-fee-note');
+  if(feeNote){
+    feeNote.innerHTML='A card processing fee of <strong>$'+cardFee.toFixed(2)+'</strong> will be added — total <strong>$'+cardTotal.toFixed(2)+'</strong>.';
+    feeNote.style.display='block';
+  }
+  // Update pay button label — also overwrite _pendingTotal (set pre-surcharge, before this
+  // function knew the card fee) so a failed-charge retry restores the correct card-inclusive text.
+  window._pendingTotal=cardTotal;
   var btn=document.getElementById('pay-btn');
-  if(btn){btn.textContent='Pay $'+total.toFixed(2);btn.disabled=false;}
+  if(btn){btn.textContent='Pay $'+cardTotal.toFixed(2);btn.disabled=false;}
   _show('card-loading');
   var cc=document.getElementById('card-container');if(cc)cc.innerHTML='';
   _hide('card-error');
@@ -735,10 +755,11 @@ function showPaymentStep(subtotal,shipping,tax,total,couponDisc,couponCode,credi
     var payments=window.Square.payments(appId,locId);
     window._sqPayments=payments;
     initSquareCard(payments);
-    initApplePay(payments,total);
-    initGooglePay(payments,total);
+    initApplePay(payments,cardTotal);
+    initGooglePay(payments,cardTotal);
   });
-  // PayPal loads independently of the Square SDK
+  // PayPal loads independently of the Square SDK, on the base total — it computes/discloses its
+  // own separate fee, unrelated to Square's.
   initPayPal(total);
 }
 
@@ -747,6 +768,7 @@ function resetWalletButtons(){
   var gp=document.getElementById('google-pay-button');if(gp){gp.style.display='none';gp.innerHTML='';gp.onclick=null;}
   var pp=document.getElementById('paypal-button-container');if(pp){pp.style.display='none';pp.innerHTML='';}
   var ppFee=document.getElementById('paypal-fee-note');if(ppFee)ppFee.style.display='none';
+  var cardFeeNote=document.getElementById('card-fee-note');if(cardFeeNote)cardFeeNote.style.display='none';
   if(window._ppButtons){try{window._ppButtons.close();}catch(e){}window._ppButtons=null;}
   var div=document.getElementById('wallet-divider');if(div)div.style.display='none';
   window._sqApplePay=null;window._sqGooglePay=null;

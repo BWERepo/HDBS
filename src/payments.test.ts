@@ -101,14 +101,14 @@ describe("computePaypalSurcharge", () => {
 describe("chargeOrderWithSquare", () => {
   it("rejects a missing source_id or order_id", async () => {
     const gateway = new FakeSquareGateway();
-    const result = await chargeOrderWithSquare(store, gateway, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1" }, false);
+    const result = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1" }, false);
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/Missing source_id/);
   });
 
   it("rejects an unknown order", async () => {
     const gateway = new FakeSquareGateway();
-    const result = await chargeOrderWithSquare(store, gateway, customers, emailStore, emailSender, biz, "LOC1", { order_id: "NOPE", source_id: "cnon:1" }, false);
+    const result = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "NOPE", source_id: "cnon:1" }, false);
     expect(result.ok).toBe(false);
     expect(result.status).toBe(404);
   });
@@ -117,7 +117,7 @@ describe("chargeOrderWithSquare", () => {
     seedAwaitingOrder();
     store.orders[0]!.status = "Paid";
     const gateway = new FakeSquareGateway();
-    const result = await chargeOrderWithSquare(store, gateway, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
+    const result = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/not awaiting payment/);
   });
@@ -125,12 +125,12 @@ describe("chargeOrderWithSquare", () => {
   it("test_mode requires admin and never calls the gateway", async () => {
     seedAwaitingOrder();
     const gateway = new FakeSquareGateway();
-    const denied = await chargeOrderWithSquare(store, gateway, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "x", test_mode: true }, false);
+    const denied = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "x", test_mode: true }, false);
     expect(denied.ok).toBe(false);
     expect(denied.status).toBe(401);
     expect(store.orders[0]!.status).toBe("Awaiting Payment");
 
-    const accepted = await chargeOrderWithSquare(store, gateway, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "x", test_mode: true }, true);
+    const accepted = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "x", test_mode: true }, true);
     expect(accepted.ok).toBe(true);
     expect(store.orders[0]!.status).toBe("Paid");
     expect(gateway.calls).toHaveLength(0);
@@ -143,7 +143,7 @@ describe("chargeOrderWithSquare", () => {
     seedAwaitingOrder();
     store.claimForProcessing = async () => false;
     const gateway = new FakeSquareGateway();
-    const result = await chargeOrderWithSquare(store, gateway, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
+    const result = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/no longer awaiting payment/);
   });
@@ -152,7 +152,7 @@ describe("chargeOrderWithSquare", () => {
     seedAwaitingOrder();
     const gateway = new FakeSquareGateway();
     gateway.result = { ok: false, message: "Your card was declined. Please try a different card." };
-    const result = await chargeOrderWithSquare(store, gateway, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
+    const result = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/declined/);
     expect(store.orders[0]!.status).toBe("Awaiting Payment");
@@ -163,7 +163,7 @@ describe("chargeOrderWithSquare", () => {
     const gateway = new FakeSquareGateway();
     gateway.result = { ok: false, message: "Your card was declined." };
     const appLog = new AppLogStoreFake();
-    await chargeOrderWithSquare(store, gateway, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false, new Date(), appLog);
+    await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false, new Date(), appLog);
     expect(appLog.rows["notify_log.txt"]).toHaveLength(1);
     expect(appLog.rows["notify_log.txt"]![0]!.context).toBe("PAYMENT-FAIL");
     expect(appLog.rows["notify_log.txt"]![0]!.message).toContain("ORD-1");
@@ -173,30 +173,60 @@ describe("chargeOrderWithSquare", () => {
     seedAwaitingOrder();
     const gateway = new FakeSquareGateway();
     gateway.result = { ok: true, paymentId: "sq1", status: "PENDING" };
-    const result = await chargeOrderWithSquare(store, gateway, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
+    const result = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/Payment not completed. Status: PENDING/);
     expect(store.orders[0]!.status).toBe("Awaiting Payment");
   });
 
-  it("marks Paid, bumps the customer's order count, and emails on a completed charge", async () => {
+  it("marks Paid, bumps the customer's order count, and emails on a completed charge — the charge and saved total include the card surcharge", async () => {
     seedAwaitingOrder();
     const gateway = new FakeSquareGateway();
-    const result = await chargeOrderWithSquare(store, gateway, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
+    const result = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
     expect(result.ok).toBe(true);
     expect(result.data?.payment_id).toBe("sq_pay_1");
-    expect(result.data?.total).toBe(48.9); // 40 subtotal + 5 shipping + 3.90 (9.75%) tax
+    // 40 subtotal + 5 shipping + 3.90 (9.75%) tax = 48.9 base, plus the default 2.6% + $0.10
+    // card surcharge (round2(48.9*0.026+0.10) = 1.37) = 50.27 actually charged/saved.
+    expect(result.data?.total).toBe(50.27);
     expect(store.orders[0]!.status).toBe("Paid");
     expect(store.orders[0]!.square_payment_id).toBe("sq_pay_1");
+    expect(store.orders[0]!.square_surcharge).toBe(1.37);
+    expect(gateway.calls[0]!.amountCents).toBe(5027); // the actual card charge includes the surcharge
     expect(customers.calls).toEqual(["jane@example.com"]);
     expect(emailSender.sent).toHaveLength(1);
     expect(emailStore.logs).toHaveLength(1);
   });
 
+  it("defaults to 2.6% + $0.10 for the card surcharge when the square_fees setting is unset", async () => {
+    seedAwaitingOrder();
+    const gateway = new FakeSquareGateway();
+    await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
+    expect(store.orders[0]!.square_surcharge).toBe(1.37);
+  });
+
+  it("reads pct/cents from the square_fees setting for the card surcharge", async () => {
+    seedAwaitingOrder();
+    await settings.setSetting("square_fees", JSON.stringify({ pct: 2.9, cents: 0.3 }));
+    const gateway = new FakeSquareGateway();
+    const result = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
+    // round2(48.9*0.029+0.30) = 1.72; total = 48.9+1.72 = 50.62
+    expect(store.orders[0]!.square_surcharge).toBe(1.72);
+    expect(result.data?.total).toBe(50.62);
+  });
+
+  it("test_mode never adds a card surcharge — no real card is charged in that path", async () => {
+    seedAwaitingOrder();
+    const gateway = new FakeSquareGateway();
+    const result = await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "x", test_mode: true }, true);
+    expect(result.ok).toBe(true);
+    expect(result.data?.total).toBe(48.9);
+    expect(store.orders[0]!.total).toBe(48.9);
+  });
+
   it("uses a stable idempotency key derived from the order and source id", async () => {
     seedAwaitingOrder();
     const gateway = new FakeSquareGateway();
-    await chargeOrderWithSquare(store, gateway, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
+    await chargeOrderWithSquare(store, gateway, settings, customers, emailStore, emailSender, biz, "LOC1", { order_id: "ORD-1", source_id: "cnon:1" }, false);
     expect(gateway.calls[0]!.idempotencyKey).toMatch(/^ORD-1-[0-9a-f]{8}$/);
     expect(gateway.calls[0]!.note).toBe("ORD-1");
   });

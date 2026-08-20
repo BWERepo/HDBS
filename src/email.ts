@@ -269,9 +269,13 @@ export function buildPaymentReceivedEmailHtml(
   }
 
   const firstName = (order.customer_name ?? "").split(" ")[0] ?? "";
+  // The label distinguishes which fee this is — PayPal/Venmo's surcharge and Square/card's
+  // surcharge are computed from different settings and only ever one applies per order, but the
+  // wording should still say which.
+  const isPaypalMethod = order.payment_method === "PayPal" || order.payment_method === "Venmo";
   const surchargeRow =
     surcharge > 0
-      ? `<tr><td style='padding:.3rem .5rem'>PayPal/Venmo Processing Fee</td><td style='padding:.3rem .5rem;text-align:right'>$${surcharge.toFixed(2)}</td></tr>`
+      ? `<tr><td style='padding:.3rem .5rem'>${isPaypalMethod ? "PayPal/Venmo Processing Fee" : "Card Processing Fee"}</td><td style='padding:.3rem .5rem;text-align:right'>$${surcharge.toFixed(2)}</td></tr>`
       : "";
   const checkSuffix = order.check_number ? ` (Check #${order.check_number})` : "";
 

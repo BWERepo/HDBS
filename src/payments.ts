@@ -116,6 +116,29 @@ export async function computePaypalSurcharge(settings: PaymentSettingsStore, amo
   return round2((amount * pct) / 100 + cents);
 }
 
+/** Customer-facing Square/card processing fee, mirroring computePaypalSurcharge exactly — added
+ *  only when paying by card. Until this existed, Square/card customers never saw a fee at all;
+ *  the business absorbed Square's cut of the payout instead (still tracked separately as
+ *  `transaction_fee`, what Square actually withheld — unrelated to this customer-facing amount).
+ *  Admin sets the rate via Settings -> Square Fees (`square_fees` setting, the same one the
+ *  Receipt/Inventory reports already assume); falls back to js/config.js's own hardcoded default
+ *  (2.6% + $0.10) if unset or corrupt. */
+export async function computeSquareSurcharge(settings: PaymentSettingsStore, amount: number): Promise<number> {
+  let pct = 2.6;
+  let cents = 0.1;
+  const raw = await settings.getSetting("square_fees");
+  if (raw) {
+    try {
+      const f = JSON.parse(raw) as { pct?: unknown; cents?: unknown };
+      if (typeof f.pct === "number") pct = f.pct;
+      if (typeof f.cents === "number") cents = f.cents;
+    } catch {
+      // keep defaults — matches computePaypalSurcharge's own try/catch
+    }
+  }
+  return round2((amount * pct) / 100 + cents);
+}
+
 async function shortHashHex(input: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
   return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0"))
@@ -156,6 +179,7 @@ export interface SquareChargeInput {
 export async function chargeOrderWithSquare(
   store: OrdersStore,
   gateway: SquareGateway,
+  settings: PaymentSettingsStore,
   customersStore: PaymentCustomersStore,
   emailStore: Pick<EmailOrderStore, "logEmail">,
   emailSender: EmailSender,
@@ -175,14 +199,19 @@ export async function chargeOrderWithSquare(
   if (order.status !== "Awaiting Payment") return { ok: false, error: "Order is not awaiting payment" };
 
   const items = await store.getOrderItems(orderId);
-  const { shipping, tax, total } = computeOrderAmounts(items);
+  const amounts = computeOrderAmounts(items);
+  const { shipping, tax } = amounts;
+  const surcharge = await computeSquareSurcharge(settings, amounts.total);
+  const total = round2(amounts.total + surcharge);
 
   // test_mode: admin-only regression-suite bypass. Returns BEFORE the atomic claim below — see
-  // this file's header for why that differs from paypal_capture.php's test_mode.
+  // this file's header for why that differs from paypal_capture.php's test_mode. No surcharge
+  // here, matching capturePaypalOrderForCheckout's own test_mode branch (a real card is never
+  // charged in this path, so there's nothing to add a card fee to).
   if (input.test_mode) {
     if (!isAdmin) return { ok: false, error: "Unauthorized", status: 401 };
-    await store.updateOrderFields(orderId, { status: "Paid", total, tax_amount: tax, confirm_sent_at: now.toISOString() });
-    return { ok: true, data: { message: "Test payment accepted", total, order_id: orderId, payment_id: "" } };
+    await store.updateOrderFields(orderId, { status: "Paid", total: amounts.total, tax_amount: tax, confirm_sent_at: now.toISOString() });
+    return { ok: true, data: { message: "Test payment accepted", total: amounts.total, order_id: orderId, payment_id: "" } };
   }
 
   if (!squareLocationId) return { ok: false, error: "Payment not configured" };
@@ -217,6 +246,7 @@ export async function chargeOrderWithSquare(
     square_payment_id: charge.paymentId,
     total,
     tax_amount: tax,
+    square_surcharge: surcharge,
     confirm_sent_at: now.toISOString(),
   };
   try {
@@ -240,7 +270,8 @@ export async function chargeOrderWithSquare(
     total,
     shipping,
     tax,
-    charge.paymentId
+    charge.paymentId,
+    surcharge
   );
 
   return { ok: true, data: { message: "Payment successful", payment_id: charge.paymentId, total, order_id: orderId } };

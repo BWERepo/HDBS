@@ -567,6 +567,7 @@ function printInvoice(oid){
       trow('Shipping',shipCost)+
       (tax>0?trow('Sales Tax',tax):'')+
       ((order.paypal_surcharge||0)>0?trow('PayPal/Venmo Processing Fee',order.paypal_surcharge):'')+
+      ((order.square_surcharge||0)>0?trow('Card Processing Fee',order.square_surcharge):'')+
       (fee>0?trow('Transaction Fee',fee):'')+
       trow('Total',order.total,'grand')+
     '</table>'+

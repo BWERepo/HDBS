@@ -33,6 +33,7 @@ paymentsRoute.post("/api/process_payment.php", async (c) => {
   const result = await chargeOrderWithSquare(
     new SupabaseOrdersStore(db),
     createSquareGateway(c.env.SQUARE_TOKEN, apiHosts(c.env).square),
+    new SupabaseSettingsStore(db, c.env.R2_PUBLIC),
     new SupabaseCustomersStore(db),
     new SupabaseEmailOrderStore(db),
     createEmailSender(c.env.EMAIL_MODE, c.env.BREVO_API_KEY, biz.name),

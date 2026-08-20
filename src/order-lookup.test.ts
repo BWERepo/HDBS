@@ -32,6 +32,7 @@ function makeOrder(overrides: Partial<OrderRow> = {}): OrderRow {
     refunded_amount: 0,
     paypal_capture_id: null,
     paypal_surcharge: 0,
+    square_surcharge: 0,
     ...overrides,
   };
 }

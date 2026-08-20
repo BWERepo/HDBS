@@ -52,6 +52,7 @@ export interface OrderRow {
   refunded_amount: number | null;
   paypal_capture_id: string | null;
   paypal_surcharge: number | null;
+  square_surcharge: number | null;
 }
 
 export interface OrderItemRow {
@@ -92,6 +93,7 @@ export interface OrderDto {
   confirm_sent: string | null;
   square_payment_id: string | null;
   paypal_surcharge: number;
+  square_surcharge: number;
   shipping_sent: string | null;
   dispDate: string;
   items: OrderItemDto[];
@@ -254,6 +256,7 @@ export type OrderUpdatableFields = Pick<
   | "square_payment_id"
   | "paypal_capture_id"
   | "paypal_surcharge"
+  | "square_surcharge"
   | "confirm_sent_at"
   | "refunded_amount"
 >;
@@ -331,6 +334,7 @@ export function mapOrderForResponse(order: OrderRow, items: OrderItemRow[]): Ord
     confirm_sent: order.confirm_sent_at,
     square_payment_id: order.square_payment_id,
     paypal_surcharge: Number(order.paypal_surcharge ?? 0),
+    square_surcharge: Number(order.square_surcharge ?? 0),
     shipping_sent: order.shipping_sent_at,
     dispDate: formatOrderDate(order.order_date),
     items: displayItems,
@@ -683,6 +687,7 @@ export function makeOrderRow(overrides: Partial<OrderRow> & Pick<OrderRow, "id">
     refunded_amount: 0,
     paypal_capture_id: null,
     paypal_surcharge: 0,
+    square_surcharge: 0,
     ...overrides,
   };
 }

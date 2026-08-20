@@ -216,7 +216,7 @@ export class SupabaseOrdersStore implements OrdersStore {
     const { data, error } = await this.db
       .from("orders")
       .select(
-        "id, customer_name, customer_email, customer_phone, shipping_address, shipping_carrier, tracking_number, confirm_sent_at, shipping_sent_at, total, payment_method, status, square_payment_id, order_date, created_at, tax_amount, tax_swept_date, order_type, transaction_fee, payment_configuration, check_number, refunded_amount, paypal_capture_id, paypal_surcharge"
+        "id, customer_name, customer_email, customer_phone, shipping_address, shipping_carrier, tracking_number, confirm_sent_at, shipping_sent_at, total, payment_method, status, square_payment_id, order_date, created_at, tax_amount, tax_swept_date, order_type, transaction_fee, payment_configuration, check_number, refunded_amount, paypal_capture_id, paypal_surcharge, square_surcharge"
       )
       .order("created_at", { ascending: false });
     checkError("listOrders", error);
@@ -235,7 +235,7 @@ export class SupabaseOrdersStore implements OrdersStore {
     const { data, error } = await this.db
       .from("orders")
       .select(
-        "id, customer_name, customer_email, customer_phone, shipping_address, shipping_carrier, tracking_number, confirm_sent_at, shipping_sent_at, total, payment_method, status, square_payment_id, order_date, created_at, tax_amount, tax_swept_date, order_type, transaction_fee, payment_configuration, check_number, refunded_amount, paypal_capture_id, paypal_surcharge"
+        "id, customer_name, customer_email, customer_phone, shipping_address, shipping_carrier, tracking_number, confirm_sent_at, shipping_sent_at, total, payment_method, status, square_payment_id, order_date, created_at, tax_amount, tax_swept_date, order_type, transaction_fee, payment_configuration, check_number, refunded_amount, paypal_capture_id, paypal_surcharge, square_surcharge"
       )
       .eq("id", id)
       .maybeSingle();
@@ -755,7 +755,7 @@ export class SupabaseOrderLookupStore implements OrderLookupStore {
     const { data, error } = await this.db
       .from("orders")
       .select(
-        "id, customer_name, customer_email, customer_phone, shipping_address, shipping_carrier, tracking_number, confirm_sent_at, shipping_sent_at, total, payment_method, status, square_payment_id, order_date, created_at, tax_amount, tax_swept_date, order_type, transaction_fee, payment_configuration, check_number, refunded_amount, paypal_capture_id, paypal_surcharge"
+        "id, customer_name, customer_email, customer_phone, shipping_address, shipping_carrier, tracking_number, confirm_sent_at, shipping_sent_at, total, payment_method, status, square_payment_id, order_date, created_at, tax_amount, tax_swept_date, order_type, transaction_fee, payment_configuration, check_number, refunded_amount, paypal_capture_id, paypal_surcharge, square_surcharge"
       )
       .eq("customer_email", email)
       .order("created_at", { ascending: false });
