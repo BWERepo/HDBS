@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import type { Env } from "../types";
 import { apiHosts } from "../types";
 import { ok, fail } from "../lib/http";
-import { createDb, SupabaseAdminAuthStore, SupabaseOrdersStore } from "../db";
+import { createDb, SupabaseAdminAuthStore, SupabaseOrdersStore, SupabaseSettingsStore } from "../db";
 import { isValidAdminToken } from "../auth";
 import { createSquareGateway } from "../lib/square-gateway";
 import { createPaypalGateway } from "../lib/paypal-gateway";
@@ -38,7 +38,8 @@ paymentReportsRoute.post("/api/paypal_status.php", async (c) => {
 paymentReportsRoute.get("/api/square_payments.php", async (c) => {
   if (!(await requireAdmin(c))) return fail(c, "Unauthorized", 401);
   const gateway = createSquareGateway(c.env.SQUARE_TOKEN, apiHosts(c.env).square);
-  const result = await getSquarePaymentsReport(gateway, new SupabaseOrdersStore(createDb(c.env)), c.env.SQUARE_LOCATION_ID, {
+  const db = createDb(c.env);
+  const result = await getSquarePaymentsReport(gateway, new SupabaseOrdersStore(db), new SupabaseSettingsStore(db, c.env.R2_PUBLIC), c.env.SQUARE_LOCATION_ID, {
     begin: c.req.query("begin"),
     end: c.req.query("end"),
     cursor: c.req.query("cursor"),
@@ -53,7 +54,8 @@ paymentReportsRoute.post("/api/square_payments.php", async (c) => {
   if (!(await requireAdmin(c))) return fail(c, "Unauthorized", 401);
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
   if (body.action !== "backfill_fees") return fail(c, "Unknown action");
+  const db = createDb(c.env);
   const gateway = createSquareGateway(c.env.SQUARE_TOKEN, apiHosts(c.env).square);
-  const result = await backfillSquareTransactionFees(gateway, new SupabaseOrdersStore(createDb(c.env)), c.env.SQUARE_LOCATION_ID);
+  const result = await backfillSquareTransactionFees(gateway, new SupabaseOrdersStore(db), new SupabaseSettingsStore(db, c.env.R2_PUBLIC), c.env.SQUARE_LOCATION_ID);
   return result.ok ? ok(c, result.data) : fail(c, result.error!, result.status);
 });

@@ -681,6 +681,9 @@ function updateTransFees(){
       if(d.unmatched&&d.unmatched.length){
         msg+='\n\nCould not match '+d.unmatched.length+' order(s) in Square:\n'+d.unmatched.join('\n');
       }
+      if(d.estimated&&d.estimated.length){
+        msg+='\n\n'+d.estimated.length+' order(s) got an estimated fee (Square hasn\'t settled the real one yet) -- will self-correct once Square\'s webhook delivers the real value:\n'+d.estimated.join('\n');
+      }
       alert(msg);
       rOrders(document.getElementById('acnt'));
     } else {

@@ -10,6 +10,7 @@
 import type { OrdersStore } from "./orders";
 import type { SquareGateway } from "./lib/square-gateway";
 import type { PayPalGateway } from "./lib/paypal-gateway";
+import type { PaymentSettingsStore } from "./payments";
 
 export interface ReportResult<T = Record<string, never>> {
   ok: boolean;
@@ -112,9 +113,29 @@ export interface SquarePaymentSummaryDto {
   buyer: string;
 }
 
-// Square returns $0 processing_fee until next-day settlement — same estimate formula as the PHP.
-function estimateSquareFee(amountCents: number): number {
-  return round2((amountCents / 100) * 0.026 + 0.1);
+// Square returns $0 processing_fee until next-day settlement. Reads the same `square_fees`
+// admin setting (Settings -> Square Fees) computeSquareSurcharge (payments.ts) already uses for
+// the customer-facing surcharge, rather than a hardcoded rate — the two are meant to describe the
+// same real Square fee, and a mismatched hardcoded fallback here previously produced a wrong
+// permanent estimate (2.6%+$0.10 baked in regardless of the actual configured 2.9%+$0.30,
+// confirmed live: a real $56.83 charge's actual fee was $1.95, but this produced $1.58 — and once
+// written, a later real webhook delivery can never correct it, since a nonzero fee is treated as
+// already-real). No gross-up here, unlike computeSquareSurcharge — this estimates Square's own
+// fee directly on the amount actually charged, not a surcharge to collect from the customer.
+async function estimateSquareFee(settings: PaymentSettingsStore, amountCents: number): Promise<number> {
+  let pct = 2.6;
+  let cents = 0.1;
+  const raw = await settings.getSetting("square_fees");
+  if (raw) {
+    try {
+      const f = JSON.parse(raw) as { pct?: unknown; cents?: unknown };
+      if (typeof f.pct === "number") pct = f.pct;
+      if (typeof f.cents === "number") cents = f.cents;
+    } catch {
+      // keep defaults
+    }
+  }
+  return round2((amountCents / 100) * (pct / 100) + cents);
 }
 
 /**
@@ -126,6 +147,7 @@ function estimateSquareFee(amountCents: number): number {
 export async function getSquarePaymentsReport(
   gateway: SquareGateway,
   ordersStore: OrdersStore,
+  settings: PaymentSettingsStore,
   locationId: string,
   params: { begin?: string; end?: string; cursor?: string }
 ): Promise<ReportResult<{ payments: SquarePaymentSummaryDto[]; cursor: string | null; count: number }>> {
@@ -140,37 +162,39 @@ export async function getSquarePaymentsReport(
   const ids = listed.payments.map((p) => p.id).filter(Boolean);
   const taxAndRefund = await ordersStore.getTaxAndRefundBySquarePaymentIds(ids);
 
-  const payments: SquarePaymentSummaryDto[] = listed.payments.map((p) => {
-    let fee = p.feeCents / 100;
-    let feeEstimated = false;
-    if (Math.abs(fee) < 0.001 && p.amountCents > 0 && p.status === "COMPLETED") {
-      fee = estimateSquareFee(p.amountCents);
-      feeEstimated = true;
-    }
-    const known = taxAndRefund.get(p.id);
-    const refunded = known?.refunded ?? 0;
-    const amount = round2(p.amountCents / 100);
-    let status = p.status;
-    if (status === "COMPLETED" && refunded > 0.004) {
-      status = refunded >= amount - 0.005 ? "REFUNDED" : "PARTIAL_REFUND";
-    }
-    return {
-      id: p.id,
-      created: p.createdAt,
-      status,
-      amount,
-      tax: round2(known?.tax ?? 0),
-      tip: round2(p.tipCents / 100),
-      fee: round2(Math.abs(fee)),
-      fee_estimated: feeEstimated,
-      net: round2(amount - Math.abs(fee)),
-      refunded: round2(refunded),
-      note: p.note,
-      card_brand: p.cardBrand,
-      last4: p.last4,
-      buyer: p.buyerEmail,
-    };
-  });
+  const payments: SquarePaymentSummaryDto[] = await Promise.all(
+    listed.payments.map(async (p) => {
+      let fee = p.feeCents / 100;
+      let feeEstimated = false;
+      if (Math.abs(fee) < 0.001 && p.amountCents > 0 && p.status === "COMPLETED") {
+        fee = await estimateSquareFee(settings, p.amountCents);
+        feeEstimated = true;
+      }
+      const known = taxAndRefund.get(p.id);
+      const refunded = known?.refunded ?? 0;
+      const amount = round2(p.amountCents / 100);
+      let status = p.status;
+      if (status === "COMPLETED" && refunded > 0.004) {
+        status = refunded >= amount - 0.005 ? "REFUNDED" : "PARTIAL_REFUND";
+      }
+      return {
+        id: p.id,
+        created: p.createdAt,
+        status,
+        amount,
+        tax: round2(known?.tax ?? 0),
+        tip: round2(p.tipCents / 100),
+        fee: round2(Math.abs(fee)),
+        fee_estimated: feeEstimated,
+        net: round2(amount - Math.abs(fee)),
+        refunded: round2(refunded),
+        note: p.note,
+        card_brand: p.cardBrand,
+        last4: p.last4,
+        buyer: p.buyerEmail,
+      };
+    })
+  );
 
   return { ok: true, data: { payments, cursor: listed.cursor, count: payments.length } };
 }
@@ -181,6 +205,13 @@ export interface BackfillFeesResult {
   total: number;
   errors: string[];
   unmatched: string[];
+  /** Matched a real Square payment, but Square hadn't settled/reported its real fee yet (still
+   *  $0 in List Payments) — the value written for these is estimateSquareFee's estimate at the
+   *  real configured square_fees rate, not Square's own confirmed number. Not a problem to leave
+   *  as-is: handleSquareWebhookEvent's fee backfill always overwrites with the authoritative real
+   *  value once Square delivers it, regardless of what's already recorded — this list is purely
+   *  informational, for anyone auditing which numbers are still an estimate right now. */
+  estimated: string[];
 }
 
 /**
@@ -201,6 +232,7 @@ export interface BackfillFeesResult {
 export async function backfillSquareTransactionFees(
   gateway: SquareGateway,
   ordersStore: OrdersStore,
+  settings: PaymentSettingsStore,
   locationId: string
 ): Promise<ReportResult<BackfillFeesResult>> {
   const allOrders = await ordersStore.listOrders();
@@ -213,6 +245,7 @@ export async function backfillSquareTransactionFees(
   let skipped = 0;
   const errors: string[] = [];
   const unmatched: string[] = [];
+  const estimated: string[] = [];
 
   for (const order of candidates) {
     const orderDate = order.order_date ?? new Date().toISOString().slice(0, 10);
@@ -233,15 +266,25 @@ export async function backfillSquareTransactionFees(
       continue;
     }
 
-    let fee = matched.feeCents / 100;
-    if (Math.abs(fee) < 0.001) fee = estimateSquareFee(matched.amountCents);
-    fee = round2(Math.abs(fee));
+    let fee = round2(Math.abs(matched.feeCents / 100));
+    if (fee < 0.001) {
+      // Square hasn't settled a real fee for this payment yet — estimate at the real configured
+      // rate (square_fees setting) rather than guessing with a hardcoded one. A confirmed real
+      // bug: an earlier version hardcoded 2.6%+$0.10 regardless of the actual configured rate,
+      // producing a wrong estimate ($1.58 instead of the real $1.95 on a live order) that then
+      // never got corrected, because a prior version of the webhook backfill refused to overwrite
+      // an already-nonzero fee. Both are now fixed: this uses the real rate, and the webhook now
+      // always overwrites with Square's own confirmed number once it arrives, regardless of
+      // what's already recorded — so a wrong estimate here is self-correcting, not permanent.
+      fee = await estimateSquareFee(settings, matched.amountCents);
+      estimated.push(order.id);
+    }
 
     await ordersStore.updateOrderFields(order.id, { transaction_fee: fee });
     updated++;
   }
 
-  return { ok: true, data: { updated, skipped, total: candidates.length, errors, unmatched } };
+  return { ok: true, data: { updated, skipped, total: candidates.length, errors, unmatched, estimated } };
 }
 
 /** date +/- days, plain YYYY-MM-DD in/out — used only for the +-30-day Square List Payments

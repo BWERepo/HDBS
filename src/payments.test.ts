@@ -491,7 +491,10 @@ describe("handleSquareWebhookEvent", () => {
     expect(store.orders.find((o) => o.id === "ORD-EARLIER")!.transaction_fee).toBe(1.95); // untouched
   });
 
-  it("never overwrites an already-recorded transaction_fee on a Paid order (webhook retry safety)", async () => {
+  it("always overwrites a previously-recorded fee with the webhook's own value, even if one's already set — the webhook is the authoritative source", async () => {
+    // Reversed from an earlier version of this behavior after a real bug: the manual backfill
+    // tool could write a wrong guessed estimate before the real webhook arrived, and the old
+    // never-overwrite guard then permanently blocked the real value from ever landing.
     store.orders = [makeOrderRow({ id: "ORD-9", status: "Paid", total: 92.8, tax_amount: 7.8, transaction_fee: 2.5, created_at: new Date().toISOString() })];
     await handleSquareWebhookEvent(store, {
       type: "payment.updated",
@@ -501,7 +504,16 @@ describe("handleSquareWebhookEvent", () => {
         },
       },
     });
-    expect(store.orders[0]!.transaction_fee).toBe(2.5); // unchanged — already had a real fee recorded
+    expect(store.orders[0]!.transaction_fee).toBe(1.89); // overwritten with the webhook's real value
+  });
+
+  it("does not zero out an already-recorded fee when a later webhook delivery has no fee data yet", async () => {
+    store.orders = [makeOrderRow({ id: "ORD-9", status: "Paid", total: 92.8, tax_amount: 7.8, transaction_fee: 1.95, created_at: new Date().toISOString() })];
+    await handleSquareWebhookEvent(store, {
+      type: "payment.updated",
+      data: { object: { payment: { id: "sqpay-retry", status: "COMPLETED", note: "Order ORD-9" } } }, // no processing_fee
+    });
+    expect(store.orders[0]!.transaction_fee).toBe(1.95); // untouched — only a real nonzero fee ever overwrites
   });
 
   it("returns unhandled when no order can be identified", async () => {

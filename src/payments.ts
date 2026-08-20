@@ -571,20 +571,26 @@ export async function handleSquareWebhookEvent(
     // normally the only place that fee ever becomes available. Previously this function no-op'd
     // entirely for an already-Paid order, which meant no Square card order ever got a real
     // transaction_fee unless an admin manually ran Admin -> Orders -> "Update Trans Fees".
-    // Backfill just the fee here instead — status/tax_amount/square_payment_id are already
-    // correct from the synchronous charge, so only the fee is genuinely missing. Guarded so a
-    // webhook retry (or one with no fee data yet) can never zero out an already-recorded fee.
-    if (feeDollars > 0 && !current.transaction_fee) {
+    // Backfill the fee here instead — status/tax_amount/square_payment_id are already correct
+    // from the synchronous charge, so only the fee is genuinely missing.
+    //
+    // Always overwrites when feeDollars > 0, even if a value is already recorded — this webhook
+    // carries Square's own authoritative real fee, so it should always win over whatever's
+    // there, including a wrong guessed estimate the "Update Trans Fees" backfill tool may have
+    // written before the real webhook arrived (a real bug hit live: that tool's own estimate
+    // formula used the wrong hardcoded rate, permanently stuck at a wrong value under the old
+    // never-overwrite guard — now fixed at the source too, but the webhook no longer needs to
+    // trust that source is always right either). Only a zero/absent fee is ever a no-op, since
+    // that means Square genuinely hasn't settled a real number yet.
+    if (feeDollars > 0) {
       await store.updateOrderFields(orderId, { transaction_fee: feeDollars });
       if (appLog) {
         await appLog.append("webhook_log.txt", { context: "FEE-BACKFILLED", message: `Order: ${orderId} | Square: ${payment.id ?? ""} | Fee: $${feeDollars.toFixed(2)}` });
       }
     } else if (appLog) {
-      // Visibility for the two ways this can legitimately no-op, so a future "still $0.00" report
-      // can be diagnosed from webhook_log.txt alone instead of re-deriving this from scratch.
       await appLog.append("webhook_log.txt", {
         context: "FEE-BACKFILL-SKIPPED",
-        message: `Order: ${orderId} | Square: ${payment.id ?? ""} | feeDollars: ${feeDollars} | current.transaction_fee: ${current.transaction_fee}`,
+        message: `Order: ${orderId} | Square: ${payment.id ?? ""} | feeDollars: ${feeDollars} (Square hasn't settled a real fee yet)`,
       });
     }
     return { handled: true, orderId };
