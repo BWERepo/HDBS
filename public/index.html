@@ -1,13 +1,20 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-TLXSPM52');</script>
+<!-- End Google Tag Manager -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{BIZ_NAME}} — Handcrafted Bags &amp; Purses | Knoxville, TN</title>
 <meta name="description" content="{{BIZ_NAME}} — one-of-a-kind handmade tote bags and purses crafted with love in Knoxville, TN. Unique Corvette and car show themed bags, embroidered designs, and custom gifts for car enthusiasts.">
 <meta name="keywords" content="handmade bags, handmade purses, tote bags, Corvette tote bag, car show gifts, ETCC tote bag, Knoxville Tennessee, embroidered bags, handcrafted purses, one of a kind bags, Corvette show merchandise, car enthusiast gifts">
 <meta name="author" content="{{BIZ_NAME}}">
-<meta name="robots" content="index, follow">
+<meta name="robots" content="{{BIZ_ROBOTS}}">
 
 <!-- Open Graph / Facebook -->
 <meta property="og:type" content="website">
@@ -34,14 +41,11 @@
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="shortcut icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="{{BIZ_LOGO}}">
-<!-- Google Analytics -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-0ELY03XGRE"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-0ELY03XGRE');
-</script>
+<!-- Google Analytics now goes through Google Tag Manager (see the GTM snippet at the top of
+     <head>) instead of this direct gtag.js include, per explicit user decision 2026-08-21 —
+     add a GA4 Configuration tag for G-0ELY03XGRE inside the GTM-TLXSPM52 container (in Tag
+     Manager's own UI, not here) if GA4 tracking should continue. Running both this and GTM at
+     once would double-count pageviews/events. -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -81,6 +85,10 @@
 <script>window.BIZ_NAME={{BIZ_NAME_JSON}};window.BIZ_SHORT_NAME={{BIZ_SHORT_NAME_JSON}};window.BIZ_EMAIL={{BIZ_EMAIL_JSON}};window.BIZ_VERSION={{BIZ_VERSION_JSON}};window.BIZ_DEPLOYED_AT={{BIZ_DEPLOYED_AT_JSON}};</script>
 </head>
 <body>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TLXSPM52"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
 
   <!-- Staging-only DEVELOPMENT banner shown on EVERY screen. Gated on the staging hostname, so it
        can NEVER render in production (handmadedesignsbysuzi.com has no "staging" in the host).

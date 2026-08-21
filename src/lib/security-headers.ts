@@ -43,7 +43,7 @@ const CSP = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https://www.paypalobjects.com https://www.google-analytics.com",
   "connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://www.googletagmanager.com https://connect.squareup.com https://connect.squareupsandbox.com https://pci-connect.squareup.com https://web.squarecdn.com https://sandbox.web.squarecdn.com https://*.paypal.com https://*.paypalobjects.com https://cloudflareinsights.com",
-  "frame-src https://web.squarecdn.com https://sandbox.web.squarecdn.com https://*.paypal.com",
+  "frame-src https://web.squarecdn.com https://sandbox.web.squarecdn.com https://*.paypal.com https://www.googletagmanager.com",
   "object-src 'none'",
   "base-uri 'self'",
   "frame-ancestors 'self'",

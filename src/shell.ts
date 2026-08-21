@@ -77,6 +77,14 @@ export interface ShellOptions {
   logoWidth?: number;
   logoHeight?: number;
   logoMime?: string;
+  /**
+   * Rendered into the `<meta name="robots">` tag. Defaults to "index, follow" (production).
+   * Staging already sends `X-Robots-Tag: noindex, nofollow` (src/lib/security-headers.ts) — most
+   * crawlers apply the more restrictive of the two when both are present, so this was never a real
+   * indexing leak, but shipping a document whose own meta tag says "index, follow" while the HTTP
+   * header says the opposite is exactly the kind of inconsistency worth not shipping once noticed.
+   */
+  robots?: string;
 }
 
 export function buildTokens(biz: BizProfile, opts: ShellOptions): Record<string, string> {
@@ -127,6 +135,7 @@ export function buildTokens(biz: BizProfile, opts: ShellOptions): Record<string,
     BIZ_LOGO_WIDTH: String(opts.logoWidth ?? 748),
     BIZ_LOGO_HEIGHT: String(opts.logoHeight ?? 913),
     BIZ_LOGO_MIME: escapeHtml(opts.logoMime ?? "image/jpeg"),
+    BIZ_ROBOTS: escapeHtml(opts.robots ?? "index, follow"),
   };
 }
 
@@ -200,7 +209,8 @@ export async function renderStorefront(
 
   const [html, biz] = await Promise.all([assetRes.text(), getBizProfile(load)]);
   const origin = new URL(request.url).origin;
-  const rendered = renderShell(html, buildTokens(biz, { origin, version, deployedAt }));
+  const robots = env.ENVIRONMENT === "staging" ? "noindex, nofollow" : "index, follow";
+  const rendered = renderShell(html, buildTokens(biz, { origin, version, deployedAt, robots }));
 
   return new Response(rendered, {
     status: 200,
