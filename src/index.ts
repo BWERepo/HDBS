@@ -40,7 +40,7 @@ import { couponsRoute } from "./routes/coupons";
 import { donationsRoute } from "./routes/donations";
 import { orderLookupRoute } from "./routes/order-lookup";
 import { renderStorefront } from "./shell";
-import { createDb, SupabaseSettingsStore } from "./db";
+import { createDb, SupabaseSettingsStore, pruneExpiredSecurityState } from "./db";
 import version from "../version.json";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -72,6 +72,24 @@ app.route("/", dbBackupRoute);
 app.route("/", couponsRoute);
 app.route("/", donationsRoute);
 app.route("/", orderLookupRoute);
+
+// Global backstop for any exception a route handler doesn't catch itself. Every route in this
+// codebase already wraps its own logic in try/catch and returns fail()'s {success:false, error}
+// shape on a known failure — this exists only for the *unknown* case: a genuine bug, a Supabase
+// client throwing instead of returning {error}, etc. Two things this guarantees that Hono's own
+// default error handler does not: the client always gets the same {success:false, error} envelope
+// every /api/* caller already checks (js/api.js reads `d.success` unconditionally — see
+// src/lib/http.ts's header), and the full error (message/stack) always reaches the Worker log via
+// console.error, never the response body — an uncaught error must never become a vector for
+// leaking internal details (DB host, file paths, library internals) to the client.
+app.onError((err, c) => {
+  const path = new URL(c.req.url).pathname;
+  console.error(`unhandled error: ${c.req.method} ${path} — ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+  if (path.startsWith("/api/")) {
+    return c.json({ success: false, error: "Internal server error" }, 500);
+  }
+  return c.text("Internal server error", 500);
+});
 
 // Legacy bookmarks and cached links — carried over from .htaccess lines 8-10.
 app.get("/index.html", (c) => c.redirect("/", 301));
@@ -185,4 +203,22 @@ app.all("*", async (c) => {
   return shell ?? c.text("Not found", 404);
 });
 
-export default app;
+/**
+ * First `scheduled()` handler this codebase has ever had — see wrangler.jsonc's cron-trigger
+ * comment: two crons were declared for months with NO handler at all, so neither ever fired
+ * (Cloudflare still accepted the declaration and silently no-op'd it). Only the daily prune slot
+ * is re-declared there, now that it has something real to call; the old 6-hourly "keepalive" slot
+ * stays retired since BWE's own keepalive already covers the shared DR Supabase project.
+ */
+async function scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+  ctx.waitUntil(
+    pruneExpiredSecurityState(createDb(env), Date.now()).catch((err) => {
+      // A failed prune is never worth failing loudly over — the tables just stay slightly larger
+      // until the next run — but it must not vanish silently, or this becomes exactly the kind of
+      // "declared but does nothing, and nobody notices" gap that motivated writing this at all.
+      console.error(`scheduled prune failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+    })
+  );
+}
+
+export default { fetch: app.fetch, scheduled };

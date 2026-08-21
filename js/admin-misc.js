@@ -554,7 +554,7 @@ function rDbBackup(el){
   // Fetch the backup token to display cron command
   apiFetch('admin.php','POST',{action:'get_setting',key:'backup_token'}).then(function(d){
     var token=d.value||'(token not yet generated — run a backup first)';
-    var cronCmd='0 2 * * * curl -s "https://handmadedesignsbysuzi.com/api/db_backup.php?token='+token+'" > /dev/null';
+    var cronCmd='0 2 * * * curl -s -X POST -H "Content-Type: application/json" -d \'{"token":"'+token+'"}\' https://handmadedesignsbysuzi.com/api/db_backup.php > /dev/null';
     el.innerHTML=
       '<div style="max-width:700px;margin:0 auto;padding:1.5rem">'
       +'<div style="background:#fff;border:1px solid #e8e0b8;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem">'
@@ -585,7 +585,7 @@ function runDbBackup(){
   btn.disabled=true;btn.textContent='Running…';res.textContent='';
   apiFetch('admin.php','POST',{action:'get_setting',key:'backup_token'}).then(function(d){
     var token=d.value||'';
-    return fetch(SITE_ORIGIN+'/api/db_backup.php?token='+encodeURIComponent(token),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token})});
+    return fetch(SITE_ORIGIN+'/api/db_backup.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token})});
   }).then(function(r){return r.json();}).then(function(d){
     btn.disabled=false;btn.textContent='▶ Run Backup Now';
     if(d.success&&d.sent){

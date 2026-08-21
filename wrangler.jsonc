@@ -72,20 +72,21 @@
     { "pattern": "www.handmadedesignsbysuzi.com", "custom_domain": true }
   ],
 
-  // NO "triggers"/"crons" block, deliberately — removed 2026-08-13 at DR Step 3.
+  // Re-added 2026-08-21 — src/index.ts now exports a real scheduled() handler
+  // (pruneExpiredSecurityState in src/db.ts) that deletes expired admin_sessions and stale
+  // rate_limits rows daily. This declaration was removed 2026-08-13 (see git history) because it
+  // pointed at nothing: two crons existed here ("0 */6 * * *" keepalive, "0 4 * * *" prune) but no
+  // scheduled() handler existed at all, so NEITHER ever actually ran — Cloudflare accepted the
+  // declaration and silently no-op'd it. Only the prune slot comes back; the keepalive one stays
+  // retired since production shares the DR Supabase project and BWE's own keepalive
+  // (tasks/keepalive/supabase.ts) already covers it.
   //
-  // Two crons were declared here ("0 */6 * * *" keepalive, "0 4 * * *" prune) but src/index.ts
-  // exports a bare Hono app with no scheduled() handler, so NEITHER EVER RAN. They emitted a
-  // non-fatal 10072 on every deploy and consumed two of Cloudflare's five free-plan cron slots
-  // to do nothing.
-  //
-  // The keepalive is genuinely covered now: production shares the DR Supabase project, and BWE's
-  // real keepalive (tasks/keepalive/supabase.ts) hits it.
-  //
-  // ⚠️ The prune is NOT covered — deleting this declaration removes a promise, not a behaviour.
-  // Expired admin_sessions and rate_limits rows have never been pruned and still aren't. Both
-  // tables are tiny today (1 row each at cutover), so this is a cleanup task, not a problem: it
-  // needs a real scheduled() handler in src/index.ts before any cron declaration means anything.
+  // ⚠️ This account has hit the Workers Free plan's 5-cron-trigger cap across sibling projects
+  // before (see docs/phase-9-cutover-checklist.md step 6) — confirm the "schedules" trigger
+  // actually deploys (not just a non-fatal 10072 on the whole Worker) before trusting this runs.
+  "triggers": {
+    "crons": ["0 4 * * *"]
+  },
 
   "observability": {
     "enabled": true
@@ -115,8 +116,12 @@
         { "binding": "R2_PUBLIC", "bucket_name": "hdbs-public-staging" },
         { "binding": "R2_PRIVATE", "bucket_name": "hdbs-private-staging" }
       ],
-      // Same removal as production, same reason — this cron never fired either (no scheduled()
-      // handler exists), and staging now shares the DR project that BWE's keepalive covers.
+      // Re-added alongside production's — see the top-level "triggers" comment. Declared here too
+      // (not just production) specifically so the very first deploy of this can be verified
+      // against the low-stakes environment before trusting it on production.
+      "triggers": {
+        "crons": ["0 4 * * *"]
+      },
       "observability": {
         "enabled": true
       }

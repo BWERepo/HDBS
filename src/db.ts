@@ -120,6 +120,31 @@ export class SupabaseAdminAuthStore implements AdminAuthStore {
   }
 }
 
+/** Stale rows past every purpose's throttle window (the longest of which — login/security-answer
+ *  lockout — is 900s) are safe to delete; 24h leaves a wide, deliberately generous margin. */
+const RATE_LIMIT_PRUNE_AGE_SECONDS = 24 * 3600;
+
+/**
+ * Cleanup for the two ephemeral security-state tables nothing else ever prunes on its own:
+ * `admin_sessions` already gets an opportunistic sweep on every login (see
+ * SupabaseAdminAuthStore.deleteExpiredSessions above, called from auth.ts's login()), but that
+ * only runs when someone logs in — this is the real backstop. `rate_limits` (shared throttle
+ * state for contact/reviews/subscribers/studio/order-lookup/login) has never had ANY prune path;
+ * see wrangler.jsonc's cron-trigger comment and PROJECT_STATUS.md for how that gap was found.
+ * Called from src/index.ts's `scheduled()` handler, the first one this codebase has ever had.
+ */
+export async function pruneExpiredSecurityState(db: SupabaseClient, now: number): Promise<void> {
+  const nowSeconds = Math.floor(now / 1000);
+  const { error: sessionsError } = await db.from("admin_sessions").delete().lt("expires", nowSeconds);
+  checkError("pruneExpiredSecurityState(admin_sessions)", sessionsError);
+
+  const { error: rateLimitsError } = await db
+    .from("rate_limits")
+    .delete()
+    .lt("last_at", nowSeconds - RATE_LIMIT_PRUNE_AGE_SECONDS);
+  checkError("pruneExpiredSecurityState(rate_limits)", rateLimitsError);
+}
+
 /** Wires settings.ts's SettingsStore to the `settings` table and R2_PUBLIC (biz_profile's
  *  logo/hero/about image uploads — customer-facing, same bucket as product images). */
 export class SupabaseSettingsStore implements SettingsStore {
